@@ -16,7 +16,7 @@ from tilemega.bench.scheduler import write_json
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('plan', 'prepare', 'run'))
+    parser.add_argument('mode', choices=('plan', 'prepare', 'reprepare', 'run'))
     parser.add_argument('--model', required=True, choices=MODELS)
     parser.add_argument('--batch', required=True, type=int, choices=BATCHES)
     parser.add_argument('--export', required=True, type=Path)
@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--seed-coordinates', type=Path)
     parser.add_argument('--submission-plan', type=Path)
     parser.add_argument('--prepared-shortlist', type=Path)
+    parser.add_argument('--reprepare-receipt', type=Path)
     parser.add_argument('--search-budget-ms', type=int, default=600000)
     parser.add_argument('--compile-jobs', type=int, choices=(1, 2), default=2)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
@@ -66,10 +67,16 @@ def main():
     if args.seed_coordinates:
         seed = args.seed_coordinates.resolve(strict=True)
         command.extend(('--seed-coordinates', str(seed)))
-    if args.mode == 'prepare':
-        if os.environ.get('SLURM_JOB_ID') or args.prepared_shortlist or args.submission_plan:
-            parser.error('prepare a fresh shortlist on the login node')
+    if bool(args.reprepare_receipt) != (args.mode == 'reprepare'):
+        parser.error('reprepare requires the verified occupancy correction receipt')
+    if args.mode in ('prepare', 'reprepare'):
+        if (os.environ.get('SLURM_JOB_ID') or args.submission_plan
+                or bool(args.prepared_shortlist) != (args.mode == 'reprepare')):
+            parser.error('prepare on the login node and supply the original shortlist only for reprepare')
         command.extend(('--prepare-shortlist', '1'))
+        if args.reprepare_receipt:
+            command.extend(('--prepared-shortlist', str(args.prepared_shortlist.resolve(strict=True)),
+                            '--reprepare-receipt', str(args.reprepare_receipt.resolve(strict=True))))
         result = subprocess.run(['timeout', '--kill-after=15s', str(args.timeout_s), *command], cwd=ROOT)
         if result.returncode:
             return result.returncode

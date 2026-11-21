@@ -257,9 +257,12 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   fs::create_directories(directory);
   auto target=TargetSpec::FromJson(o.target);
   bool resume=!o.prepared_shortlist.empty();
+  bool reprepare=!o.reprepare_receipt.empty();
+  if(reprepare && !(resume && o.prepare_shortlist))
+    throw std::invalid_argument("repreparation requires the original prepared shortlist");
   if((resume || o.prepare_shortlist) &&
      (target.arch_tag!="sm_80" || o.search!="pipeline" || !o.measured || requested.extension()!=".so" ||
-      (resume && o.prepare_shortlist)))
+      (resume && o.prepare_shortlist && !reprepare)))
     throw std::invalid_argument("split shortlist requires SM80 pipeline measurement");
   auto target_sha=Hash(o.target),input_sha=Hash(o.input);
   auto input_hash=[](std::string const& path) {return path.empty()?std::string():Hash(path);};
@@ -495,7 +498,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   save();
   bool compiled_finalists=o.measured || o.search=="pipeline";
   if(compiled_finalists) {
-    if(!resume)for(unsigned i=0;i<configs.size();++i) {
+    auto compile_candidate=[&](unsigned i) {
       auto binary=directory/("candidate-"+std::to_string(i)+".so");
       NativeCandidateCounts counts;
       auto rejected=TryMeasuredNativeCompile(counts,[&] {
@@ -513,7 +516,62 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           row.Set("manifest_sha256",Hash(binary.string()+".plan.json"));
         }
       }
-      candidates.push_back(row);save();
+      return row;
+    };
+    if(!resume)for(unsigned i=0;i<configs.size();++i) {
+      candidates.push_back(compile_candidate(i));save();
+    }
+    if(reprepare) {
+      auto evidence=json::ParseFile(o.reprepare_receipt);
+      auto const& repairs=evidence.At("corrections").AsArray("occupancy corrections");
+      if(evidence.At("schema").AsNumber("reprepare schema")!=1 ||
+         evidence.At("status").AsString("reprepare status")!="needs_reprepare" ||
+         evidence.At("prepared_sha256").AsString("prepared SHA")!=Hash(o.prepared_shortlist) ||
+         evidence.At("scope").Dump(0)!=scope.Dump(0) || repairs.empty())
+        throw std::invalid_argument("occupancy corrections are not bound to this prepared shortlist");
+      std::set<unsigned> seen;
+      for(auto const& repair:repairs) {
+        auto i=unsigned(repair.At("rank").AsNumber("corrected rank"));
+        int actual=int(repair.At("actual_residency").AsNumber("actual residency"));
+        auto const& resource=repair.At("resource");
+        if(i>=candidates.size() || !seen.insert(i).second)
+          throw std::invalid_argument("invalid or repeated occupancy correction rank");
+        auto const& row=candidates[i];
+        auto c=result.ranked[i].coordinates;
+        if(actual<1 || actual>=c.residency ||
+           row.At("status").AsString("status")!="compiled" ||
+           c.ToJson().Dump(0)!=repair.At("submitted").Dump(0) ||
+           row.At("coordinates_sha256").Dump(0)!=repair.At("submitted_coordinates_sha256").Dump(0) ||
+           row.At("binary_sha256").Dump(0)!=resource.At("binary_sha256").Dump(0) ||
+           row.At("identity_sha256").Dump(0)!=resource.At("identity_sha256").Dump(0) ||
+           repair.At("actual_residency").Dump(0)!=resource.At("effective_residency").Dump(0))
+          throw std::invalid_argument("occupancy correction does not match the compiled finalist");
+        mlir::MLIRContext context;
+        auto imported=solver::ImportSm90Dense(o.input,c,context);
+        solver::Sm90NativeCtgCache cache;
+        auto corrected=solver::RepriceSm90NativeResidency(space,c,actual,o.operator_sum,
+            [&](solver::Sm90DenseCoordinates const& coordinate,bool isolated) {
+              return solver::Sm90NativeCtgScore(imported,work,coordinate,cost,context,cache,isolated);
+            });
+        if(!corrected) {
+          candidates[i]=json::Object{{"rank",int(i)},{"status","resource_rejected"},
+              {"coordinates",configs[i].string()},{"predicted_ns",result.ranked[i].prediction.step_ns},
+              {"coordinates_sha256",Hash(configs[i].string())},
+              {"reason","no legal priced coordinate at measured residency"},{"occupancy",resource}};
+          continue;
+        }
+        c=corrected->coordinates;
+        configs[i]=directory/("candidate-"+std::to_string(i)+".tmexec.json");
+        std::ofstream(configs[i])<<c.ToJson().Dump(2)<<'\n';
+        auto& entry=result.ranked[i];
+        entry.coordinates=c;entry.prediction=cost.Predict(work,c);
+        entry.prediction.step_ns=corrected->replay_ns;entry.origin="occupancy-corrected";
+        ranked[i].Set("origin",entry.origin);ranked[i].Set("coordinates",c.ToJson());
+        ranked[i].Set("prediction",entry.prediction.ToJson());
+        candidates[i]=compile_candidate(i);
+        candidates[i].Set("prior_occupancy",resource);
+      }
+      pipeline_record.Set("reprepare_receipt_sha256",Hash(o.reprepare_receipt));
     }
     if(o.prepare_shortlist) {
       if(std::none_of(candidates.begin(),candidates.end(),[](auto const& row) {

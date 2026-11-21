@@ -12,6 +12,7 @@ int CompileNativeDenseProbe(std::string const& input,std::string const& output,
 bool IsNativeDenseInput(std::string const& input);
 struct NativeDenseSolveOptions {
   std::string input,output,target,dump_cg,measure_command,solve_command,prepared_shortlist;
+  std::string reprepare_receipt;
   bool prepare_shortlist=false;
   int batch=1,split_compile=2,measure_top=4;
   // Megatron tensor parallel degree; must match the export manifest's.

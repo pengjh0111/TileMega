@@ -373,7 +373,7 @@ int RunCompile(int argc, char** argv) {
   // Continuation 1 sections 3 and 5: the search path and the ablation arms.
   std::string native_search="pipeline",native_analysis="reuse",pin_theta,seed_coordinates;
   bool operator_sum=false,retile_only=false,realize_aggregate=false,prepare_shortlist=false;
-  std::string prepared_shortlist;
+  std::string prepared_shortlist,reprepare_receipt;
     // Megatron tensor parallel degree for a native dense solve.
     int serving_tp=1;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
@@ -431,6 +431,7 @@ int RunCompile(int argc, char** argv) {
         prepare_shortlist=true;
       }
       else if (flag=="--prepared-shortlist") prepared_shortlist=value;
+      else if (flag=="--reprepare-receipt") reprepare_receipt=value;
       else if (flag=="--tp") serving_tp=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
@@ -706,7 +707,7 @@ int RunCompile(int argc, char** argv) {
           "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
           "--nvcc-split-compile","--tp","--search","--analysis","--objective","--space",
           "--realize","--pin-theta","--seed-coordinates","--search-budget-ms",
-          "--prepare-shortlist","--prepared-shortlist"};
+          "--prepare-shortlist","--prepared-shortlist","--reprepare-receipt"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
       if(emit_mode!="serving" || serving_capacity!=1088 || serving_prompt_len!=64 ||
@@ -725,12 +726,13 @@ int RunCompile(int argc, char** argv) {
       native.pin_theta=pin_theta;
       native.seed_coordinates=seed_coordinates;
       native.prepare_shortlist=prepare_shortlist;native.prepared_shortlist=prepared_shortlist;
+      native.reprepare_receipt=reprepare_receipt;
       if(search_budget_ms>0)native.search_budget_ms=search_budget_ms;
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
       return tilemega::commands::SolveNativeDense(native);
     }
-    if(prepare_shortlist || !prepared_shortlist.empty())
+    if(prepare_shortlist || !prepared_shortlist.empty() || !reprepare_receipt.empty())
       throw std::invalid_argument("prepared shortlists require native SM80 decode");
     bool has_variants=!variants_path.empty();
     bool serving=!serving_phase.empty();
