@@ -13,6 +13,11 @@ using namespace tilemega::backend;
 using Element=cutlass::bfloat16_t;
 using Tick=Sm80DenseService::Tick;
 
+struct BodySpan {
+  Tick begin,end;
+  unsigned sm;
+};
+
 #ifndef TILEMEGA_DENSE_SERVICE_RESERVE_SHARED
 #define TILEMEGA_DENSE_SERVICE_RESERVE_SHARED 0
 #endif
@@ -50,7 +55,7 @@ struct Case {
 template<class C,bool Probe>
 __global__ __launch_bounds__(160,C::kResidency)
 void Run(Element const* a,Element const* b,Element const* residual,Element* output,
-         Sm80DenseService* service,Tick* span) {
+         Sm80DenseService* service,BodySpan* span) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
@@ -61,10 +66,16 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
   }
   Sm90DenseOperands args{};
   args.activation_address=a;args.weight=b;args.residual=residual;args.output=output;args.epsilon=1e-6f;
-  Tick start=0;
-  if(threadIdx.x==0)start=Sm80DenseService::Now();
+  BodySpan observed{};
+  if(threadIdx.x==0) {
+    asm volatile("mov.u32 %0, %%smid;" : "=r"(observed.sm));
+    observed.begin=Sm80DenseService::Now();
+  }
   C::template Body<Probe>::Run(args,shared,&ring);
-  if(threadIdx.x==0)span[blockIdx.x]=Sm80DenseService::Now()-start;
+  if(threadIdx.x==0) {
+    observed.end=Sm80DenseService::Now();
+    span[blockIdx.x]=observed;
+  }
   ring.Invalidate<true>();
 }
 
@@ -85,6 +96,24 @@ static double Median(std::vector<T> values) {
   std::sort(values.begin(),values.end());
   if(values.empty())throw std::runtime_error("empty service measurement");
   return double(values[values.size()/2]);
+}
+
+static Tick Longest(std::vector<BodySpan> const& spans) {
+  Tick longest=0;
+  for(auto const& span:spans)longest=std::max(longest,span.end-span.begin);
+  return longest;
+}
+
+static int OverlappingSms(std::vector<BodySpan> const& spans,int active) {
+  std::vector<unsigned> sms;
+  for(int block=0;block<active;++block)
+    for(int other=0;other<block;++other) {
+      auto const& a=spans[block];auto const& b=spans[other];
+      if(a.sm==b.sm && a.begin<b.end && b.begin<a.end &&
+         std::find(sms.begin(),sms.end(),a.sm)==sms.end())
+        sms.push_back(a.sm);
+    }
+  return int(sms.size());
 }
 
 template<class C>
@@ -114,7 +143,7 @@ int Profile(cudaDeviceProp const& p) {
   int grid=p.multiProcessorCount*Residency;
   Device<Element> a(M*K),b(N*K),residual(C::kResidual?M*N:1),out(output_elements),trace_out(output_elements);
   Device<Sm80DenseService> service(grid);
-  Device<Tick> span(grid);
+  Device<BodySpan> span(grid);
   Fill<<<128,256>>>(a.address,M*K);Fill<<<256,256>>>(b.address,N*K);
   if constexpr(C::kResidual)Fill<<<128,256>>>(residual.address,M*N);
   Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
@@ -124,17 +153,20 @@ int Profile(cudaDeviceProp const& p) {
   out.Read(reference);trace_out.Read(actual);
   if(std::memcmp(reference.data(),actual.data(),reference.size()*sizeof(Element)))
     throw std::runtime_error("instrumented production operator changed the output");
-  std::vector<Tick> times(grid);
+  std::vector<BodySpan> times(grid);
   std::vector<Sm80DenseService> rows(grid);
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
   std::vector<Tick> plain_ns,traced_ns;
+  int min_overlapping=p.multiProcessorCount;
+  constexpr int tiles=N/TN;
   for(int trial=0;trial<7;++trial) {
     Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
     span.Read(times);
-    plain_ns.push_back(*std::max_element(times.begin(),times.end()));
+    plain_ns.push_back(Longest(times));
+    min_overlapping=std::min(min_overlapping,OverlappingSms(times,std::min(grid,tiles)));
     Run<C,true><<<grid,160,shared>>>(a.address,b.address,residual.address,trace_out.address,service.address,span.address);
     span.Read(times);service.Read(rows);
-    traced_ns.push_back(*std::max_element(times.begin(),times.end()));
+    traced_ns.push_back(Longest(times));
     for(int block=0;block<grid;++block) {
       int tasks=(N/TN)/grid+(block<(N/TN)%grid);
       if(!tasks)continue;
@@ -153,6 +185,7 @@ int Profile(cudaDeviceProp const& p) {
               "\"batch\":%d,\"n\":%d,\"k\":%d,\"tn\":%d,\"tk\":%d,\"slots\":%d,"
               "\"register_stages\":%d,\"warps_n\":%d,\"warps_k\":%d,\"grid\":%d,\"requested_residency\":%d,"
               "\"plain_residency\":%d,\"traced_residency\":%d,\"dynamic_shared\":%d,"
+              "\"overlapping_sms\":%d,"
               "\"static_shared\":%zu,\"registers\":%d,\"traced_registers\":%d,"
               "\"local_bytes\":%zu,\"traced_local_bytes\":%zu,"
               "\"untraced_span_ns\":%.3f,\"traced_span_ns\":%.3f,\"producer_wait_ns_per_tile\":%.3f,"
@@ -165,7 +198,7 @@ int Profile(cudaDeviceProp const& p) {
               "false",
 #endif
               C::CopyGroup(),C::kSide,
-              M,N,K,TN,TK,C::kSlots,C::kR,C::kWN,C::kWK,grid,Residency,plain_capacity,traced_capacity,shared,plain_attr.sharedSizeBytes,
+              M,N,K,TN,TK,C::kSlots,C::kR,C::kWN,C::kWK,grid,Residency,plain_capacity,traced_capacity,shared,min_overlapping,plain_attr.sharedSizeBytes,
               plain_attr.numRegs,traced_attr.numRegs,plain_attr.localSizeBytes,traced_attr.localSizeBytes,
               Median(plain_ns),Median(traced_ns),Median(producer_wait),Median(producer_issue),Median(consumer_wait),
               Median(consumer_mma),Median(epilogue));

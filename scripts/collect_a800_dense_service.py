@@ -70,10 +70,12 @@ def collect(run, target, binary):
         if typed:
             if row['dynamic_shared'] < artifact.get('reserved_program_shared', 0):
                 raise ValueError(f'{case} did not reserve the frozen program arena')
-            # This probe isolates a stage. Occupancy capacity does not by itself
-            # establish co-residency for the enclosing persistent program.
-            if row['requested_residency'] != 1:
-                rejected[case] = 'requires linked full-program residency and overlap'
+            # Count overlap between CTAs with work in every plain launch.
+            # The enclosing program still needs a separate occupancy query.
+            if row['requested_residency'] != 1 and (
+                    not 0 < row.get('overlapping_sms', 0) <= device['sm_count']
+                    or row['dynamic_shared'] != artifact.get('reserved_program_shared')):
+                rejected[case] = 'no active-CTA overlap in the frozen arena'
                 continue
             ratio = row['traced_span_ns'] / row['untraced_span_ns']
             if not 0.75 <= ratio <= 1.25:

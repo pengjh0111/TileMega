@@ -26,19 +26,23 @@ def main():
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
-    parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS',
-                        help='compile an alternative ring depth for a selected family')
+    parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K]',
+                        help='compile an alternative ring depth and optional K tile')
     args = parser.parse_args()
     if args.residual_copy and (not args.copy or not any(f in ('o', 'down') for f in args.families)):
         parser.error('--residual-copy requires a copy group and at least one residual family')
     rings = {}
     for specification in args.ring:
-        family, separator, depth = specification.partition(':')
-        if not separator or family not in args.families or depth not in tuple(map(str, range(2, 9))):
-            parser.error('--ring requires a selected family and a depth from 2 to 8')
-        if int(depth) in rings.setdefault(family, []):
-            parser.error('--ring repeats a family and depth')
-        rings[family].append(int(depth))
+        fields = specification.split(':')
+        if (len(fields) not in (2, 3) or fields[0] not in args.families
+                or fields[1] not in tuple(map(str, range(2, 9)))
+                or len(fields) == 3 and (not fields[2].isdecimal() or int(fields[2]) < 32)):
+            parser.error('--ring requires a selected family, 2 to 8 slots and an optional K tile')
+        family, depth = fields[:2]
+        variant = int(depth), int(fields[2]) if len(fields) == 3 else None
+        if variant in rings.setdefault(family, []):
+            parser.error('--ring repeats a family and geometry')
+        rings[family].append(variant)
     anchor = json.loads(args.anchor.read_text())
     decode = Path(anchor['decode'])
     if sha(decode) != anchor['decode_sha256']:
@@ -70,7 +74,7 @@ def main():
             matching = [matching[1 if family == 'down' else 0]]
         if len(matching) != 1:
             raise ValueError(f'{family} does not identify one production alias')
-        _, n, k, tn, tk, incumbent_slots, wn, _, packed_u, norm = matching[0]
+        _, n, k, tn, incumbent_tk, incumbent_slots, wn, _, packed_u, norm = matching[0]
         wk = 4//wn
         if wk != g['warps_k'] or norm != (epilogue != 'residual'):
             raise ValueError(f'incumbent {family} coordinate and body disagree')
@@ -80,13 +84,20 @@ def main():
             live = args.live and batch < 16 and (family == 'gate_up' or wk > 1)
             copy = args.copy if family == 'gate_up' or (args.residual_copy and family in ('o', 'down')) else 0
             side = max(2, (n//tn + grid-1)//grid) if epilogue == 'residual' else 0
-            for slots in rings.get(family, [incumbent_slots]):
+            for slots, tile_k in rings.get(family, [(incumbent_slots, None)]):
+                tk = incumbent_tk if tile_k is None else tile_k
+                if k % tk or tk % (32 * wk):
+                    raise ValueError(f'{family} has unaligned K tile {tk}')
                 name = f'{suffix}-{family}-u{u}-rows{int(live)}-copy{copy}'
                 if family in rings:
                     name += f'-slots{slots}'
+                if tile_k is not None:
+                    name += f'-tk{tk}'
                 key = production_key(dict(epilogue=epilogue, grid=grid, n=n, k=k, batch=batch,
                     tn=tn, tk=tk, slots=slots, warps_n=wn, warps_k=wk, register_stages=g['register_stages'],
                     u=u, residual_tiles=side, input_norm=norm, live_rows=live, copy_issue_group=copy))
+                if key in cases.values():
+                    raise ValueError(f'duplicate production geometry {key}')
                 cases[name] = key
                 definitions.append(f'CASE("{name}",{batch},{n},{k},{tn},{tk},{slots},{g["register_stages"]},'
                                    f'{residency},{wn},ServingEpilogueOp::{operator},{u},{str(norm).lower()});')
