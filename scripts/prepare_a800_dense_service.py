@@ -23,14 +23,20 @@ def main():
     parser.add_argument('--families', nargs='+', choices=EPILOGUE, required=True)
     parser.add_argument('--live', action='store_true')
     parser.add_argument('--copy', type=int, choices=(0, 4, 8), default=0)
+    parser.add_argument('--residual-copy', action='store_true')
+    parser.add_argument('--reserve-program-shared', action='store_true')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
     args = parser.parse_args()
+    if args.residual_copy and (not args.copy or not any(f in ('o', 'down') for f in args.families)):
+        parser.error('--residual-copy requires a copy group and at least one residual family')
     anchor = json.loads(args.anchor.read_text())
     decode = Path(anchor['decode'])
     if sha(decode) != anchor['decode_sha256']:
         raise ValueError('anchor decode differs from its formal artifact')
     coords = anchor['coordinates']
     manifest = json.loads(Path(str(decode)+'.plan.json').read_text())
+    reserve = (json.loads(Path(str(decode)+'.identity.json').read_text())['shared_memory_bytes']
+               if args.reserve_program_shared else 0)
     gems = coords['gemms']
     batch, grid, residency = anchor['batch'], manifest['grid'], coords['residency']
     if grid != 108 * residency or len(set(args.families)) != len(args.families):
@@ -62,7 +68,7 @@ def main():
             if family == 'gate_up' and tn % (2*u):
                 continue
             live = args.live and batch < 16 and (family == 'gate_up' or wk > 1)
-            copy = args.copy if family == 'gate_up' else 0
+            copy = args.copy if family == 'gate_up' or (args.residual_copy and family in ('o', 'down')) else 0
             side = max(2, (n//tn + grid-1)//grid) if epilogue == 'residual' else 0
             name = f'{suffix}-{family}-u{u}-rows{int(live)}-copy{copy}'
             key = production_key(dict(epilogue=epilogue, grid=grid, n=n, k=k, batch=batch,
@@ -83,6 +89,8 @@ def main():
                f'-I{ROOT}/include', f'-I{ROOT}/third_party/cutlass/include',
                f'-DTILEMEGA_SERVICE_CASES="{include}"', f'-DTILEMEGA_SM80_COPY_ISSUE_GROUP={args.copy}',
                f'-DTILEMEGA_SM80_ACTIVE_EPILOGUE={int(args.live)}',
+               f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
+               *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                str(ROOT/'scripts/a800_dense_service_probe.cu'), '-o', str(binary)]
     with (out/'build.log').open('w') as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=260)
@@ -94,6 +102,7 @@ def main():
             ['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         anchor_sha256=sha(args.anchor), source_file_sha256=sha(ROOT/'scripts/a800_dense_service_probe.cu'),
         command=command, architecture='sm_80', roles=[32,128],
+        reserved_program_shared=reserve,
         cases=list(cases), geometry_by_case=cases, binary_sha256=sha(binary),
         body_headers={name: sha(ROOT/'include/tilemega'/name) for name in HEADERS}), indent=2)+'\n')
 

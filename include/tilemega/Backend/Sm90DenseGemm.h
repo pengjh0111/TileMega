@@ -160,6 +160,11 @@ struct Sm90DenseGemm {
           prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
       auto* weight=p.weight+(std::size_t(task)*kIterations+tile)*TN*TK;
       auto* weight_slot=b+slot*TN*TK;
+#ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
+      if constexpr(Prefix==0 && kResidual && !kAllReduce)
+        CopyWeightSpan<TN*TK>(weight_slot,weight);
+      else
+#endif
       if constexpr(Prefix==0 && Op==ServingEpilogueOp::kSwiGLU)
         CopyWeightSpan<TN*TK>(weight_slot,weight);
       else

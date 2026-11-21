@@ -13,6 +13,10 @@ using namespace tilemega::backend;
 using Element=cutlass::bfloat16_t;
 using Tick=Sm80DenseService::Tick;
 
+#ifndef TILEMEGA_DENSE_SERVICE_RESERVE_SHARED
+#define TILEMEGA_DENSE_SERVICE_RESERVE_SHARED 0
+#endif
+
 static void Check(cudaError_t code) {
   if(code!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(code));
 }
@@ -29,6 +33,12 @@ struct Case {
   static constexpr int kWN=WN,kWK=4/WN,kU=U;
   static constexpr bool kNorm=InputNorm,kGate=Op==ServingEpilogueOp::kSwiGLU;
   static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
+  static constexpr int CopyGroup() {
+#ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
+    if(kResidual)return TILEMEGA_SM80_COPY_ISSUE_GROUP;
+#endif
+    return kGate?TILEMEGA_SM80_COPY_ISSUE_GROUP:0;
+  }
   static constexpr char const* Epilogue() {
     return kGate?"swiglu":kResidual?"residual":"store";
   }
@@ -80,7 +90,7 @@ static double Median(std::vector<T> values) {
 template<class C>
 int Profile(cudaDeviceProp const& p) {
   constexpr int M=C::kBatch,N=C::kN,K=C::kK,TN=C::kTN,TK=C::kTK,Residency=C::kResidency;
-  constexpr int shared=C::template Body<false>::kSharedBytes;
+  constexpr int shared=std::max(C::template Body<false>::kSharedBytes,TILEMEGA_DENSE_SERVICE_RESERVE_SHARED);
   constexpr int output_elements=M*N/(C::kGate?2:1);
   auto plain=Run<C,false>;
   auto traced=Run<C,true>;
@@ -154,7 +164,7 @@ int Profile(cudaDeviceProp const& p) {
 #else
               "false",
 #endif
-              C::kGate?TILEMEGA_SM80_COPY_ISSUE_GROUP:0,C::kSide,
+              C::CopyGroup(),C::kSide,
               M,N,K,TN,TK,C::kSlots,C::kR,C::kWN,C::kWK,grid,Residency,plain_capacity,traced_capacity,shared,plain_attr.sharedSizeBytes,
               plain_attr.numRegs,traced_attr.numRegs,plain_attr.localSizeBytes,traced_attr.localSizeBytes,
               Median(plain_ns),Median(traced_ns),Median(producer_wait),Median(producer_issue),Median(consumer_wait),
