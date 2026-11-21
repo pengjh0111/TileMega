@@ -32,9 +32,12 @@ int main(int argc,char** argv) {try {
     Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
     space.moe=work.moe;space.experts=work.experts;space.top_k=work.top_k;
     space.qk_norm_row=work.qk_norm_row;space.tp=work.tp;
-    auto const& decisions=target_json.At("sm90_native_decisions");
+    auto const& decisions=target_json.At(target.arch_tag=="sm_80"?"sm80_native_decisions":"sm90_native_decisions");
     space.weight_stream=decisions.At("weight_stream").AsBool("weight_stream");
     space.layer_loop=decisions.At("layer_loop").AsBool("layer_loop");
+    space.third_gate_wave=constants.HasDenseGateService();
+    if(auto const* reuse=decisions.Find("reuse_payload"))
+      space.search_payload_reuse=reuse->AsBool("reuse_payload");
     if(!space.Legal(seed) || !space.Legal(inspected))throw std::invalid_argument("illegal seed or inspected coordinate");
     Sm90NativeCtgCache cache;
     std::string mode="reuse";
