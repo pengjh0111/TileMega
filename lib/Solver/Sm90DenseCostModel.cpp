@@ -97,6 +97,19 @@ double Sm90DenseCostModel::MmaK16Ns(Sm90DenseGemm const& g,int residency) const 
   return *measured;
 }
 
+double Sm90DenseCostModel::ActivationIssueNs(Sm90DenseWorkload const& work,unsigned family,
+    Sm90DenseGemm const& g,double tasks,bool first_use) const {
+  if(target_.arch_tag!="sm_80" || constants_.cp_async_gbps<=0)return 0;
+  int k=work.shapes[family][1],rows=backend::Sm90DenseLayout::ActivationRows(work.batch);
+  int live=family>=6?rows:work.batch;
+  double elements=tasks*live*k;
+  if(first_use)
+    elements+=std::min<double>(g.slots,tasks*k/g.TileK())*(rows-live)*g.TileK();
+  if(Sm90DenseCoordinates::ResidualFamily(family))
+    elements+=tasks*work.batch*g.tile_n;
+  return 2*elements/constants_.cp_async_gbps;
+}
+
 std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
@@ -263,7 +276,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
   double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
   auto service=GemmService(work,family,g,residency,coordinates);
-  double producer=0;
+  double producer=ActivationIssueNs(work,family,g,per_cta,true);
   if(service) {
     double tiles=per_cta*k/g.TileK();
     producer=service->producer_issue_ns*tiles;
@@ -289,6 +302,11 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
         {"epilogue",epilogue},{"task_fixed",task_fixed},{"tasks",tasks},{"multicast",g.multicast}};
     if(target_.arch_tag=="sm_80")fields.emplace_back("mma",arithmetic);
     if(service)fields.emplace_back("producer_issue",producer);
+    else if(producer>0)fields.emplace_back("activation_issue_lower_bound",producer);
+    if(target_.arch_tag=="sm_80") {
+      fields.emplace_back("last_wave_ctas",tasks-(per_cta-1)*grid);
+      fields.emplace_back("max_tasks_per_cta",per_cta);
+    }
     if(work.tp>1 && (family==1 || family==3))fields.emplace_back("all_reduce",all_reduce);
     *terms=std::move(fields);
   }
@@ -374,7 +392,12 @@ double Sm90DenseCostModel::FreshAttentionNs(Sm90DenseWorkload const& work,
     Sm90DenseAttention const& a,int grid) const {
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   auto fresh=constants_.AttentionFresh(work.head_dim,work.queries,norm);
-  if(!a.compact_workspace)return fresh.value_or(0);
+  if(!a.compact_workspace) {
+    if(fresh)return *fresh;
+    if(target_.arch_tag!="sm_80")return 0;
+    // The append writes a K/V row to history and to the new-row scratch.
+    return 8.*work.head_dim/constants_.sm_gbps;
+  }
   auto barrier=constants_.CompactAttentionBarrier(grid,work.batch,work.head_dim,work.queries,norm);
   if(!fresh || !barrier)throw Sm90NativeMissing("no complete compact attention service for this grid");
   return *fresh+*barrier;

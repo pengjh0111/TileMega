@@ -85,6 +85,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   auto service=weight_stream?std::nullopt:cost.GemmService(work,family,g,residency,coordinates);
   double local=cost.MmaK16Ns(g,residency)*k/(16*g.warps_k);
   if(service)local=std::max(service->producer_issue_ns,service->consumer_mma_ns)*k/g.TileK();
+  else local=std::max(local,cost.ActivationIssueNs(work,family,g,1,false));
   // Local service excludes full/empty waits. The flow still accounts for
   // shared HBM. Issue and compute bound the same overlapped pipeline.
   parts.compute_ns=std::max((weights+activation)/c.sm_gbps,local);
@@ -114,6 +115,12 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   double first_byte = pre ? c.l2_latency : c.dram_latency;
   price.ends = std::min(price.tasks, grid);
   Finish(price, parts, epilogue, steps, first_byte);
+  if(!service) {
+    double head=std::max(parts.compute_ns,cost.ActivationIssueNs(work,family,g,1,true));
+    price.head.compute_ns=head+epilogue;
+    price.head_and_tail.compute_ns=head;
+    price.head.pipeline_compute_ns=price.head_and_tail.pipeline_compute_ns=head;
+  }
   return price;
 }
 
