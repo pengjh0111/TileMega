@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -15,9 +16,34 @@
 #if TILEMEGA_FUSED_SERVICE_TILE_STRIDE != 8 && !TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
 #error "alternate fused sample strides require split phases"
 #endif
+#if TILEMEGA_FUSED_SERVICE_STATIC_PHASES && !TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
+#error "static sampling requires split phases"
+#endif
 
 #if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
 namespace tilemega::backend {
+#if TILEMEGA_FUSED_SERVICE_STATIC_PHASES
+inline constexpr int kFusedStaticPhaseOffset=64;
+template<bool Producer,int Mark>
+struct Sm80MoeStageMarks<true,Producer,Mark> {
+  template<Sm90DenseMarks::MoeCounter Phase>
+  __device__ static __forceinline__ unsigned long long Begin(int tile=-1) {
+    if constexpr(Mark==kFusedStaticPhaseOffset+Phase) {
+      if(threadIdx.x==(Producer?128:0) && (tile<0 ||
+          unsigned(tile)%TILEMEGA_FUSED_SERVICE_TILE_STRIDE==blockIdx.x%TILEMEGA_FUSED_SERVICE_TILE_STRIDE))
+        return Sm90DenseMarks::Now();
+    }
+    return 0;
+  }
+  template<Sm90DenseMarks::MoeCounter Phase>
+  __device__ static __forceinline__ void End(unsigned long long begin) {
+    if constexpr(Mark==kFusedStaticPhaseOffset+Phase) {
+      if(begin)Sm90DenseMarks::Base()[Phase]+=Sm90DenseMarks::Now()-begin;
+    }
+  }
+  __device__ static __forceinline__ void RecordTask(bool,int) {}
+};
+#else
 template<bool Producer>
 struct Sm80MoeSinglePhaseMarks {
   // kGuEmpty is unused by the service probe. The selected phase is uniform
@@ -38,6 +64,7 @@ template<>
 struct Sm80MoeStageMarks<true,true,kMoeProducerSample>:Sm80MoeSinglePhaseMarks<true> {};
 template<>
 struct Sm80MoeStageMarks<true,false,kMoeConsumerSample>:Sm80MoeSinglePhaseMarks<false> {};
+#endif
 }  // namespace tilemega::backend
 #endif
 
@@ -163,18 +190,40 @@ int Profile(cudaDeviceProp const& device) {
     return 0;
   }
   auto plain=Run<C,kMoeNoSample>;
-  auto producer=Run<C,kMoeProducerSample>,consumer=Run<C,kMoeConsumerSample>;
   Check(cudaFuncSetAttribute(plain,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  Check(cudaFuncSetAttribute(producer,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  Check(cudaFuncSetAttribute(consumer,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   cudaFuncAttributes plain_attr{},producer_attr{},consumer_attr{};
   Check(cudaFuncGetAttributes(&plain_attr,plain));
-  Check(cudaFuncGetAttributes(&producer_attr,producer));
-  Check(cudaFuncGetAttributes(&consumer_attr,consumer));
-  int plain_slots,producer_slots,consumer_slots;
+  int plain_slots;
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&plain_slots,plain,160,shared));
-  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&producer_slots,producer,160,shared));
-  Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&consumer_slots,consumer,160,shared));
+#if TILEMEGA_FUSED_SERVICE_STATIC_PHASES
+  using Kernel=decltype(plain);
+  std::array<Kernel,4> producers{Run<C,kFusedStaticPhaseOffset+Marks::kGuIssue>,
+      Run<C,kFusedStaticPhaseOffset+Marks::kDnIssue>,Run<C,kFusedStaticPhaseOffset+Marks::kDnPreissueIssue>,
+      Run<C,kFusedStaticPhaseOffset+Marks::kDnActivation>};
+  std::array<Kernel,4> consumers{Run<C,kFusedStaticPhaseOffset+Marks::kGuMma>,
+      Run<C,kFusedStaticPhaseOffset+Marks::kGuEpilogue>,Run<C,kFusedStaticPhaseOffset+Marks::kDnMma>,
+      Run<C,kFusedStaticPhaseOffset+Marks::kDnEpilogue>};
+#else
+  std::array producers{Run<C,kMoeProducerSample>};
+  std::array consumers{Run<C,kMoeConsumerSample>};
+#endif
+  auto resources=[&](auto const& kernels,cudaFuncAttributes& worst) {
+    int minimum=std::numeric_limits<int>::max();
+    for(auto kernel:kernels) {
+      Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+      cudaFuncAttributes attr{};
+      Check(cudaFuncGetAttributes(&attr,kernel));
+      if(attr.localSizeBytes!=plain_attr.localSizeBytes && kernels.size()>1)
+        throw std::runtime_error("phase specialization changed local stack allocation");
+      worst.localSizeBytes=std::max(worst.localSizeBytes,attr.localSizeBytes);
+      worst.numRegs=std::max(worst.numRegs,attr.numRegs);
+      int active=0;
+      Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&active,kernel,160,shared));
+      minimum=std::min(minimum,active);
+    }
+    return minimum;
+  };
+  int producer_slots=resources(producers,producer_attr),consumer_slots=resources(consumers,consumer_attr);
   if(std::min({plain_slots,producer_slots,consumer_slots})<C::kResidency) {
     std::printf("{\"status\":\"resource_rejected\",\"dynamic_shared\":%d,"
         "\"requested\":%d,\"plain_residency\":%d,\"producer_residency\":%d,\"consumer_residency\":%d}\n",
@@ -266,14 +315,19 @@ int Profile(cudaDeviceProp const& device) {
         throw std::runtime_error("sampling changed fused stage output or route order");
       return result;
     };
-    check(producer,-1,producer_off);
-    check(consumer,-1,consumer_off);
     int producer_mark=-1,consumer_mark=-1;
 #if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
     auto phase=std::max(0,repeat)%phases;
     producer_mark=producer_phases[phase];
     consumer_mark=consumer_phases[phase];
 #endif
+#if TILEMEGA_FUSED_SERVICE_STATIC_PHASES
+    auto producer=producers[phase],consumer=consumers[phase];
+#else
+    auto producer=producers.front(),consumer=consumers.front();
+#endif
+    check(producer,-1,producer_off);
+    check(consumer,-1,consumer_off);
     auto prod=check(producer,block,producer_kernel,producer_mark);
     auto cons=check(consumer,block,consumer_kernel,consumer_mark);
     if(repeat<0)continue;

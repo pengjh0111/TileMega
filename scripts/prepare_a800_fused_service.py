@@ -24,7 +24,9 @@ def main():
                    help='buffer diagnostic writes in unused program arena space')
     p.add_argument('--split-phases', action='store_true',
                    help='sample one phase per launch and check each phase independently')
-    p.add_argument('--sample-stride', type=int, choices=(8, 16), default=8)
+    p.add_argument('--sample-stride', type=int, choices=(8, 16, 32), default=8)
+    p.add_argument('--static-phases', action='store_true',
+                   help='compile one marker phase into each sampled kernel')
     routes = p.add_mutually_exclusive_group()
     routes.add_argument('--gu-route-bases', action='store_true')
     routes.add_argument('--packed-gu-routes', action='store_true')
@@ -34,8 +36,8 @@ def main():
         p.error('shared marks require the reserved production program arena')
     if a.split_phases and not a.shared_marks:
         p.error('split phases require shared marks')
-    if a.sample_stride != 8 and not a.split_phases:
-        p.error('a reduced sampling frequency requires separate phases')
+    if (a.sample_stride != 8 or a.static_phases) and not a.split_phases:
+        p.error('sparser or static sampling requires separate phases')
     if (a.gate_width is None) != (a.gate_warps_n is None):
         p.error('specify both the Gu N tile and its N warp count')
     anchor = json.loads(a.anchor.read_text())
@@ -105,6 +107,9 @@ def main():
         if a.sample_stride != 8:
             variants['TILEMEGA_FUSED_SERVICE_TILE_STRIDE'] = a.sample_stride
             case += f'-stride{a.sample_stride}'
+        if a.static_phases:
+            variants['TILEMEGA_FUSED_SERVICE_STATIC_PHASES'] = 1
+            case += '-static'
     shared = build_identity['shared_memory_bytes'] if a.reserve_program_shared else 0
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
