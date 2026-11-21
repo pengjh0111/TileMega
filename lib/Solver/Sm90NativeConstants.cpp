@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeConstants.h>
+#include <algorithm>
 #include <cstdio>
 
 namespace tilemega::solver {
@@ -89,7 +90,17 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
         matched.Set(key,row);
       }
     }
-    if(!matched.AsObject("matched dense GEMM services").empty())c.ampere_dense_service_=std::move(matched);
+    for(auto const& [key,row]:matched.AsObject("matched dense GEMM services")) {
+      auto number=[&](char const* name){return int(row.At(name).AsNumber(name));};
+      Sm80DenseServiceShape shape{row.At("epilogue").AsString("production epilogue"),
+          number("grid"),number("n"),number("k"),number("batch"),number("tn"),number("tk"),
+          number("slots"),number("warps_n"),number("warps_k"),number("register_stages"),
+          number("u"),number("residual_tiles"),row.At("input_norm").AsBool("input norm"),
+          row.At("live_rows").AsBool("live rows"),number("copy_issue_group")};
+      if(shape.Key()!=key)throw std::invalid_argument("inconsistent SM80 production service shape");
+      c.ampere_dense_shapes_.push_back(std::move(shape));
+    }
+    if(!c.ampere_dense_shapes_.empty())c.ampere_dense_service_=std::move(matched);
   }
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
@@ -217,6 +228,12 @@ std::optional<Sm80DenseService> Sm90NativeConstants::AmpereGateService(
       Positive(row->At("producer_issue_ns_per_tile"),"dense gate producer issue"),
       Positive(row->At("consumer_mma_ns_per_tile"),"dense gate consumer MMA"),
       Positive(row->At("consumer_epilogue_ns_per_task"),"dense gate epilogue")};
+}
+
+bool Sm90NativeConstants::HasDenseGateService() const {
+  return !ampere_gate_service_.IsNull() ||
+      std::any_of(ampere_dense_shapes_.begin(),ampere_dense_shapes_.end(),
+          [](auto const& shape) {return shape.epilogue=="swiglu";});
 }
 
 int Sm90NativeConstants::ClusterStar(int residency) const {

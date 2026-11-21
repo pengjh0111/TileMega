@@ -63,7 +63,8 @@ class Sm90NativeConstants {
   std::optional<Sm80DenseService> AmpereDenseService(Sm80DenseServiceShape const&) const;
   std::optional<Sm80DenseService> AmpereGateService(
       int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const;
-  bool HasDenseGateService() const {return !ampere_gate_service_.IsNull();}
+  bool HasDenseGateService() const;
+  std::vector<Sm80DenseServiceShape> const& AmpereDenseShapes() const {return ampere_dense_shapes_;}
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
   double AttentionPrepare(int dim,int queries,int norm) const;
@@ -88,6 +89,7 @@ class Sm90NativeConstants {
   std::map<int,double> barrier_;
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
   json::Value ampere_gate_service_,ampere_dense_service_;
+  std::vector<Sm80DenseServiceShape> ampere_dense_shapes_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };

@@ -300,6 +300,40 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     return result;
   };
 
+  auto measured_body_seeds=[&](Sm90DenseCoordinates const& base) {
+    std::vector<Sm90DenseCoordinates> candidates;
+    if(!ampere || base.moe || base.weight_stream || options.pinned_theta)return candidates;
+    auto const& measured=cost.Constants().AmpereDenseShapes();
+    auto matches=[&](Sm80DenseServiceShape const& s,unsigned family) {
+      return s.grid==space.Grid(base.residency) && s.batch==work.batch &&
+          s.n==work.shapes[family][0] && s.k==work.shapes[family][1];
+    };
+    auto retile=[](Sm90DenseGemm& g,Sm80DenseServiceShape const& s) {
+      g.tile_n=s.tn;g.slot_bytes=2*s.tn*s.tk;g.slots=s.slots;
+      g.warps_n=s.warps_n;g.warps_k=s.warps_k;g.register_stages=s.register_stages;
+    };
+    for(auto const& gate:measured) {
+      if(gate.epilogue!="swiglu" || !matches(gate,2) ||
+         (!gate.live_rows && !gate.copy_issue_group &&
+           gate.u==Sm90DenseSearchSpace::DefaultGateInterleave(gate.tn)))continue;
+      auto trial=base;
+      retile(trial.gemms[2],gate);
+      trial.swiglu_u=gate.u;trial.copy_issue_group=gate.copy_issue_group;
+      trial.live_epilogue_rows=gate.live_rows;
+      if(gate.live_rows)for(unsigned f:{0u,1u,3u}) {
+        auto& g=trial.gemms[f];
+        if(g.warps_k==1 || cost.DenseService(work,f,g,trial.residency,&trial))continue;
+        auto epilogue=f==0?"store":"residual";
+        auto replacement=std::find_if(measured.begin(),measured.end(),[&](auto const& s) {
+          return s.epilogue==epilogue && matches(s,f) && s.live_rows;
+        });
+        if(replacement!=measured.end())retile(g,*replacement);
+      }
+      candidates.push_back(trial);
+    }
+    return candidates;
+  };
+
   auto score = [&](Sm90DenseCoordinates const& c) -> double {
     auto key = CoordinateKey(c);
     auto found = memo.find(key);
@@ -372,13 +406,17 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // Keep one seed per implementation, residency and arena for this pass.
   auto base_seeds=starts;
   std::set<std::tuple<bool,int,int,int,bool>> seeded_bodies;
-  for(auto const& base:base_seeds)for(auto const& [trial,label]:body_neighbours(base)) {
+  auto project_body=[&](Sm90DenseCoordinates const& trial) {
     auto body=std::make_tuple(trial.live_epilogue_rows,trial.copy_issue_group,
         trial.swiglu_u,trial.residency,trial.reuse_payload);
     if(!seeded_bodies.count(body) && space.Legal(trial) && priced(trial)) {
       seeded_bodies.insert(body);
       project(trial);
     }
+  };
+  for(auto const& base:base_seeds) {
+    for(auto const& [trial,label]:body_neighbours(base))project_body(trial);
+    for(auto const& trial:measured_body_seeds(base))project_body(trial);
   }
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
