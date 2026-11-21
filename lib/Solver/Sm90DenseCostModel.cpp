@@ -106,7 +106,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
       per_cta*c.TaskExpert((family==6?"expert_gate_up":"expert_down")+geometry,b):0;
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head",
       "router","expert_gate_up","expert_down"};
-  double epilogue=service?service->epilogue_ns*per_cta:
+  double epilogue=service && service->epilogue_ns?*service->epilogue_ns*per_cta:
       c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
   // Tensor parallel o/down sum their tile across ranks inside the epilogue.

@@ -23,7 +23,8 @@ struct Sm80DenseServiceShape {
 };
 
 struct Sm80DenseService {
-  double producer_issue_ns=0,consumer_mma_ns=0,epilogue_ns=0;
+  double producer_issue_ns=0,consumer_mma_ns=0;
+  std::optional<double> epilogue_ns;
 };
 
 // `sm90_native_constants` of the H800 target (prompt §4 L0-1). Every lookup is

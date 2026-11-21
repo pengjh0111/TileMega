@@ -199,10 +199,12 @@ std::string Sm80DenseServiceShape::Key() const {
 std::optional<Sm80DenseService> Sm90NativeConstants::AmpereDenseService(Sm80DenseServiceShape const& shape) const {
   auto const* row=ampere_dense_service_.Find(shape.Key());
   if(!row)return std::nullopt;
+  auto epilogue=row->At("consumer_epilogue_ns_per_task").AsNumber("dense epilogue");
+  if(epilogue<0)throw std::invalid_argument("negative SM80 dense epilogue measurement");
   return Sm80DenseService{
       Positive(row->At("producer_issue_ns_per_tile"),"dense producer issue"),
       Positive(row->At("consumer_mma_ns_per_tile"),"dense consumer MMA and norm"),
-      Positive(row->At("consumer_epilogue_ns_per_task"),"dense epilogue")};
+      epilogue>0?std::optional<double>(epilogue):std::nullopt};
 }
 std::optional<Sm80DenseService> Sm90NativeConstants::AmpereGateService(
     int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const {

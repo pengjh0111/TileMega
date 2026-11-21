@@ -99,7 +99,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
                                               "lm_head", "router", "expert_gate_up",
                                               "expert_down"};
   std::string geometry = family >= 5 && work.experts == 64 ? "_e64" : "";
-  double epilogue=service?service->epilogue_ns:c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
+  double epilogue=service && service->epilogue_ns?*service->epilogue_ns:c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
   // o_x: per-task costs that nothing overlaps.
   parts.fixed_ns = 0;
   if (family >= 6)

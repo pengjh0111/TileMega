@@ -46,7 +46,7 @@ def collect(run, target, binary):
         raise ValueError('calibration receipt differs from the guarded SM80 body or target')
     geometry = ('grid', 'n', 'k', 'batch', 'tn', 'tk', 'slots', 'warps_n', 'register_stages')
     metrics = ('producer_issue_ns_per_tile', 'consumer_mma_ns_per_tile',
-               'consumer_epilogue_ns_per_task', 'untraced_span_ns', 'traced_span_ns')
+               'untraced_span_ns', 'traced_span_ns')
     measurements = {}
     rejected = {}
     typed = artifact.get('contract') == 'sm80-dense-gemm-service-v1'
@@ -62,6 +62,9 @@ def collect(run, target, binary):
                 or row['grid'] != device['sm_count'] * row['requested_residency']
                 or min(row['plain_residency'], row['traced_residency']) < row['requested_residency']
                 or row['warps_n'] * row['warps_k'] != 4
+                or not math.isfinite(row['consumer_epilogue_ns_per_task'])
+                or row['consumer_epilogue_ns_per_task'] < 0
+                or not typed and row['consumer_epilogue_ns_per_task'] == 0
                 or any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics)):
             raise ValueError(f'invalid production GEMM service result for {case}')
         if typed:
