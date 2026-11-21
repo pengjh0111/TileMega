@@ -315,18 +315,40 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
   if(target.arch_tag=="sm_80" && !resume) {
     json::Array coverage;
+    std::map<int,unsigned> options_by_grid, missing_by_grid;
+    std::map<int,std::set<std::string>> missing_keys_by_grid;
     for(int residency:{1,2})for(bool reuse:{false,true})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
       if(reuse && !space.search_payload_reuse)continue;
-      std::set<std::pair<std::string,bool>> keys;
+      int grid=space.Grid(residency);
+      std::map<std::pair<std::string,bool>,unsigned> keys;
       for(auto const& g:space.FamilyCandidates(f,residency,reuse))
-        keys.emplace(solver::Sm90NativeConstants::AmpereMmaKey(space.Grid(residency),
-            g.tile_n,g.TileK(),g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency));
-      for(auto const& [key,measured]:keys)coverage.emplace_back(json::Object{
-          {"family",solver::kSm90DenseFamilies[f]},{"mma_key",key},
-          {"reuse_payload",reuse},{"measured",measured}});
+        ++keys[{solver::Sm90NativeConstants::AmpereMmaKey(grid,g.tile_n,g.TileK(),
+            g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency)}];
+      for(auto const& [key,options]:keys) {
+        options_by_grid[grid]+=options;
+        if(!key.second) {
+          missing_by_grid[grid]+=options;
+          missing_keys_by_grid[grid].insert(key.first);
+        }
+        coverage.emplace_back(json::Object{{"family",solver::kSm90DenseFamilies[f]},
+            {"mma_key",key.first},{"reuse_payload",reuse},{"measured",key.second},
+            {"family_options",options}});
+      }
+    }
+    json::Array grid_summary;
+    for(auto const& [grid,options]:options_by_grid) {
+      json::Array missing;
+      for(auto const& key:missing_keys_by_grid[grid])missing.emplace_back(key);
+      unsigned filtered=missing_by_grid[grid];
+      grid_summary.emplace_back(json::Object{{"grid",grid},{"family_options",options},
+          {"unpriced_family_options",filtered},{"missing_mma_keys",std::move(missing)}});
+      if(filtered)
+        std::cerr<<"SM80 grid "<<grid<<": "<<filtered<<" of "<<options
+                 <<" GEMM family options lack MMA prices (ampere-mma-coverage.json)\n";
     }
     std::ofstream(directory/"ampere-mma-coverage.json")<<json::Value(json::Object{
-        {"target_sha256",target_sha},{"export_sha256",input_sha},{"keys",coverage}}).Dump(2)<<'\n';
+        {"target_sha256",target_sha},{"export_sha256",input_sha},{"keys",coverage},
+        {"grid_summary",std::move(grid_summary)}}).Dump(2)<<'\n';
   }
   solver::Sm90DenseSearchResult result;
   json::Value pipeline_record;
