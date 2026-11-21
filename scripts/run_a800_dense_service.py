@@ -18,8 +18,11 @@ def main():
     p.add_argument('--identity-sha256', required=True)
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--target-sha256', required=True)
+    p.add_argument('--run-label', help='unique evidence folder for a probe in a shared allocation')
     p.add_argument('--sample', type=Path, help=argparse.SUPPRESS)
     a = p.parse_args()
+    if a.run_label and (Path(a.run_label).name != a.run_label or a.run_label in ('.', '..')):
+        p.error('run label must be a local directory name')
     identity_path = a.binary.with_suffix('.identity.json')
     identity = json.loads(identity_path.read_text())
     if (sha(identity_path) != a.identity_sha256 or sha(a.binary) != identity['binary_sha256']
@@ -48,6 +51,8 @@ def main():
     policy = device_policy()
     device = calibrated_device(policy, json.loads(a.target.read_text()))
     out = RUN/'calibration'/'r2-supplement-service'/os.environ['SLURM_JOB_ID']
+    if a.run_label:
+        out /= a.run_label
     out.mkdir(parents=True, exist_ok=False)
     policy_path = out/'policy.json'
     write_json(policy_path, policy)
