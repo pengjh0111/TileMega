@@ -32,6 +32,8 @@ def main():
     parser.add_argument('--check-step-loop', action='store_true')
     parser.add_argument('--hf-check', action='store_true')
     parser.add_argument('--hf-positions', type=int)
+    parser.add_argument('--host-preparation', type=Path)
+    parser.add_argument('--host-preparation-sha256')
     # Megatron tensor parallel: the plan is one rank's, run on every card of the
     # claimed group (CUDA_VISIBLE_DEVICES lists them; local devices 0..tp-1).
     parser.add_argument('--tp', type=int, choices=(1, 2, 4, 8), default=1)
@@ -39,6 +41,8 @@ def main():
     devices = require_guard()
     if args.tp > 1 and (args.prefill != 'prompt' or len(devices) != args.tp):
         parser.error('--tp runs the prompt mode on a guarded group of exactly tp cards')
+    if bool(args.host_preparation) != bool(args.host_preparation_sha256) or (args.host_preparation and args.tp != 1):
+        parser.error('frozen host preparation requires its SHA-256 and a single-card plan')
     if args.model is None:
         checkpoint = os.environ.get('TILEMEGA_RANDOM_CHECKPOINT')
         if not checkpoint:
@@ -90,6 +94,13 @@ def main():
         metadata.update(checkpoint_manifest=str(checkpoint_manifest.resolve()),
                         checkpoint_sha256=checkpoint['checkpoint_sha256'],
                         weight_source='shared synthetic TileMega/HF checkpoint; pretrained C-1 unavailable')
+    host_preparation = None
+    if args.host_preparation:
+        raw = args.host_preparation.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != args.host_preparation_sha256:
+            raise ValueError('frozen host preparation changed after submission')
+        host_preparation = json.loads(raw)
+        metadata['host_preparation_sha256'] = args.host_preparation_sha256
     metadata['tp'] = args.tp
     def engine(mode, loop):
         if args.tp > 1:
@@ -101,7 +112,8 @@ def main():
                 decode_loop=bool(loop), step_events=False)
         return ServingEngine(args.model, prefill, args.decode, int(args.batch),
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
-            decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
+            decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode,
+            host_preparation=host_preparation)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
     reuse_step_loop = (args.check_step_loop and not args.check_executors and
                        args.tp == 1 and args.mode == 'L1' and args.max_tokens > 1)

@@ -270,9 +270,23 @@ def _packed_gpu(recipe: Mapping[str, object], source, tp_rank: int = 0) -> torch
     raise ValueError(f'unsupported graph packing recipe {kind}')
 
 
+def prepare_weight_recipes(*plans: PlanLibrary) -> list[dict]:
+    def dnn(recipe):
+        return recipe['kind'] in DNN_RECIPES or (isinstance(recipe.get('source'), dict) and dnn(recipe['source']))
+
+    result = []
+    for name, buffer in weight_recipes(*plans).items():
+        recipe = json.loads(buffer.pack_json)
+        result.append(dict(name=name, elements=buffer.elements_constant, dtype=buffer.dtype,
+                           recipe=recipe, source_names=list(_recipe_sources(recipe)),
+                           shard_parts=sorted(_shard_parts(recipe)), preserve=dnn(recipe),
+                           cache_source=not is_expert_recipe(recipe)))
+    return result
+
+
 def load_weights(model_dir: str | Path, *plans: PlanLibrary,
-                 device: str | torch.device = "cuda",
-                 tp: tuple[int, int] | None = None) -> dict[str, torch.Tensor]:
+                 device: str | torch.device = "cuda", tp: tuple[int, int] | None = None,
+                 prepared_recipes: list[dict] | None = None) -> dict[str, torch.Tensor]:
     """tp = (rank, degree) loads one tensor parallel rank's packing of a
     sharded plan; a plan with shard recipes refuses to load without it."""
     checkpoint = Checkpoint(model_dir)
@@ -290,28 +304,26 @@ def load_weights(model_dir: str | Path, *plans: PlanLibrary,
                 return tensor
             sources[key] = tensor
         return sources[key]
-    def dnn(recipe):
-        return recipe['kind'] in DNN_RECIPES or (isinstance(recipe.get('source'), dict) and dnn(recipe['source']))
-    for name, buffer in weight_recipes(*plans).items():
-        recipe = json.loads(buffer.pack_json)
-        parts = _shard_parts(recipe)
-        if parts and parts != {tp_degree}:
-            raise ValueError(f"{name} is sharded {sorted(parts)} ways; loading for tp {tp_degree}")
-        identity = tuple(checkpoint.tensor_sha(item) for item in _recipe_sources(recipe))
+    recipes = prepare_weight_recipes(*plans) if prepared_recipes is None else prepared_recipes
+    for entry in recipes:
+        name, recipe, parts = entry['name'], entry['recipe'], entry['shard_parts']
+        if parts and parts != [tp_degree]:
+            raise ValueError(f"{name} is sharded {parts} ways; loading for tp {tp_degree}")
+        identity = tuple(checkpoint.tensor_sha(item) for item in entry['source_names'])
         key = (identity, json.dumps(recipe, sort_keys=True), tp_rank if parts else 0)
         if key not in packed:
-            packed[key] = _packed_gpu(recipe, lambda name: source(name, dnn(recipe),
-                cache=not is_expert_recipe(recipe)), tp_rank if parts else 0).contiguous()
+            packed[key] = _packed_gpu(recipe, lambda name: source(name, entry['preserve'],
+                cache=entry['cache_source']), tp_rank if parts else 0).contiguous()
         # Aliases intentionally retain their source through the result tensor.
         # Other recipes release source storage before packing the next weight.
         sources.clear()
         tensor = packed[key]
-        if tensor.numel() != buffer.elements_constant:
+        if tensor.numel() != entry['elements']:
             raise ValueError(f"{name} has {tensor.numel()} elements; plan expects "
-                             f"{buffer.elements_constant}")
-        dtype = {0: torch.bfloat16, 1: torch.float32, 2: torch.int32, 3: torch.int64}.get(buffer.dtype)
+                             f"{entry['elements']}")
+        dtype = {0: torch.bfloat16, 1: torch.float32, 2: torch.int32, 3: torch.int64}.get(entry['dtype'])
         if dtype is None:
-            raise ValueError(f'unsupported weight buffer dtype {buffer.dtype}')
+            raise ValueError(f"unsupported weight buffer dtype {entry['dtype']}")
         if tensor.dtype != dtype:
             tensor = tensor.to(dtype)
         result[name] = tensor

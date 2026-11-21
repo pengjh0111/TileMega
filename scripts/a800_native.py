@@ -67,6 +67,7 @@ def main():
     parser.add_argument('--diagnostic-config', type=Path)
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
+    parser.add_argument('--host-preparation', type=Path)
     args = parser.parse_args()
 
     if not 0 < args.timeout_s + 111 < args.budget_s or args.round < 0:
@@ -114,6 +115,9 @@ def main():
                     target_sha256=sha(args.target),
                     decode_sha256=decode_id['binary_sha256'],
                     prefill_sha256=prefill_id.get('binary_sha256', 'prompt'))
+    if args.host_preparation:
+        args.host_preparation = args.host_preparation.resolve(strict=True)
+        identity['host_preparation_sha256'] = sha(args.host_preparation)
     artifact_key = hashlib.sha256(json.dumps(
         [identity[key] for key in ('target_sha256', 'decode_sha256', 'prefill_sha256')],
         separators=(',', ':')).encode()).hexdigest()[:20]
@@ -178,6 +182,9 @@ def main():
              '--warmup', '1', '--repeats', '3' if timing else '1',
              '--round-index', str(args.round), '--out', '{attempt_dir}/job/measurements',
              '--system-label', 'TM-sm80', '--policy', str(policy_path)]
+    if args.host_preparation:
+        child.extend(('--host-preparation', str(args.host_preparation),
+                      '--host-preparation-sha256', identity['host_preparation_sha256']))
     if args.stage == 'correctness':
         child.append('--check-step-loop')
         if args.round == 0:

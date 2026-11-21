@@ -161,6 +161,7 @@ def main():
                 or live['seed'] != 0 or live['total_bytes'] != manifest['checkpoint_bytes']):
             raise ValueError('the shared selection checkpoint changed its frozen workload')
         checkpoint_hashes.add(live['checkpoint_sha256'])
+    host_preparation = json.loads(os.environ.get('TILEMEGA_PSEL_HOST_PREPARATION', '{}'))
     for index, choice in enumerate(sequence):
         row = arms[choice]
         folder = args.out/f'{index:02d}-{choice}'
@@ -171,6 +172,9 @@ def main():
             '--prompt-ids', str(prompt), '--batch', str(args.batch), '--max-tokens', '1024',
             '--warmup', '1', '--repeats', '3', '--mode', 'L1', '--decode-loop', '1',
             '--prefill-mode', 'L1', '--out', str(measure), '--round-index', str(index)]
+        if row['binary_sha256'] in host_preparation:
+            host_file, host_digest = host_preparation[row['binary_sha256']]
+            command.extend(('--host-preparation', host_file, '--host-preparation-sha256', host_digest))
         write_json(folder/'command.json', command)
         with (folder/'process.log').open('w') as log:
             subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)

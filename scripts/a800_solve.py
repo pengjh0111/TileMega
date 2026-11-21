@@ -81,7 +81,8 @@ def main():
         scope['measure_command'] = select
         document['selector_rebind'] = dict(
             prepared_sha256=sha(prepared), previous_command=shlex.join(old),
-            selector_sha256=sha(ROOT/'scripts/a800_select.py'), weight_abi_sha256=sha(abi_path))
+            selector_sha256=sha(ROOT/'scripts/a800_select.py'), weight_abi=str(abi_path),
+            weight_abi_sha256=sha(abi_path))
         output.parent.mkdir(parents=True, exist_ok=True)
         bound = output.with_suffix('.prepared.json')
         if bound.exists():
@@ -153,6 +154,22 @@ def main():
         receipt['seed_coordinates_sha256'] = sha(seed)
     if args.prepared_shortlist:
         receipt['prepared_shortlist_sha256'] = sha(prepared)
+        document = json.loads(prepared.read_text())
+        rebound = document.get('selector_rebind', {})
+        abi_path = Path(rebound.get('weight_abi', prepared.parent/'weight-abi.json'))
+        if abi_path.is_file():
+            abi = json.loads(abi_path.read_text())
+            if abi['prefill_sha256'] != prefill_sha or (rebound.get('weight_abi_sha256') and
+                    rebound['weight_abi_sha256'] != sha(abi_path)):
+                raise ValueError('prepared host ABI differs from the frozen selector')
+            compiled = {row['binary_sha256'] for row in document['receipt']['candidates']
+                        if row['status'] == 'compiled'}
+            host = {row['binary_sha256']: [row['host_preparation'], row['host_preparation_sha256']]
+                    for row in abi['candidates'] if 'host_preparation' in row}
+            if host:
+                if host.keys() != compiled or any(sha(path) != digest for path, digest in host.values()):
+                    raise ValueError('prepared host recipes differ from the compiled shortlist')
+                receipt['host_preparation'] = host
     if args.measure_rank is not None:
         receipt['measure_rank'] = args.measure_rank
     if args.mode == 'plan':
@@ -173,6 +190,9 @@ def main():
                TILEMEGA_TIMING='1', TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2',
                MAX_JOBS='2', CMAKE_BUILD_PARALLEL_LEVEL='2')
     env.pop('TILEMEGA_PSEL_RANK', None)
+    env.pop('TILEMEGA_PSEL_HOST_PREPARATION', None)
+    if 'host_preparation' in receipt:
+        env['TILEMEGA_PSEL_HOST_PREPARATION'] = json.dumps(receipt['host_preparation'])
     if args.measure_rank is not None:
         env['TILEMEGA_PSEL_RANK'] = str(args.measure_rank)
     wrapper = [sys.executable, str(ROOT/'scripts/run_r16_with_device_identity.py'),

@@ -4,9 +4,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from tilemega.serving.memory import allocation_metadata, memory_report
+from tilemega.bench.scheduler import write_json
+from tilemega.build.identity import sha
+from tilemega.serving.host_preparation import prepare
 from tilemega.serving.plan import Buffer, BufferInfo
-from tilemega.serving.weights import weight_recipes
 
 
 def buffers(path):
@@ -32,6 +33,21 @@ def read_plan(path):
     return json.loads(Path(str(path) + '.plan.json').read_text())
 
 
+def freeze_host_preparation(config, batch, paths, out):
+    plans = [read_plan(path) for path in paths]
+    identities = [json.loads(Path(str(path)+'.identity.json').read_text()) for path in paths]
+    for path, identity in zip(paths, identities, strict=True):
+        if identity['binary_sha256'] != sha(path) or identity['manifest_sha256'] != sha(str(path)+'.plan.json'):
+            raise ValueError(f'host preparation plan changed at {path}')
+    record = prepare(config, batch, plans, identities, [buffers(path) for path in paths])
+    if out.exists():
+        if json.loads(out.read_text()) != record:
+            raise ValueError(f'host preparation changed at {out}')
+    else:
+        write_json(out, record)
+    return record
+
+
 def check_shortlist(prefill, prepared, config, batch):
     prefix = () if prefill == 'prompt' else (Path(prefill),)
     prepared = json.loads(prepared.read_text())
@@ -40,13 +56,11 @@ def check_shortlist(prefill, prepared, config, batch):
         if item['status'] != 'compiled':
             continue
         binary = Path(item['binary'])
-        libraries = [buffers(path) for path in (*prefix, binary)]
-        weights = weight_recipes(*libraries)
-        manifests = [read_plan(path) for path in (*prefix, binary)]
-        meta = [allocation_metadata(plan, lib) for plan, lib in zip(manifests, libraries)]
-        report = memory_report(config, meta, batch, manifests[-1]['capacity'])
+        host = binary.with_suffix('.host-preparation.json')
+        report = freeze_host_preparation(config, batch, (*prefix, binary), host)
         rows.append(dict(rank=item['rank'], binary_sha256=item['binary_sha256'],
-                         distinct_weight_buffers=len(weights), allocation=report))
+                         distinct_weight_buffers=len(report['weight_recipes']), allocation=report['allocation'],
+                         host_preparation=str(host), host_preparation_sha256=sha(host)))
     if not rows:
         raise ValueError('prepared shortlist has no validated packing ABI')
     return rows

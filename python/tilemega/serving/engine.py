@@ -30,7 +30,7 @@ class ServingEngine:
                  max_new_tokens: int = 1024, mode: str = "auto",
                  device: int = 0, decode_loop: bool | str = True,
                  decode_chunk: int | None = None, step_events: bool = True,
-                 prefill_mode: str | None = None):
+                 prefill_mode: str | None = None, host_preparation: dict | None = None):
         if prompt_len < 1 or max_new_tokens < 1:
             raise ValueError('prompt length and output length must be positive')
         torch.cuda.set_device(device)
@@ -63,7 +63,12 @@ class ServingEngine:
         self.decode_chunk = decode_chunk
         self.memory_report = None
         manifests=[Path(str(path)+'.plan.json') for path in (prefill_so,decode_so) if path is not None]
-        if all(path.exists() for path in manifests):
+        if host_preparation is not None:
+            from .host_preparation import validate
+            validate(host_preparation, json.loads((Path(model_dir)/'config.json').read_text()),
+                     batch, self.decode_lib.info.capacity, libraries)
+            self.memory_report = host_preparation['allocation']
+        elif all(path.exists() for path in manifests):
             from .memory import allocation_metadata, memory_report
             self.memory_report=memory_report(
                 json.loads((Path(model_dir)/'config.json').read_text()),
@@ -71,7 +76,8 @@ class ServingEngine:
                  zip(manifests,libraries)],batch,
                 self.decode_lib.info.capacity)
         self.weights = load_weights(model_dir, *libraries,
-                                    device=torch.device("cuda", device))
+                                    device=torch.device("cuda", device), prepared_recipes=(
+                                        None if host_preparation is None else host_preparation['weight_recipes']))
         self.state = allocate_state(model_dir, batch, self.prefill_lib,
                                     self.decode_lib,
                                     device=torch.device("cuda", device))
