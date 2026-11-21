@@ -535,6 +535,34 @@ struct Sm90DenseMoeGemm {
           valid?source+std::size_t(input_row)*K+tile*TK+col:source,valid);
     }
   }
+#ifdef TILEMEGA_SM80_MOE_PACKED_GU_ROUTES
+  __device__ static __forceinline__ unsigned PackActivationRoutes(int token) {
+    static_assert(CpAsync && Mode==Sm90DenseMoeMode::kGateUp && TK==64 && Batch<=16);
+    // Each lane copies one 16-byte segment in rows spaced four apart.
+    int first_row=(threadIdx.x&31)/8;
+    unsigned packed=0;
+    #pragma unroll
+    for(int i=0;i<kRows/4;++i) {
+      unsigned routed=__shfl_sync(0xffffffff,token,first_row+4*i);
+      packed|=(routed&15u)<<(4*i);
+    }
+    return packed;
+  }
+
+  __device__ static __forceinline__ void CopyPackedActivation(Element* destination,
+      Element const* source,int tile,int rows,unsigned packed) {
+    static_assert(CpAsync && Mode==Sm90DenseMoeMode::kGateUp && TK==64);
+    auto* dst=reinterpret_cast<char*>(destination);
+    int first_row=(threadIdx.x&31)/8,col=(threadIdx.x&7)*8;
+    #pragma unroll
+    for(int i=0;i<kRows/4;++i) {
+      int row=first_row+4*i,input_row=(packed>>(4*i))&15;
+      bool valid=row<rows;
+      Async::Copy16(dst+Swizzled(row,col),
+          valid?source+std::size_t(input_row)*K+tile*TK+col:source,valid);
+    }
+  }
+#endif
   __device__ static __forceinline__ Record Load(int const* schedule,int t) {
     if constexpr(!kDynamic)return {};
     else {
@@ -979,6 +1007,10 @@ struct Sm90DenseMoeFusedGemm {
       if constexpr(kAlignedPages && decltype(page_phase)::value<0)tile_base+=Pages::Task(task.tile);
 #endif
       int token=record.route/TopK;
+#ifdef TILEMEGA_SM80_MOE_PACKED_GU_ROUTES
+      unsigned packed_routes=0;
+      if constexpr(CpAsync && TKGu==64)packed_routes=Gu::PackActivationRoutes(token);
+#endif
       for(int tile=0;tile<kIterGu;++tile) {
         int slot=(sequence++)%Slots;
         auto stamp=Profile::template Begin<Sm90DenseMarks::kGuEmpty>(tile);
@@ -1001,7 +1033,12 @@ struct Sm90DenseMoeFusedGemm {
           }else
 #endif
           Gu::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesGu+task.tile,tile,state.full+slot);
-          Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
+#ifdef TILEMEGA_SM80_MOE_PACKED_GU_ROUTES
+          if constexpr(TKGu==64)
+            Gu::CopyPackedActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,packed_routes);
+          else
+#endif
+            Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token);
           Async::CompleteCopies(state.full+slot);
         }else {
           // The producer lanes gather the slot's rows of x' (one TK segment each)

@@ -17,6 +17,7 @@ def main():
     p.add_argument('--variant', choices=('full', 'live', 'segments'), required=True)
     p.add_argument('--copy-group', type=int, choices=(0, 4, 8))
     p.add_argument('--reserve-program-shared', action='store_true')
+    p.add_argument('--packed-gu-routes', action='store_true')
     a = p.parse_args()
     anchor = json.loads(a.anchor.read_text())
     library = Path(anchor['decode'])
@@ -54,6 +55,11 @@ def main():
             variants[macro] = 1
     if a.variant == 'live':
         variants['TILEMEGA_SM80_ACTIVE_EPILOGUE'] = 1
+    if a.packed_gu_routes:
+        if tkg != 64 or batch > 16:
+            raise ValueError('packed Gu routes require 64-wide tiles and at most 16 tokens')
+        variants['TILEMEGA_SM80_MOE_PACKED_GU_ROUTES'] = 1
+        case += '-packed-routes'
     shared = build_identity['shared_memory_bytes'] if a.reserve_program_shared else 0
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
