@@ -58,7 +58,7 @@ def collect(entries, workspace):
         if any(record.get('model', entry['model']) != entry['model'] or
                record.get('batch', entry['batch']) != entry['batch'] for record in records):
             raise ValueError(f'mismatched model/batch at {plan_path}')
-        sources = {r.get('source_sha') for r in records} - {None}
+        sources = {r.get('decode_source_sha') or r.get('source_sha') for r in records} - {None}
         if entry.get('source_commit'):
             if sources and sources != {entry['source_commit']}:
                 raise ValueError(f'source differs from the frozen ledger entry at {plan_path}')
