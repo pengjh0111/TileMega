@@ -1,6 +1,10 @@
 # TileMega single-GPU A800 experiment
 
-## Current A800 measurement protocol
+## R3 formal results
+
+**Verified, November 22.** Six SM80 artifacts entered the 40-cell table. Each passed five independent correctness processes and a separate one-process timing. The speedup geometric mean against the fastest frozen baseline moved from 1.070658 to 1.078081. The report records the exact timing, adoption decisions and calibration evidence for each round. [R3 report and matrix](A800_SM80_R3.md)
+
+## R2 measurement protocol
 
 **Verified, November 21.** The frozen five-framework baseline has 180 timed cells and 20 documented N/A cells. The TileMega table has 40 timed cells. It records the actual number of accepted processes, the frozen inputs, and the prefill and decode artifact used in each cell. The current single-card guard accepts the calibrated A800-SXM4-80GB hardware class. A paired comparison keeps both arms on the same physical card. [R2 evidence and selections](A800_SM80_R2.md) · [Absolute request times](A800_execution_times.md) · [Frozen baseline receipts](A800_baselines.csv)
 
