@@ -94,7 +94,13 @@ def main():
     parser.add_argument('--candidates', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--shared-checkpoint', type=Path, help=argparse.SUPPRESS)
+    parser.add_argument('--process-timeout-s', type=int, help='bound each independent CUDA executor')
     args = parser.parse_args()
+    medium = ('llama3_1_8b', 'mistral_7b_v0_3', 'olmoe_1b_7b')
+    default_timeout = 1080 if args.model == 'qwen3_30b_a3b' else 570 if args.model in medium else 420
+    if args.process_timeout_s is not None and args.process_timeout_s <= 0:
+        parser.error('the process timeout must be positive')
+    process_timeout = args.process_timeout_s or default_timeout
     if (not os.environ.get('TILEMEGA_STRICT_HOST_GUARD_PID')
             or os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800'):
         parser.error('P-SEL requires the strict guard inside a gpu_a800 allocation')
@@ -177,7 +183,8 @@ def main():
             command.extend(('--host-preparation', host_file, '--host-preparation-sha256', host_digest))
         write_json(folder/'command.json', command)
         with (folder/'process.log').open('w') as log:
-            subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+            subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True,
+                           timeout=process_timeout)
         receipt = measure/f'B{args.batch}'/'measurements.json'
         verify_request_tokens(receipt, args.batch, 3)
         result = json.loads(receipt.read_text())
