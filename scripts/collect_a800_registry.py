@@ -11,6 +11,8 @@ from pathlib import Path
 CONSTANTS = 'sm80_native_constants'
 DECISIONS = 'sm80_native_decisions'
 DEVICE = ('name', 'memory_mib', 'capability', 'mig', 'driver')
+SUPPLEMENTS = ('dense_gemm_service', 'fused_expert_service', 'attention_fresh_service')
+MERGED = ('mma_mainloop', 'dense_gate_service', 'registry', *SUPPLEMENTS)
 
 
 def digest(path):
@@ -46,6 +48,26 @@ def append_service(constants, additions):
         constants['dense_gate_service'] = dict(schema=2, profiles=profiles)
 
 
+def append_supplements(constants, section, path):
+    for name in SUPPLEMENTS:
+        supplement = section.get(name)
+        if supplement is None:
+            continue
+        if name not in constants:
+            constants[name] = deepcopy(supplement)
+            continue
+        existing = constants[name]
+        if existing == supplement:
+            continue
+        if ('profiles' not in supplement or 'profiles' not in existing
+                or {k:v for k,v in supplement.items() if k != 'profiles'}
+                != {k:v for k,v in existing.items() if k != 'profiles'}):
+            raise ValueError(f'incompatible {name} reference in {path}')
+        for profile in supplement['profiles']:
+            if profile not in existing['profiles']:
+                existing['profiles'].append(deepcopy(profile))
+
+
 def merge(paths):
     paths = [Path(p) for p in paths]
     base, *extra = [json.loads(p.read_text()) for p in paths]
@@ -62,14 +84,12 @@ def merge(paths):
     for path, target in zip(paths, (base, *extra)):
         source = digest(path)
         section = target[CONSTANTS]
-        stable = {k:v for k,v in section.items() if k not in
-                  ('mma_mainloop', 'dense_gate_service', 'registry')}
+        stable = {k:v for k,v in section.items() if k not in MERGED}
         if (base['arch_tag'] != 'sm_80' or target['arch_tag'] != 'sm_80'
                 or 'A800' not in base['device_provenance']['name']
                 or base['resources'] != target['resources']
                 or any(base['device_provenance'][k] != target['device_provenance'][k] for k in DEVICE)
-                or stable != {k:v for k,v in base[CONSTANTS].items() if k not in
-                              ('mma_mainloop', 'dense_gate_service', 'registry')}
+                or stable != {k:v for k,v in base[CONSTANTS].items() if k not in MERGED}
                 or {k:v for k,v in base[DECISIONS].items() if k!='reuse_payload'}
                    != {k:v for k,v in target[DECISIONS].items() if k!='reuse_payload'}):
             raise ValueError(f'incompatible target or base constants in {path}')
@@ -77,6 +97,7 @@ def merge(paths):
         if target[DECISIONS].get('reuse_payload'):
             result[DECISIONS]['reuse_payload'] = True
         append_service(constants, service_profiles(section.get('dense_gate_service')))
+        append_supplements(constants, section, path)
         mma = section['mma_mainloop']
         keys = mma['median_ns'].keys()
         if keys != mma['p99_ns'].keys():
