@@ -5,9 +5,9 @@
     "target_sha256": "a3f42975e24e044506f9784a9bee42b93158c4841c435f2b5229d18afa5033b1"
   },
   "llama3_1_8b/B16": {
-    "target_sha256": "6f634446292caade9e7fff58f5e8c53f2b985e964f73002e872f3082db9da2ce",
+    "target_sha256": "76fec46831aa8a02bcfcd4c1962005e4fc99b39afe4e14c8d288e53387ddb123",
     "prefill_sha256": "98dce1ca4cb581036baaa628f610dcf17a7655005565afe261faa2ea40e4a277",
-    "decode_sha256": "5780caaaa0cae3519359cfa3cb5a08be4f7b9df40f983c785da8437e423cd16d"
+    "decode_sha256": "8973b9504730b1b2868281b8315b994fdf3e362c008bbc9af97a6c7b4a4b4140"
   },
   "llama3_1_8b/B2": {
     "decode_sha256": "e1b0701ab8771de29659dd7729e2bd6bba7a087335f6089c52fe58b9ebfd8f38",
@@ -35,9 +35,9 @@
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "mistral_7b_v0_3/B16": {
-    "target_sha256": "6f634446292caade9e7fff58f5e8c53f2b985e964f73002e872f3082db9da2ce",
+    "target_sha256": "a4d4dff08046ba3dfdc4773e93a0324dc58bc070ec0e020943fd4e9da7d98e14",
     "prefill_sha256": "0fe0bf4384e0038eb6268361e4c402777d14534656c911c8007dd929ab4a33c0",
-    "decode_sha256": "4b8333d107d1ae0bd439b6f3976cd901ac8c0046d80f50386fef05e8b02ae3fb"
+    "decode_sha256": "4d23eeba334b1bc081dbbf318deae7f6ef5d2e526ed5ae913c1fabc9284c1163"
   },
   "mistral_7b_v0_3/B2": {
     "decode_sha256": "ac78df95e0395858ff40e3d5cbbc5c1cec4c1aa146aceaae2b9e899488450451",
