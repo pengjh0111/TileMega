@@ -161,6 +161,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(c.expert_gu_route_bases)key += "/gu_route_bases";
   if(c.reuse_payload)key += "/payload_reuse";
   key += "/ch" + std::to_string(c.attention.chunks);
+  if(c.attention.compact_workspace)key += "/compact";
   key += c.attention.dsmem ? "/ds1" : "/ds0";
   key += c.attention.merge_stage ? "/attstage" : "/attla";
   return key;

@@ -213,7 +213,7 @@ struct Attention {
   // Task t serves KV group t / (Batch Chunks) (D8).
   static constexpr int kGroupTasks=Batch*Chunks,kGroups=Hkv;
   static constexpr int kRingSlots=Slots,kMaxPreissue=Body::kMaxPreissue;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots,Dsmem);
+  static constexpr auto kLayout=backend::Sm80AttentionScratch::Layout(D,Q,Chunks,Keys,Slots,Dsmem,Body::kCompact);
   static_assert(kLayout.end==kSharedBytes);
   using Preissue=KvRead<Body,kTasks>;
   template<int Bytes>

@@ -75,6 +75,14 @@ int main() {
  // D5/D6 rules: full residency, the first-task stream and full-width attention.
  assert(d.gemms[0].FullyResident(1024)==(d.gemms[0].slots==16) && d.gemms[0].StreamBytes(1024)==3*2*32*64);
  assert(d.attention.FullyResident(575) && d.attention.StreamBytes(128)==3*4*64*128);
+ auto compact=reuse;
+ compact.weight_stream=false;compact.attention.slots=2;compact.attention.compact_workspace=true;
+ auto compact_roundtrip=Sm90DenseCoordinates::FromJson(compact.ToJson());
+ assert(compact_roundtrip.attention.compact_workspace);
+ assert(compact_roundtrip.ToJson().Dump()==compact.ToJson().Dump());
+ assert(compact.attention.SharedBytes(128,4)==79872);
+ compact.attention.compact_workspace=false;
+ assert(compact.attention.SharedBytes(128,4)==88064);
  assert(!d.attention.FullWidth(128,2,Sm90DenseArena(227*1024)) && d.attention.FullWidth(128,2,Sm90DenseArena(113*1024-1024)));
  auto residual_nk=nk;residual_nk[1][0]=256*d.gemms[1].tile_n;
  auto const& residual=d.gemms[1];

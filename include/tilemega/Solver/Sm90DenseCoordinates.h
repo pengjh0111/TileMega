@@ -2,7 +2,7 @@
 #pragma once
 
 #include <tilemega/Support/Json.h>
-#include <tilemega/Backend/Sm90DenseLayout.h>
+#include <tilemega/Backend/Sm80AttentionScratch.h>
 
 #include <array>
 #include <algorithm>
@@ -61,9 +61,9 @@ struct Sm90DenseAttention {
   int chunks=1,block_keys=64,slots=3;
   int new_row_work=0;
   // D10b: the S chunks merge through the chunk-0 CTA's DSMEM inbox.
-  bool dsmem=false,merge_stage=false;
+  bool dsmem=false,merge_stage=false,compact_workspace=false;
   std::int64_t SharedBytes(int dim,int queries) const {
-    return backend::Sm90DenseLayout::Attention(dim,queries,chunks,block_keys,slots,dsmem).end;
+    return backend::Sm80AttentionScratch::Layout(dim,queries,chunks,block_keys,slots,dsmem,compact_workspace).end;
   }
   // D5 full width: the storage exceeds one arena and takes the whole budget.
   bool FullWidth(int dim,int queries,int arena) const {return SharedBytes(dim,queries)-1024>arena;}
@@ -74,7 +74,7 @@ struct Sm90DenseAttention {
   int StreamBytes(int dim) const {return slots*4*block_keys*dim;}
   void Validate() const {
     if(chunks<1 || chunks>64 || (block_keys!=64 && block_keys!=128) || slots<2 || slots>4 ||
-       new_row_work<0 || (dsmem && (chunks<2 || merge_stage)))
+       new_row_work<0 || (dsmem && (chunks<2 || merge_stage || compact_workspace)))
       throw std::invalid_argument("illegal sm90 dense attention coordinate");
   }
 };
@@ -180,6 +180,8 @@ struct Sm90DenseCoordinates {
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(reuse_payload && (weight_stream || cluster!=1 || attention.dsmem))
       throw std::invalid_argument("payload reuse requires retired storage and no cross-stage preissue");
+    if(attention.compact_workspace && (weight_stream || cluster!=1))
+      throw std::invalid_argument("compact attention requires local storage and no cross-stage preissue");
     if(copy_issue_group!=0 && (copy_issue_group!=4 && copy_issue_group!=8))
       throw std::invalid_argument("SM80 weight copy issue group must be 4 or 8");
     if(copy_issue_group && weight_stream)
@@ -258,12 +260,14 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    bool const explicit_body=live_epilogue_rows || reuse_payload || copy_issue_group || residual_copy_issue || expert_page_segments ||
-        expert_gu_route_bases;
+    bool const explicit_body=live_epilogue_rows || reuse_payload || copy_issue_group || residual_copy_issue ||
+        expert_page_segments || expert_gu_route_bases || attention.compact_workspace;
+    json::Value attention_json=json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
+        {"slots",attention.slots},{"new_row_work",attention.new_row_work},
+        {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}};
+    if(attention.compact_workspace)attention_json.Set("compact_workspace",true);
     json::Object result{{"schema",explicit_body?10:(GlobalRoute() || combine_stage)?9:(argmax_stage || attention.merge_stage)?8:tp>1?7:6},{"model",moe?"moe":"dense"},{"gemms",families},
-        {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
-            {"slots",attention.slots},{"new_row_work",attention.new_row_work},
-            {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}}},
+        {"attention",std::move(attention_json)},
         {"residency",residency},{"swiglu_u",swiglu_u},{"weight_stream",weight_stream},
         {"layer_loop",layer_loop},{"emb",embed_la?"la":"stage"},{"group_wait",group_wait},
         {"cluster",cluster},{"expert_fuse",expert_fuse}};
@@ -357,7 +361,8 @@ struct Sm90DenseCoordinates {
         result.expert_gu_route_bases=true;
       }
       if(!result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
-          !result.expert_page_segments && !result.expert_gu_route_bases)
+          !result.expert_page_segments && !result.expert_gu_route_bases &&
+          !value.At("attention").Find("compact_workspace"))
         throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     }
     if(schema>=7)result.tp=integer(value,"tp");
@@ -394,13 +399,18 @@ struct Sm90DenseCoordinates {
       g.mma=mma=="mma_sync"?Sm90DenseMma::kMmaSync:Sm90DenseMma::kWgmma;
     }
     auto const& a=value.At("attention");
-    keys(a,{"chunks","block_keys","slots","new_row_work","merge"});
+    keys(a,{"chunks","block_keys","slots","new_row_work","merge","compact_workspace"});
     result.attention={integer(a,"chunks"),integer(a,"block_keys"),integer(a,"slots"),
         integer(a,"new_row_work")};
     auto merge=a.At("merge").AsString("merge");
     if(merge!="la" && merge!="dsmem" && !(merge=="stage" && schema>=8))throw std::invalid_argument("unknown sm90 dense attention merge");
     result.attention.dsmem=merge=="dsmem";
     result.attention.merge_stage=merge=="stage";
+    if(auto const* compact=a.Find("compact_workspace")) {
+      if(schema!=10 || !compact->AsBool("attention compact workspace"))
+        throw std::invalid_argument("invalid SM80 compact attention coordinate");
+      result.attention.compact_workspace=true;
+    }
     result.residency=integer(value,"residency");result.swiglu_u=integer(value,"swiglu_u");
     result.weight_stream=value.At("weight_stream").AsBool("weight_stream");
     result.layer_loop=value.At("layer_loop").AsBool("layer_loop");

@@ -23,8 +23,8 @@ __global__ void Measure(Tick* samples,float* output) {
   int tid=threadIdx.x,warp=tid/32;
   for(int i=tid;i<16*D;i+=128) {
     shared.query[i]=typename Body::Element(0.0625f);
-    shared.new_key[i]=typename Body::Element(0.125f);
-    shared.new_value[i]=typename Body::Element(0.25f);
+    shared.NewKey()[i]=typename Body::Element(0.125f);
+    shared.NewValue()[i]=typename Body::Element(0.25f);
   }
   for(int i=tid;i<64*D;i+=128) {
     shared.kv[0][0][i]=typename Body::Element(0.125f);
@@ -32,8 +32,8 @@ __global__ void Measure(Tick* samples,float* output) {
   }
   __syncthreads();
   unsigned query=Body::Async::Shared(shared.query);
-  unsigned key=Body::Async::Shared(Fresh?shared.new_key:shared.kv[0][0]);
-  unsigned value=Body::Async::Shared(Fresh?shared.new_value:shared.kv[0][1]);
+  unsigned key=Body::Async::Shared(Fresh?shared.NewKey():shared.kv[0][0]);
+  unsigned value=Body::Async::Shared(Fresh?shared.NewValue():shared.kv[0][1]);
   typename Body::State state{};
   state.maximum[0]=state.maximum[1]=-INFINITY;
   constexpr int warmup=16,rounds=256;
