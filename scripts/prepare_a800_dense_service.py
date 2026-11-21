@@ -26,23 +26,24 @@ def main():
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
-    parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K[:TILE_N]]',
-                        help='compile an alternative ring depth and optional K and N tiles')
+    parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K[:TILE_N[:WARPS_N]]]',
+                        help='compile an alternative ring depth and optional K and N tiles and N warp count')
     args = parser.parse_args()
     if args.residual_copy and (not args.copy or not any(f in ('o', 'down') for f in args.families)):
         parser.error('--residual-copy requires a copy group and at least one residual family')
     rings = {}
     for specification in args.ring:
         fields = specification.split(':')
-        if (not 2 <= len(fields) <= 4 or fields[0] not in args.families
+        if (not 2 <= len(fields) <= 5 or fields[0] not in args.families
                 or not all(field.isdecimal() for field in fields[1:])
                 or not 2 <= int(fields[1]) <= 8
                 or len(fields) >= 3 and int(fields[2]) < 64
-                or len(fields) == 4 and int(fields[3]) < 8):
-            parser.error('--ring requires a selected family, 2 to 8 slots and optional K and N tiles')
+                or len(fields) >= 4 and int(fields[3]) < 8
+                or len(fields) == 5 and int(fields[4]) not in (1, 2, 4)):
+            parser.error('--ring requires a selected family, 2 to 8 slots and optional K and N tiles and N warp count')
         family, depth = fields[:2]
-        tile_k, tile_n = (tuple(map(int, fields[2:])) + (None, None))[:2]
-        variant = int(depth), tile_k, tile_n
+        tile_k, tile_n, warps_n = (tuple(map(int, fields[2:])) + (None,)*3)[:3]
+        variant = int(depth), tile_k, tile_n, warps_n
         if variant in rings.setdefault(family, []):
             parser.error('--ring repeats a family and geometry')
         rings[family].append(variant)
@@ -77,13 +78,14 @@ def main():
             matching = [matching[1 if family == 'down' else 0]]
         if len(matching) != 1:
             raise ValueError(f'{family} does not identify one production alias')
-        _, n, k, incumbent_tn, incumbent_tk, incumbent_slots, wn, _, packed_u, norm = matching[0]
-        wk = 4//wn
-        if wk != g['warps_k'] or norm != (epilogue != 'residual'):
+        _, n, k, incumbent_tn, incumbent_tk, incumbent_slots, incumbent_wn, _, packed_u, norm = matching[0]
+        if 4//incumbent_wn != g['warps_k'] or norm != (epilogue != 'residual'):
             raise ValueError(f'incumbent {family} coordinate and body disagree')
-        for slots, tile_k, tile_n in rings.get(family, [(incumbent_slots, None, None)]):
+        for slots, tile_k, tile_n, warps_n in rings.get(family, [(incumbent_slots, None, None, None)]):
             tn = incumbent_tn if tile_n is None else tile_n
             tk = incumbent_tk if tile_k is None else tile_k
+            wn = incumbent_wn if warps_n is None else warps_n
+            wk = 4//wn
             if n % tn or tn % (8 * wn):
                 raise ValueError(f'{family} has unaligned N tile {tn}')
             if k % tk or tk % 64 or tk < 16 * wk * g['register_stages']:
@@ -101,6 +103,8 @@ def main():
                     name += f'-tk{tk}'
                 if tile_n is not None:
                     name += f'-tn{tn}'
+                if warps_n is not None:
+                    name += f'-wn{wn}'
                 key = production_key(dict(epilogue=epilogue, grid=grid, n=n, k=k, batch=batch,
                     tn=tn, tk=tk, slots=slots, warps_n=wn, warps_k=wk, register_stages=g['register_stages'],
                     u=u, residual_tiles=side, input_norm=norm, live_rows=live, copy_issue_group=copy))
