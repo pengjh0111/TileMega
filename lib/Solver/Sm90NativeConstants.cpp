@@ -374,7 +374,7 @@ std::vector<std::string> Sm90NativeConstants::StaleHeaders(std::string const& ro
   for(auto const& item:section.At("header_sha256").AsObject("constant headers")) {
     std::string_view name=item.first;
     constexpr std::string_view include="include/tilemega/";
-    if(name.starts_with(include))name.remove_prefix(include.size());
+    if(name.substr(0,include.size())==include)name.remove_prefix(include.size());
     if(!SameBodyHeader(section,name,FileHash(root+"/"+item.first),item.second.AsString("header hash")))
       result.push_back(item.first);
   }
