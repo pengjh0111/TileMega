@@ -2067,7 +2067,8 @@
         "216:128:64:2:1": 194.251446245,
         "216:128:64:4:1": 117.874948532,
         "216:32:128:4:1": 66.7544320161,
-        "216:32:256:4:1": 61.5563787127
+        "216:32:256:4:1": 61.5563787127,
+        "108:256:64:2:1": 199.394094507
       },
       "method": "fresh process median, per K16 and split-K warp group, one CTA per SM",
       "p99_ns": {
@@ -2161,7 +2162,8 @@
         "216:128:64:2:1": 209.516361541,
         "216:128:64:4:1": 124.043989408,
         "216:32:128:4:1": 67.4116341848,
-        "216:32:256:4:1": 62.2666858144
+        "216:32:256:4:1": 62.2666858144,
+        "108:256:64:2:1": 200.626320629
       },
       "processes": 5,
       "supplements": [
@@ -2295,6 +2297,18 @@
           "processes": 1,
           "shape_keys": [
             "108:192:64:2:1"
+          ]
+        },
+        {
+          "base_target_sha256": "b85980f32ad577be370d8d4d06abc7f25488533f4786c0b261c2ca5a63743cbc",
+          "binary_sha256": "27b5da5f27c43c84788542a7502688d47dbc9797ae8aaff7b44331f2c318cec2",
+          "evidence": "runs/a800/calibration/351294",
+          "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
+          "method": "fresh process median, per K16 and split-K warp group, one CTA per SM",
+          "parent_profile_sha256": "0ed1258f9bf44bf1b00de010b95111ccb68270cda3f15efe9afad06f49e8c5cd",
+          "processes": 1,
+          "shape_keys": [
+            "108:256:64:2:1"
           ]
         }
       ]
@@ -3756,6 +3770,22 @@
           },
           "residency": 2,
           "unit": "ns_per_k16_per_split"
+        },
+        "108:256:64:2:1": {
+          "binary_sha256": "27b5da5f27c43c84788542a7502688d47dbc9797ae8aaff7b44331f2c318cec2",
+          "evidence": "runs/a800/calibration/351294",
+          "gpu_uuid": "GPU-2f160309-7fda-599b-77d3-5362399b9092",
+          "input_norm": true,
+          "key": {
+            "grid": 108,
+            "register_stages": 1,
+            "tk": 64,
+            "tn": 256,
+            "warps_k": 2,
+            "warps_n": 2
+          },
+          "residency": 1,
+          "unit": "ns_per_k16_per_split"
         }
       },
       "schema": 1,
@@ -3763,7 +3793,8 @@
         "318cc5e6d4d314f32bacf03f20d5c674267f26f3c4269296db1ce20ad77fc5ff": "sm_80_a800_sxm4_80gb_mma.json",
         "b47976719be1b2dc0f440fa0d8e8e892dd5ffd9c26fedebac4cffcd4b9acd9ba": "sm_80_a800_sxm4_80gb_expert192.json",
         "b5b439807b341a545ef31ee8f1a6f38080d8b51d6fbbf2d7ac2e024e8786f076": "sm_80_a800_sxm4_80gb_arena216.json",
-        "d8735301dfaa81a2bc5081766233ffca65059ab73caa988581c473c9b1e26ee1": "sm_80_a800_sxm4_80gb_dense_service.json"
+        "d8735301dfaa81a2bc5081766233ffca65059ab73caa988581c473c9b1e26ee1": "sm_80_a800_sxm4_80gb_dense_service.json",
+        "a07db8fdaa536be3a652e3264614a26e7d6ab9dab53c6aebaa054ddbdd43f27f": "sm_80_a800_mma.json"
       }
     },
     "round_ns": {
@@ -6122,6 +6153,129 @@
             "plain_residency": 1,
             "dynamic_shared": 166144
           }
+        },
+        {
+          "binary_sha256": "bf9948a7089bca5940263ad3e57bf2340220283f3ba7ce93483eaf458cfe30fb",
+          "body_headers": {
+            "Backend/Sm80DenseService.cuh": "1bfd850109cd9450a20d4c5ca0359e264755702c5780d30b1b0111ad18d57173",
+            "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328",
+            "Backend/Sm90DenseEpilogue.h": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+            "Backend/Sm90DenseGemm.h": "a4b77806b3c2850c54006920fc64687a2a8a77a2372342dbb618549e007d89d1",
+            "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+            "Backend/Sm90DenseMark.cuh": "93d31802f0037a1d8b8b55b669d82e804c1cd1c1bab2a30383f499e0eb493267",
+            "Backend/Sm90DenseMoe.cuh": "7e3c59296dedfa0198df010439823eae13871ca2189ee8af06c6319824f1c5fe",
+            "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+            "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3"
+          },
+          "evidence": "/work/TileMega-a800/runs/a800/calibration/r2-supplement-service/351278/gu256-wk2",
+          "gpu_uuid": "GPU-72e07f94-7054-cca7-dc0d-d1b02de0bced",
+          "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "measurement": {
+            "active_experts": 82,
+            "batch": 16,
+            "bitwise_equal": true,
+            "consumer_kernel_ns": 529407.978,
+            "consumer_local_bytes": 120,
+            "consumer_off_kernel_ns": 528383.97,
+            "consumer_registers": 234,
+            "consumer_residency": 1,
+            "consumer_stage_ns": 520192.0,
+            "dn_activation_ns_per_task": 551.0,
+            "dn_epilogue_ns_per_task": 2048.0,
+            "dn_issue_ns_per_tile": 682.667,
+            "dn_mma_ns_per_tile": 256.0,
+            "dn_preissue_ns_per_task": 1621.0,
+            "dynamic_shared": 161792,
+            "grid": 108,
+            "gu_epilogue_ns_per_task": 1843.0,
+            "gu_issue_ns_per_tile": 1728.0,
+            "gu_mma_ns_per_tile": 460.8,
+            "launches": 128,
+            "phase_timing_ns": [
+              {
+                "consumer": 530431.986,
+                "consumer_off": 529407.978,
+                "plain": 528383.97,
+                "producer": 542720.02,
+                "producer_off": 528383.97
+              },
+              {
+                "consumer": 529407.978,
+                "consumer_off": 528383.97,
+                "plain": 529407.978,
+                "producer": 543744.028,
+                "producer_off": 528383.97
+              },
+              {
+                "consumer": 529407.978,
+                "consumer_off": 528383.97,
+                "plain": 528383.97,
+                "producer": 545791.984,
+                "producer_off": 527360.022
+              },
+              {
+                "consumer": 528383.97,
+                "consumer_off": 529407.978,
+                "plain": 528383.97,
+                "producer": 547839.999,
+                "producer_off": 528383.97
+              }
+            ],
+            "plain_kernel_ns": 528383.97,
+            "plain_local_bytes": 120,
+            "plain_registers": 229,
+            "plain_residency": 1,
+            "plain_stage_ns": 519168.0,
+            "producer_kernel_ns": 544767.976,
+            "producer_local_bytes": 120,
+            "producer_off_kernel_ns": 528383.97,
+            "producer_registers": 229,
+            "producer_residency": 1,
+            "producer_stage_ns": 536576.0,
+            "sampled_ctas_per_launch": 1,
+            "sampled_tile_stride": 8,
+            "status": "measured"
+          },
+          "measurement_sha256": "ce625e1cde6f054da394301d15fe8dd6f6cf5e8fee6a1d55a02003f14b78e005",
+          "payload_anchor": {
+            "anchor_sha256": "568116f644e901bd173e595b963775fa91164ab765d2e3404cbf12387faa1653",
+            "binary_sha256": "bc49a75a0b878e627e7976b1ed6d7d801e06cc34174f02bb794c6c805189b655",
+            "dynamic_shared": 161792,
+            "manifest_sha256": "1ac4672ab31147f1d8be03ce68813aa6240dd7596172bd6c888cbce0b0934e8a"
+          },
+          "reference_target_sha256": "287dc43a395cca78310b715d7162dc0db42063edd44750707e90b565780215ce",
+          "shape": {
+            "batch": 16,
+            "copy_group": 8,
+            "down_n": 2048,
+            "down_tk": 64,
+            "down_tn": 128,
+            "down_warps_k": 1,
+            "down_warps_n": 4,
+            "experts": 128,
+            "float_routes": 1,
+            "gate_up_n": 1536,
+            "gate_up_tk": 64,
+            "gate_up_tn": 256,
+            "gate_up_warps_k": 2,
+            "gate_up_warps_n": 2,
+            "gu_route_bases": 0,
+            "hidden": 2048,
+            "live_rows": 0,
+            "page": 64,
+            "register_stages": 1,
+            "reuse_payload": 1,
+            "segments": 1,
+            "slots": 2,
+            "softmax_all": 0
+          },
+          "source_modifiers": {
+            "TILEMEGA_FUSED_SERVICE_SHARED_MARKS": 1,
+            "TILEMEGA_FUSED_SERVICE_SPLIT_PHASES": 1,
+            "TILEMEGA_SM80_COPY_ISSUE_GROUP": 8,
+            "TILEMEGA_SM80_MOE_PAGE_SEGMENTS": 1
+          },
+          "source_sha": "d12b643b136eb5313c5277e763954e6eec239545"
         }
       ]
     },
