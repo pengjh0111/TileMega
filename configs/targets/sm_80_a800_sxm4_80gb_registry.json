@@ -5807,6 +5807,61 @@
             "reference_sha256": "0e92e5c5317888975f1ddc1640545be4473807b32c6aa8168ca379f8a602ec90",
             "equivalent_sha256": "4547def80141d3ea72b1d8715f20d5f6ea0b0d79199abbf5d3c713810cd37bb7",
             "preprocessed_sha256": "fe41a2cf9b21708a3e14b6b68de3308845e4849b7bd2e40a20f46290744a94e7"
+          },
+          "production_phases": {
+            "route_startup_ns": 16384.0,
+            "combine_tail_ns": 3072.0,
+            "schema": 1,
+            "unit": "ns",
+            "fused_stages": 768,
+            "window_over_reference": 1.0233285826527072,
+            "same_gpu": false,
+            "trace_job": "350906",
+            "reference_job": "350523",
+            "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+            "reference_artifact_id": "24a93dabc02e4c28e94483d23cdd3045069ff1ebe63b2f5bade633c4e6a0dcf7",
+            "trace_artifact_id": "c808112cd9055747bedceb81c6753f732220cbbae5dd2f0a5b7143c8ee28bc68",
+            "trace_sha256": "3d4435c4d2e9827411535c847baee6f7fda4f680089bb38eeb393ff355175174",
+            "token_sha256": "e313270e8cad6f5a33558b0d76ac9464f3462c671a9a589ee5851a8f2357d752",
+            "overlapping_external_stages": 0,
+            "ranges": {
+              "route_startup_ns": {
+                "min": 15360,
+                "median": 16384.0,
+                "max": 18432,
+                "mean": 16870.666666666668
+              },
+              "combine_tail_ns": {
+                "min": 2048,
+                "median": 3072.0,
+                "max": 3072,
+                "mean": 2690.6666666666665
+              },
+              "body_ns": {
+                "min": 404480,
+                "median": 476160.0,
+                "max": 544768,
+                "mean": 478006.6666666667
+              },
+              "active_experts": {
+                "min": 66,
+                "median": 77.0,
+                "max": 87,
+                "mean": 77.5703125
+              },
+              "dn_preissue_entry_before_last_gu_ns": {
+                "min": 22528,
+                "median": 71680.0,
+                "max": 91136,
+                "mean": 69265.33333333333
+              },
+              "last_dn_to_stage_end_ns": {
+                "min": 0,
+                "median": 0.0,
+                "max": 1024,
+                "mean": 389.3333333333333
+              }
+            }
           }
         },
         {

@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Measure exposed startup and tail inside a guarded SM80 fused stage."""
+import argparse
+from collections import defaultdict
+import csv
+import json
+from pathlib import Path
+import re
+import statistics
+
+from collect_a800_dense_service import read, sha
+from collect_a800_fused_service import SHAPE
+
+
+def guarded(run):
+    result = read(run/'guard/guard_result.json')
+    plan = read(run/'planned.json')
+    if (result['code'] != 0 or result['acceptance'] != 'strict' or not result['ownership_verified']
+            or plan['device']['name'] != 'NVIDIA A800-SXM4-80GB'):
+        raise ValueError('phase pricing requires a strictly admitted A800 observation')
+    return plan
+
+
+def phase_widths(run, grid, first, steps):
+    path = run/'ledger/stage_trace.tsv'
+    with (run/'ledger/runtime_stages.tsv').open() as stream:
+        fused = {int(row['stage']) for row in csv.DictReader(stream, delimiter='\t')
+                 if 'mlp.experts.gate_up' in row['name']}
+    if not fused or not steps:
+        raise ValueError('trace has no fused expert stages or sampled steps')
+    points = ('worker', 't_begin', 't_tasks_end', 'route_ready', 'active_experts',
+              'm2', 'm3', 'm4', 'm5', 'first_dn_preissue', 'last_dn_epilogue')
+    groups = defaultdict(list)
+    with path.open() as stream:
+        for row in csv.DictReader(stream, delimiter='\t'):
+            past, stage = int(row['past']), int(row['stage'])
+            if first <= past < first+steps and (stage in fused or stage-1 in fused or stage+1 in fused):
+                groups[past, stage].append(tuple(int(row[key]) for key in points))
+    index = {key: i for i, key in enumerate(points)}
+    samples = defaultdict(list)
+    for past in range(first, first+steps):
+        for stage in sorted(fused):
+            rows = groups[past, stage]
+            if len(rows) != grid or {r[0] for r in rows} != set(range(grid)):
+                raise ValueError(f'incomplete CTA trace at {past=}, {stage=}')
+
+            def marked(name):
+                values = [r[index[name]] for r in rows if r[index[name]]]
+                if not values:
+                    raise ValueError(f'missing {name} at {past=}, {stage=}')
+                return values
+
+            begin, end = min(marked('t_begin')), max(marked('t_tasks_end'))
+            previous, following = groups[past, stage-1], groups[past, stage+1]
+            if (len(previous) != grid or len(following) != grid
+                    or max(r[index['t_tasks_end']] for r in previous) > begin
+                    or min(r[index['t_begin']] for r in following) < end):
+                raise ValueError(f'outside task overlaps fused region at {past=}, {stage=}')
+            route = marked('route_ready')
+            active = marked('active_experts')
+            if len(route) != grid or len(active) != grid or len(set(active)) != 1:
+                raise ValueError('route state differs among CTAs')
+            samples['route_startup_ns'].append(min(route)-begin)
+            samples['combine_tail_ns'].append(max(marked('m5'))-max(marked('m4')))
+            samples['body_ns'].append(end-begin)
+            samples['active_experts'].append(active[0])
+            samples['dn_preissue_entry_before_last_gu_ns'].append(
+                max(marked('m2'))-min(marked('first_dn_preissue')))
+            samples['last_dn_to_stage_end_ns'].append(end-max(marked('last_dn_epilogue')))
+    return {key: dict(min=min(group), median=statistics.median(group), max=max(group),
+                      mean=statistics.mean(group)) for key, group in samples.items()}, len(fused)*steps
+
+
+def artifact(binary):
+    identity = read(Path(f'{binary}.identity.json'))
+    if sha(binary) != identity['binary_sha256']:
+        raise ValueError(f'binary changed at {binary}')
+    return identity
+
+
+def append(target, run, control, reference, trace):
+    profile_target = target['sm80_native_constants']['fused_expert_service']
+    measured, prior = (guarded(p) for p in (run, control))
+    baseline, probe = (artifact(p) for p in (reference, trace))
+    recipe = read(Path(f'{trace}.diagnostic.json'))
+    evidence = ('guard/guard_result.json', 'planned.json', 'ledger/run-reference.json',
+                'ledger/reference-tokens.json')
+    if (Path(measured['reference_ledger']).parts[-3:] != (control/'ledger').resolve().parts[-3:]
+            or measured['reference_evidence'] != [sha(control/name) for name in evidence]
+            or any(measured[key] != prior[key] for key in ('model', 'batch', 'reference', 'prefill', 'target'))
+            or probe['binary_sha256'] != measured['trace'] or baseline['binary_sha256'] != prior['reference']
+            or baseline['plan'] != probe['plan']
+            or any(baseline[key] != probe[key] for key in ('manifest_sha256', 'generated_source_sha256'))
+            or baseline['trace'] or not probe['trace'] or not recipe['sm80_moe_phases']
+            or baseline['artifact_id'] != recipe['reference_artifact_id']
+            or probe['artifact_id'] != recipe['trace_artifact_id']):
+        raise ValueError('trace and reference do not bind the same generated production plan')
+    obs = read(run/'ledger/run-trace.json')
+    base = read(control/'ledger/run-reference.json')
+    if (obs['checkpoint'] != base['checkpoint']
+            or sha(run/'ledger/trace-tokens.json') != sha(control/'ledger/reference-tokens.json')):
+        raise ValueError('phase trace did not reproduce the original checkpoint and complete tokens')
+    ratio = obs['trace']['window_mean_ms']/base['reference']['window_mean_ms']
+    if abs(ratio-1) > 0.05:
+        raise ValueError('trace window outside 5% of the guarded reference')
+
+    source = Path(f'{reference}.cu')
+    if sha(source) != baseline['generated_source_sha256']:
+        raise ValueError('generated reference source changed')
+    aliases = re.findall(r'\bMoeFused<([^>]+)>', source.read_text())
+    if not aliases:
+        raise ValueError('reference has no fused expert bodies')
+    fields = aliases[0].split(',')
+    if (fields[-3:] != ['true', 'false', 'true'] or int(fields[13]) != 16 or int(fields[15]) != 8
+            or any(alias.split(',')[:18] != fields[:18] for alias in aliases)):
+        raise ValueError('unsupported mixture of fused production bodies')
+    integer = lambda value: {'true': 1, 'false': 0}[value] if value in ('true', 'false') else int(value)
+    values = [integer(fields[i]) for i in (0,1,2,3,4,5,6,7,8,9,11,14,16,17,-6,-4)]
+    defines = baseline['defines']
+    values.extend(int(defines.get(key, 0)) for key in (
+        'TILEMEGA_SM80_MOE_PAGE_SEGMENTS', 'TILEMEGA_SM80_ACTIVE_EPILOGUE', 'TILEMEGA_SM80_COPY_ISSUE_GROUP'))
+    shape = dict(zip(SHAPE, values, strict=True))
+    shape['gu_route_bases'] = int(defines.get('TILEMEGA_SM80_MOE_GU_ROUTE_BASES', 0))
+    profile, = (p for p in profile_target['profiles']
+                if all(p['shape'].get(key, 0) == value for key, value in shape.items())
+                and p['measurement']['dynamic_shared'] == baseline['shared_memory_bytes'])
+
+    stats, count = phase_widths(run, baseline['plan']['grid'], 567, len(obs['trace']['window_step_ms']))
+    phases = {key: stats[key]['median'] for key in ('route_startup_ns', 'combine_tail_ns')}
+    phases.update(schema=1, unit='ns', fused_stages=count, window_over_reference=ratio,
+                  same_gpu=measured['device']['uuid'] == prior['device']['uuid'],
+                  trace_job=run.name, reference_job=control.name, checkpoint_sha256=obs['checkpoint'],
+                  reference_artifact_id=baseline['artifact_id'], trace_artifact_id=probe['artifact_id'],
+                  trace_sha256=sha(run/'ledger/stage_trace.tsv'), token_sha256=sha(run/'ledger/trace-tokens.json'),
+                  overlapping_external_stages=0, ranges=stats)
+    if 'production_phases' in profile and profile['production_phases'] != phases:
+        raise ValueError('retain the previously selected production phase evidence')
+    profile['production_phases'] = phases
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('target', 'run', 'control', 'reference', 'trace', 'out'):
+        parser.add_argument(f'--{name}', required=True, type=Path)
+    args = parser.parse_args()
+    document = read(args.target)
+    append(document, args.run, args.control, args.reference, args.trace)
+    with args.out.open('x') as stream:
+        json.dump(document, stream, indent=2)
+        stream.write('\n')
