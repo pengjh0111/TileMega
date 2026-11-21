@@ -112,6 +112,7 @@ def main():
         contract='sm80-fused-expert-service-v1', architecture='sm_80', roles=[32,128],
         source_sha=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         source_file_sha256=sha(source), anchor_sha256=sha(a.anchor), body_parameters=params,
+        production_payload=build_identity['plan']['native_dense'].get('payload', 'split'),
         source_modifiers=variants, cases=[case], binary_sha256=sha(binary), command=command,
         body_headers={name: sha(ROOT/'include/tilemega'/name) for name in headers}), indent=2)+'\n')
 

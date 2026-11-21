@@ -48,6 +48,8 @@ def validate_payload_anchor(path, artifact, shape, measurement):
 
 def append(base, target_sha, run, binary, payload_anchor=None):
     artifact = read(run/'artifact.json')
+    if artifact.get('production_payload') == 'reuse' and payload_anchor is None:
+        raise ValueError('shared-payload calibration requires its linked production anchor')
     identity = binary.with_suffix('.identity.json')
     guard = read(run/'guard/guard_result.json')
     device = read(run/'job/physical-device-identity.json')
@@ -112,7 +114,8 @@ def append(base, target_sha, run, binary, payload_anchor=None):
     dimensions.extend(source.get(name, 0) for name in MODIFIERS)
     shape = dict(zip(SHAPE, dimensions, strict=True))
     shape['gu_route_bases'] = source.get('TILEMEGA_SM80_MOE_GU_ROUTE_BASES', 0)
-    shape['reuse_payload'] = int(payload_anchor is not None)
+    if payload_anchor is not None:
+        shape['reuse_payload'] = 1
     shape['gate_up_warps_k'] = 4 // shape['gate_up_warps_n']
     shape['down_warps_k'] = 4 // shape['down_warps_n']
     if registry['schema'] != 1:
@@ -129,7 +132,7 @@ def append(base, target_sha, run, binary, payload_anchor=None):
             return
         previous_shape = dict(gu_route_bases=0, reuse_payload=0)
         previous_shape.update(previous['shape'])
-        if previous_shape != shape:
+        if previous_shape != {'reuse_payload': 0, **shape}:
             continue
         old_headers = previous['body_headers']
         headers = profile['body_headers']
