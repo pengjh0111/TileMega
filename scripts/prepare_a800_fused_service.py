@@ -16,6 +16,7 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--variant', choices=('full', 'live', 'segments'), required=True)
     p.add_argument('--copy-group', type=int, choices=(0, 4, 8))
+    p.add_argument('--ring', type=int, choices=range(2, 9), help='override the shared Gu/Dn ring depth')
     p.add_argument('--reserve-program-shared', action='store_true')
     p.add_argument('--gu-route-bases', action='store_true')
     p.add_argument('--live-rows', action='store_true')
@@ -39,6 +40,9 @@ def main():
     floats, page = values[16:18]
     r, softmax_all = values[-6], values[-4]
     case = f'{anchor["model"]}-b{batch}-{a.variant}'
+    if a.ring is not None:
+        slots = a.ring
+        case += f'-slots{slots}'
     variants = {}
     copy = a.copy_group if a.copy_group is not None else anchor['coordinates'].get('copy_issue_group', 0)
     if copy:
