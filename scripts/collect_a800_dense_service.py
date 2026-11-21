@@ -112,8 +112,8 @@ def collect(run, target, binary):
                 sha(binary.with_suffix('.identity.json')) != frozen['identity_sha256'] or
                 artifact != read(binary.with_suffix('.identity.json'))):
             raise ValueError('service evidence differs from the frozen probe or reference target')
-        if any(profile['guard_result_sha256'] == previous['guard_result_sha256']
-               for previous in registry['profiles']):
+        if any((profile['evidence'], profile['binary_sha256']) ==
+               (previous['evidence'], previous['binary_sha256']) for previous in registry['profiles']):
             return base
         compatible = {key: previous['binary_sha256']
                       for previous in registry['profiles']
