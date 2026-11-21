@@ -190,8 +190,19 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     bool compatible=true;
     auto const& hashes=fresh->At("body_headers");
     for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm90DenseAttentionPartition.h",
-                   "Codegen/executor/Async.cuh"})
-      compatible &= FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash");
+                   "Codegen/executor/Async.cuh"}) {
+      auto current=FileHash(root+"/include/tilemega/"+name);
+      auto expected=hashes.At(name).AsString("body hash");
+      if(current==expected)continue;
+      // The fresh-row probe exercises Block(), independently of the optional
+      // stage scratch alias and its consumer handoff.
+      auto const* proof=std::string_view(name)=="Backend/Sm90DenseAttentionBody.cuh"?
+          fresh->Find("probe_body_equivalence"):nullptr;
+      if(!proof || proof->At("reference_sha256").AsString("reference header")!=expected ||
+          proof->At("equivalent_sha256").AsString("equivalent header")!=current ||
+          proof->At("sass_sha256").AsString("probe instructions").size()!=64 ||
+          proof->At("resources_sha256").AsString("probe resources").size()!=64)compatible=false;
+    }
     if(compatible)c.ampere_attention_fresh_=fresh->At("measurements");
   }
   return c;
