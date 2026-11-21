@@ -44,6 +44,7 @@ class Sm90DenseCostModel {
               json::Value* terms=nullptr,bool pre=false,Sm90DenseCoordinates const* coordinates=nullptr) const;
   Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&) const;
   Sm90DenseHistoryWork AttentionHistory(Sm90DenseAttention const&,int past,int chunk) const;
+  double FreshAttentionNs(Sm90DenseWorkload const&,Sm90DenseAttention const&,int grid) const;
   std::vector<Sm80AttentionScenario> const& AttentionScenarios(Sm90DenseAttention const&,
       bool exhaustive=false) const;
   double Attention(Sm90DenseWorkload const&,Sm90DenseAttention const& attention,

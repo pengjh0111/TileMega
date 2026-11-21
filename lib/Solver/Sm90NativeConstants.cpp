@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Backend/Sm80AttentionScratch.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
 #include <algorithm>
 #include <cmath>
@@ -205,6 +206,28 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     }
     if(compatible)c.ampere_attention_fresh_=fresh->At("measurements");
   }
+  if(auto const* workspace=s.Find("compact_attention_service")) {
+    if(!ampere || workspace->At("schema").AsNumber("compact attention schema")!=1)
+      throw std::invalid_argument("invalid SM80 compact attention service");
+    auto const& hashes=workspace->At("body_headers");
+    bool compatible=true;
+    for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm80AttentionScratch.h",
+                   "Codegen/executor/ComputeGroup.cuh"})
+      compatible &= FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash");
+    if(compatible) {
+      auto const& row=workspace->At("measurement");
+      int sms=int(target.At("resources").At("num_sms").AsNumber("target SM count"));
+      int shared=backend::Sm80AttentionScratch::Layout(128,4,1,64,2,false,true).end;
+      if(row.At("grid").AsNumber("compact grid")!=2*sms ||
+         row.At("residency").AsNumber("compact residency")!=2 ||
+         row.At("overlapping_sms").AsNumber("compact overlap")!=sms ||
+         row.At("consumer_threads").AsNumber("compact consumers")!=128 ||
+         row.At("dynamic_shared").AsNumber("compact shared memory")!=shared)
+        throw std::invalid_argument("incompatible compact attention residency");
+      auto shape=std::array<int,5>{2*sms,16,128,4,0};
+      c.ampere_compact_attention_.emplace(shape,Positive(row.At("barrier_ns"),"compact attention barrier"));
+    }
+  }
   return c;
 }
 
@@ -368,6 +391,12 @@ std::optional<double> Sm90NativeConstants::AttentionFresh(int dim,int queries,in
   auto const* row=ampere_attention_fresh_.Find(key);
   if(!row)return std::nullopt;
   return Positive(row->At("fresh_ns"),"attention new-row service");
+}
+std::optional<double> Sm90NativeConstants::CompactAttentionBarrier(
+    int grid,int batch,int dim,int queries,int norm) const {
+  auto found=ampere_compact_attention_.find({grid,batch,dim,queries,norm});
+  if(found==ampere_compact_attention_.end())return std::nullopt;
+  return found->second;
 }
 double Sm90NativeConstants::AttentionPrepare(int dim,int queries,int norm) const {
   return Positive(AttentionShape(dim,queries,norm).At("prepare"),"attention preparation");

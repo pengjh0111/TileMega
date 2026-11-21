@@ -257,6 +257,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     };
     auto same=std::find_if(attention.begin(),attention.end(),partition);
     if(same==attention.end())return false;
+    c.attention.compact_workspace=same->compact_workspace;
     if(std::none_of(same,attention.end(),[&](auto const& a) {
          return partition(a) && a.slots==c.attention.slots;
        }))c.attention.slots=same->slots;

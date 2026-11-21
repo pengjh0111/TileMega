@@ -25,7 +25,7 @@ def compatible_calibration(before, after, previous_hash):
     if old != new:
         return False
     service_fields = {'dense_gemm_service', 'fused_expert_service', 'attention_fresh_service',
-                      'residual_copy_header_equivalence'}
+                      'residual_copy_header_equivalence', 'compact_attention_service'}
     changed = {key for key in old_prices.keys() | new_prices.keys()
                if old_prices.get(key) != new_prices.get(key)}
     # The caller has already proved that the rebuilt device code is identical.

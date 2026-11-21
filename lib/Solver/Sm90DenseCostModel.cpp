@@ -335,6 +335,16 @@ Sm90DenseHistoryWork Sm90DenseCostModel::AttentionHistory(Sm90DenseAttention con
   return cache.emplace(key,Sm90DenseHistoryWork{keys/count,slots/count*(a.block_keys/64),slots/count}).first->second;
 }
 
+double Sm90DenseCostModel::FreshAttentionNs(Sm90DenseWorkload const& work,
+    Sm90DenseAttention const& a,int grid) const {
+  int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
+  auto fresh=constants_.AttentionFresh(work.head_dim,work.queries,norm);
+  if(!a.compact_workspace)return fresh.value_or(0);
+  auto barrier=constants_.CompactAttentionBarrier(grid,work.batch,work.head_dim,work.queries,norm);
+  if(!fresh || !barrier)throw Sm90NativeMissing("no complete compact attention service for this grid");
+  return *fresh+*barrier;
+}
+
 double Sm90DenseCostModel::AmpereAttentionStream(Sm90DenseWorkload const& work,
     Sm90DenseAttention const& a,int grid,int norm) const {
   int groups=work.batch*work.hkv,d=work.head_dim,q=work.queries;
@@ -342,7 +352,7 @@ double Sm90DenseCostModel::AmpereAttentionStream(Sm90DenseWorkload const& work,
   int tasks=groups*a.chunks;
   double bytes_per_key=4.*d;
   double rate=std::min(c.CtaDramGbps(),a.slots*a.block_keys*bytes_per_key/c.dram_latency);
-  double mma=c.AttentionBlock(d,q,norm),fresh=c.AttentionFresh(d,q,norm).value_or(0);
+  double mma=c.AttentionBlock(d,q,norm),fresh=FreshAttentionNs(work,a,grid);
   auto key=std::make_tuple(a.chunks,a.block_keys,a.new_row_work,grid,groups,d,rate,c.dram_gbps,mma,fresh);
   static thread_local std::map<decltype(key),double> cache;
   auto existing=cache.find(key);
