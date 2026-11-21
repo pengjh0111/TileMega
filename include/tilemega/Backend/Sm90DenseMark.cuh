@@ -5,6 +5,9 @@
 #ifndef TILEMEGA_TRACE_STAGE
 #define TILEMEGA_TRACE_STAGE 0
 #endif
+#ifndef TILEMEGA_SM80_FUSED_PHASE_TRACE
+#define TILEMEGA_SM80_FUSED_PHASE_TRACE 0
+#endif
 
 namespace tilemega::backend {
 
@@ -20,7 +23,11 @@ namespace tilemega::backend {
 struct Sm90DenseMarks {
   enum MoeCounter {
     kGuEmpty=6,kGuIssue,kDnPreissueEmpty,kDnPreissueIssue,kDnGateWait,kDnActivation,
-    kDnEmpty,kDnIssue,kGuFull,kGuMma,kGuEpilogue,kDnFull,kDnMma,kDnEpilogue,kGuTasks,kDnTasks,kGuRows,kDnRows,kCount
+    kDnEmpty,kDnIssue,kGuFull,kGuMma,kGuEpilogue,kDnFull,kDnMma,kDnEpilogue,kGuTasks,kDnTasks,kGuRows,kDnRows,
+#if TILEMEGA_SM80_FUSED_PHASE_TRACE
+    kRouteReady,kActiveExperts,kFirstDnPreissue,kLastDnEpilogue,
+#endif
+    kCount
   };
   __device__ static __forceinline__ unsigned long long* Base() {
     extern __shared__ __align__(1024) char shared[];
@@ -57,7 +64,11 @@ enum Sm80MoeSample {kMoeNoSample=0,kMoeProducerSample=1,kMoeConsumerSample=2};
 template<bool CpAsync,bool Producer,int SampleRole=kMoeNoSample>
 struct Sm80MoeStageMarks {
   static constexpr bool ServiceSample=SampleRole==(Producer?kMoeProducerSample:kMoeConsumerSample);
+#if TILEMEGA_SM80_FUSED_PHASE_TRACE
+  static constexpr bool kEnabled=CpAsync && ServiceSample;
+#else
   static constexpr bool kEnabled=CpAsync && (ServiceSample || TILEMEGA_TRACE_STAGE==2);
+#endif
   template<Sm90DenseMarks::MoeCounter Phase>
   static constexpr bool kMeasure=kEnabled && (!ServiceSample ||
       Phase==Sm90DenseMarks::kGuIssue || Phase==Sm90DenseMarks::kDnIssue ||

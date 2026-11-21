@@ -23,8 +23,11 @@ def main():
     p.add_argument('--native-phases', action='store_true')
     p.add_argument('--stage-level', type=int, choices=(1, 2), default=1,
                    help='2 adds the D0 in-stage marks (R5 A0)')
-    p.add_argument('--sm80-moe-service', action='store_true',
-                   help='bind an explicitly instrumented SM80 MoE source tree')
+    moe = p.add_mutually_exclusive_group()
+    moe.add_argument('--sm80-moe-service', action='store_true',
+                     help='bind an explicitly instrumented SM80 MoE source tree')
+    moe.add_argument('--sm80-moe-phases', action='store_true',
+                     help='record route, preissue and down retirement boundaries without inner-loop timers')
     p.add_argument('--source-root', type=Path,
                    help='checkout of the recorded head when the original tree has moved on')
     a = p.parse_args()
@@ -38,21 +41,22 @@ def main():
     identity = verify(original)
     source = dict(identity['source'])
     recorded = source['root']
-    if a.sm80_moe_service and (not a.source_root or a.stage_level != 2
+    moe_instrumentation = a.sm80_moe_service or a.sm80_moe_phases
+    if moe_instrumentation and (not a.source_root or a.stage_level != 2
                              or identity['arch'] != 'sm_80' or not identity['plan'].get('native_dense', {}).get('expert_fuse')):
         p.error('SM80 MoE service requires a level-2 trace and a fused SM80 reference')
-    if a.source_root and not a.sm80_moe_service:
+    if a.source_root and not moe_instrumentation:
         # Same bytes, other path: every recorded source hash must match there.
         source.update(root=str(a.source_root.resolve()))
         source.pop('compiler', None)
-    if not a.sm80_moe_service:
+    if not moe_instrumentation:
         validate_snapshot_inputs(source['root'], source)
     if identity['trace'] or output.exists():
         raise ValueError('a new trace output and an uninstrumented input are required')
     output.parent.mkdir(parents=True, exist_ok=True)
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original) + suffix, str(output) + suffix)
-    if a.sm80_moe_service:
+    if moe_instrumentation:
         source = snapshot(a.source_root, Path(str(output) + '.source.json'))
         expected = identity['source']['source_files']
         current = source['source_files']
@@ -85,6 +89,8 @@ def main():
                    x.replace(recorded,source['root']) for x in command]
     command[1:1] = ['-lineinfo', f'-DTILEMEGA_TRACE_STAGE={a.stage_level}',
                     '-DTILEMEGA_TRACE_STEP=1']
+    if a.sm80_moe_phases:
+        command.insert(1, '-DTILEMEGA_SM80_FUSED_PHASE_TRACE=1')
     if a.native_phases:
         command.insert(1, '-DTILEMEGA_TRACE_NATIVE_PHASES=1')
     Path(str(output) + '.build_command.txt').write_text(shlex.join(command) + '\n')
@@ -102,6 +108,7 @@ def main():
     record = dict(reference_artifact_id=identity['artifact_id'], trace_artifact_id=result['artifact_id'],
                   performance_eligible=False, native_phases=a.native_phases,
                   sm80_moe_service=a.sm80_moe_service,
+                  sm80_moe_phases=a.sm80_moe_phases,
                   method='same generated program; boundary timestamps and optional native phase probes')
     Path(str(output) + '.diagnostic.json').write_text(json.dumps(record, indent=2) + '\n')
     print(json.dumps(record))

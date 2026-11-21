@@ -1079,6 +1079,9 @@ struct Sm90DenseMoeFusedGemm {
   __device__ static __noinline__ void ProduceDown(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,Task task,int lane,unsigned& phase,
       int& sequence,Record record) {
+#if TILEMEGA_SM80_FUSED_PHASE_TRACE
+    if(lane==0)Sm90DenseMarkFirst(Sm90DenseMarks::kFirstDnPreissue);
+#endif
     auto const* tiles=Dn::TaskTiles(p.weight_down,record.expert,task.slot*kTilesDn+task.tile);
     Dn::WithWeightTile(tiles,task.slot*kTilesDn+task.tile,[&](auto page_phase,auto* tile_base) {
       using Profile=Sm80MoeStageMarks<CpAsync,true,SampleRole>;
@@ -1245,6 +1248,9 @@ struct Sm90DenseMoeFusedGemm {
     auto q=DownOperands(p);
     ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn,true>(q,state,a,b,scratch,
         task.slot*kTilesDn+task.tile,phase,sequence,flag,routing);
+#if TILEMEGA_SM80_FUSED_PHASE_TRACE
+    if(threadIdx.x==0)Sm90DenseMark(Sm90DenseMarks::kLastDnEpilogue);
+#endif
   }
 
   __device__ static __forceinline__ void Consume(Sm90DenseMoeFusedOperands const& p,
@@ -1288,6 +1294,12 @@ struct Sm90DenseMoeFusedGemm {
     }
     __syncthreads();
     int active=routing.active;
+#if TILEMEGA_SM80_FUSED_PHASE_TRACE
+    if(threadIdx.x==0) {
+      Sm90DenseMark(Sm90DenseMarks::kRouteReady);
+      if(auto* marks=Sm90DenseMarks::Base())marks[Sm90DenseMarks::kActiveExperts]=active;
+    }
+#endif
     int total=active*(kTilesGu+kTilesDn);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     if(threadIdx.x<128) {

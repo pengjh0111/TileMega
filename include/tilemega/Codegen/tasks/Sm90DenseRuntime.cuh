@@ -652,6 +652,9 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
       "\tgu_full_cycles\tgu_mma_cycles\tgu_epilogue_cycles"
       "\tdn_full_cycles\tdn_mma_cycles\tdn_epilogue_cycles"
       "\tgu_tasks\tdn_tasks\tgu_rows\tdn_rows"
+#if TILEMEGA_SM80_FUSED_PHASE_TRACE
+      "\troute_ready\tactive_experts\tfirst_dn_preissue\tlast_dn_epilogue"
+#endif
 #else
       "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"
 #endif
