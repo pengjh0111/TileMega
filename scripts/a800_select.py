@@ -108,6 +108,12 @@ def main():
         arms[f"c{row['rank']}"] = dict(row, binary=str(binary))
     if len(arms) < 2:
         raise ValueError('P-SEL needs two or more compiled candidates')
+    rank = os.environ.get('TILEMEGA_PSEL_RANK')
+    if rank is not None:
+        label = f'c{rank}'
+        if label not in arms or os.environ.get('TILEMEGA_PSEL_PRIOR'):
+            raise ValueError('split P-SEL requires a compiled rank and a fresh process')
+        arms = {label: arms[label]}
     config, prompt = inputs(args.model)
     manifest = inspect_inputs(INVENTORY)[args.model]
     checkpoint_limit = str(math.ceil(manifest['checkpoint_bytes']/2**30))
@@ -171,7 +177,8 @@ def main():
     summary = {label: dict(tpot_ms=statistics.median(values), range_pct=span(values),
                            processes=len(values)) for label, values in samples.items()}
     predicted = {label: row['predicted_ns'] for label, row in arms.items()}
-    result = selection_result(summary, predicted)
+    result = (dict(winner=next(iter(arms)), split_rank_measurement=True) if rank is not None
+              else selection_result(summary, predicted))
     winner = arms[result['winner']]
     write_json(args.out/'result.json', dict(result, schema=1, protocol='P-SEL-single-process',
         protocol_version='a800-single-v2', kind='selection', process_receipts=process_receipts,

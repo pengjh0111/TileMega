@@ -16,7 +16,7 @@ from tilemega.bench.scheduler import write_json
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=('plan', 'prepare', 'reprepare', 'run', 'finalize'))
+    parser.add_argument('mode', choices=('plan', 'prepare', 'reprepare', 'run', 'finalize', 'bind-selector'))
     parser.add_argument('--model', required=True, choices=MODELS)
     parser.add_argument('--batch', required=True, type=int, choices=BATCHES)
     parser.add_argument('--export', required=True, type=Path)
@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--reprepare-receipt', type=Path)
     parser.add_argument('--finalize-receipt', type=Path)
     parser.add_argument('--defer-finalize', action='store_true')
+    parser.add_argument('--measure-rank', type=int)
     parser.add_argument('--search-budget-ms', type=int, default=600000)
     parser.add_argument('--compile-jobs', type=int, choices=(1, 2), default=2)
     parser.add_argument('--top', type=int, choices=range(2, 7), default=2)
@@ -57,6 +58,33 @@ def main():
     py = str(ENVS/'tilemega/bin/python')
     select = shlex.join((py, str(ROOT/'scripts/a800_select.py'), '--model', args.model,
                          '--batch', str(args.batch), '--prefill', prefill, '--target', str(target)))
+    if args.measure_rank is not None and (
+            args.mode not in ('plan', 'run') or not args.defer_finalize
+            or not args.prepared_shortlist or not 0 <= args.measure_rank < args.top):
+        parser.error('a rank measurement requires an existing deferred shortlist')
+    if args.mode == 'bind-selector':
+        if (os.environ.get('SLURM_JOB_ID') or not args.prepared_shortlist or args.submission_plan):
+            parser.error('bind a separate selector for an existing shortlist on the login node')
+        prepared = args.prepared_shortlist.resolve(strict=True)
+        document = json.loads(prepared.read_text())
+        scope = document['scope']
+        old = shlex.split(scope['measure_command'])
+        new = shlex.split(select)
+        if (document['schema'] != 1 or scope['compiler_sha256'] != sha(cli)
+                or scope['target_sha256'] != sha(target) or scope['export_sha256'] != sha(source)
+                or scope['batch'] != args.batch or len(old) != len(new)
+                or old[0] != new[0] or Path(old[1]).name != 'a800_select.py' or old[2:] != new[2:]):
+            parser.error('selector rebinding must preserve the executable and all frozen arguments')
+        scope['measure_command'] = select
+        document['selector_rebind'] = dict(
+            prepared_sha256=sha(prepared), previous_command=shlex.join(old),
+            selector_sha256=sha(ROOT/'scripts/a800_select.py'))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        bound = output.with_suffix('.prepared.json')
+        if bound.exists():
+            parser.error('retain the previous selector binding')
+        write_json(bound, document)
+        return 0
     command = [str(cli), 'compile', str(source), str(output), '--solve', str(target),
                '--serving', 'decode', '--emit', 'serving', '--batch', str(args.batch),
                '--tp', '1', '--runtime-target', str(target), '--capacity', '1088',
@@ -122,6 +150,8 @@ def main():
         receipt['seed_coordinates_sha256'] = sha(seed)
     if args.prepared_shortlist:
         receipt['prepared_shortlist_sha256'] = sha(prepared)
+    if args.measure_rank is not None:
+        receipt['measure_rank'] = args.measure_rank
     if args.mode == 'plan':
         print(json.dumps(receipt, indent=2))
         return 0
@@ -139,6 +169,9 @@ def main():
                TILEMEGA_GPU_LOCK=policy['gpu_lock_path'], TILEMEGA_NUMA_NODE=dev['numa_node'],
                TILEMEGA_TIMING='1', TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2',
                MAX_JOBS='2', CMAKE_BUILD_PARALLEL_LEVEL='2')
+    env.pop('TILEMEGA_PSEL_RANK', None)
+    if args.measure_rank is not None:
+        env['TILEMEGA_PSEL_RANK'] = str(args.measure_rank)
     wrapper = [sys.executable, str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', str(out/'job'), '--guard-policy', str(policy_path),
                '--expected-uuid', dev['uuid'], '--expected-pci', dev['pci'],
