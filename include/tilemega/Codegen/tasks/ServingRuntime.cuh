@@ -654,7 +654,9 @@ extern "C" int tm_plan_schedule_cache_version() {
 #if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE != 0
   return 0;
 #else
-  return TILEMEGA_ARCH_PATH_SM80 && TILEMEGA_SERVING_SEQ>1 &&
+  // ARCH_PATH_SM80 selects a device kernel variant. Nonpaged SM80 prefill
+  // also uses the common kernel, so check the physical target at bind time.
+  return TILEMEGA_SERVING_SEQ>1 &&
       harness::CanFreezeServingSchedule(kModel.runtime_variants[0])?
       int(harness::kServingScheduleVersion):0;
 #endif
