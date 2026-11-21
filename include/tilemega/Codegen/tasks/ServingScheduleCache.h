@@ -40,10 +40,15 @@ std::vector<std::uint32_t> FreezeServingSchedule(Model const& model,ServingSched
     words.insert(words.end(),table->begin(),table->end());
   for(int worker:scope.workers)words.push_back(unsigned(worker));
   for(int tasks:scope.tasks)words.push_back(unsigned(tasks));
-  for(auto const& task:model.schedule)
-    for(auto value:{task.stage,task.logical_task,task.dependency_begin,task.dependency_count,
-                    task.wait_begin,task.wait_count,task.flags})
-      words.push_back(value);
+  for(auto const& task:model.schedule) {
+    words.push_back(task.stage);
+    words.push_back(task.logical_task);
+    words.push_back(task.dependency_begin);
+    words.push_back(task.dependency_count);
+    words.push_back(task.wait_begin);
+    words.push_back(task.wait_count);
+    words.push_back(task.flags);
+  }
   for(auto const& wait:model.task_waits) {
     words.push_back(wait.producer);
     words.push_back(wait.group);
