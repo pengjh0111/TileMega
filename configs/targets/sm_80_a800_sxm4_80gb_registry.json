@@ -6036,6 +6036,75 @@
           "gpu_uuid": "GPU-6919d9c3-3c5d-dc7e-d442-705b44aa5313",
           "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
           "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350962/olmoe_1b_7b"
+        },
+        {
+          "shape": {
+            "batch": 1,
+            "gate_up_n": 1536,
+            "down_n": 2048,
+            "hidden": 2048,
+            "gate_up_tn": 128,
+            "gate_up_tk": 64,
+            "down_tn": 32,
+            "down_tk": 256,
+            "slots": 3,
+            "gate_up_warps_n": 2,
+            "down_warps_n": 2,
+            "experts": 128,
+            "float_routes": 1,
+            "page": 64,
+            "register_stages": 1,
+            "softmax_all": 0,
+            "segments": 1,
+            "live_rows": 0,
+            "copy_group": 0,
+            "gu_route_bases": 0,
+            "gate_up_warps_k": 2,
+            "down_warps_k": 2
+          },
+          "body_headers": {
+            "Backend/Sm90DenseGemm.h": "80985937dfabfb1ee3a5384289bf80d1f374f31ec753a2516d58b6c1c82647db",
+            "Backend/Sm80DenseService.cuh": "1bfd850109cd9450a20d4c5ca0359e264755702c5780d30b1b0111ad18d57173",
+            "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+            "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+            "Backend/Sm90DenseEpilogue.h": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+            "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+            "Backend/Sm90DenseMoe.cuh": "b2c9b16922dc1005e4d6320405686adbda5b6527c40bcb02474a26a683aa69b4",
+            "Backend/Sm90DenseMark.cuh": "173f0fbf5c933e542475b2d492e159fa4db14406bf64c7bd041a44f3a6fbb3b1",
+            "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+          },
+          "production_body": {
+            "schema": 1,
+            "unit": "ns",
+            "fused_stages": 768,
+            "window_over_reference": 1.039051578250313,
+            "same_gpu": true,
+            "trace_job": "350994",
+            "reference_job": "350994",
+            "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+            "reference_artifact_id": "5d2362e99a2971dc514bcfc27b1ce50842835f663ec25a5d60c04136dcd0b510",
+            "trace_artifact_id": "5c96bc1cc4b03c09b71f12aa3808d2eff07e87083b4e8ca1d74f7cf33165b7bf",
+            "trace_sha256": "0528fba411860a75d3d06a964f42abfa80def581a7d8c9245ffef9137a21ffa1",
+            "token_sha256": "130236fe80a6eb12ce31bfc0b24b1ff9b789f8afd6f6607c96b863a6a3ea482f",
+            "overlapping_external_stages": 0,
+            "ranges": {
+              "body_ns": {
+                "min": 61440,
+                "median": 64512.0,
+                "max": 73728,
+                "mean": 66012
+              }
+            },
+            "active_experts": 8,
+            "body_ns": 64512.0
+          },
+          "source_sha": "086dfb21e3242a8679eefa455b1dda2471cdc841",
+          "binary_sha256": "919d4c4cbc05eb99446cb411deb94e2d9a78adfb0931a3e5d55df13cfa8ccfb1",
+          "measurement": {
+            "grid": 108,
+            "plain_residency": 1,
+            "dynamic_shared": 166144
+          }
         }
       ]
     },
