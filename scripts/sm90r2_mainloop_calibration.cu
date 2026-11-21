@@ -160,7 +160,9 @@ int main(int argc,char** argv) {try {
   double frequency=double(ticks[0])/ticks[1];
   if constexpr(kResidency==1)
     std::printf("metric,grid,tile_n,tile_k,warps_n,warps_k,register_stages,samples,median,p99,unit\n");
-#ifdef TILEMEGA_A800_DUAL_MMA_SHARED
+#ifdef TILEMEGA_A800_MMA_CASE_FILE
+#include TILEMEGA_A800_MMA_CASE_FILE
+#elif defined(TILEMEGA_A800_DUAL_MMA_SHARED)
   Case<32,128,4>(p,frequency,times,errors);
   Case<128,64,2>(p,frequency,times,errors);Case<128,64,4>(p,frequency,times,errors);
   Case<32,256,4>(p,frequency,times,errors);
