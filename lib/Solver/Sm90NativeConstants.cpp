@@ -159,6 +159,16 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
   if(auto const* tp=s.Find("tp"))c.tp_=*tp;
   c.attention_=s.At("attention_ns");
+  if(auto const* fresh=s.Find("attention_fresh_service")) {
+    if(!ampere || fresh->At("schema").AsNumber("attention fresh schema")!=1)
+      throw std::invalid_argument("invalid SM80 attention fresh service");
+    bool compatible=true;
+    auto const& hashes=fresh->At("body_headers");
+    for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm90DenseAttentionPartition.h",
+                   "Codegen/executor/Async.cuh"})
+      compatible &= FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash");
+    if(compatible)c.ampere_attention_fresh_=fresh->At("measurements");
+  }
   return c;
 }
 
@@ -316,6 +326,12 @@ json::Value const& Sm90NativeConstants::AttentionShape(int dim,int queries,int n
 }
 double Sm90NativeConstants::AttentionBlock(int dim,int queries,int norm) const {
   return Positive(AttentionShape(dim,queries,norm).At("block"),"attention block");
+}
+std::optional<double> Sm90NativeConstants::AttentionFresh(int dim,int queries,int norm) const {
+  auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(norm);
+  auto const* row=ampere_attention_fresh_.Find(key);
+  if(!row)return std::nullopt;
+  return Positive(row->At("fresh_ns"),"attention new-row service");
 }
 double Sm90NativeConstants::AttentionPrepare(int dim,int queries,int norm) const {
   return Positive(AttentionShape(dim,queries,norm).At("prepare"),"attention preparation");

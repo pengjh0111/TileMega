@@ -150,7 +150,8 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   double steps=std::max(1.0,history.ring_slots);
   price.ends = std::min(price.tasks, grid);
   // :88 uses L_l2, not L_dram: last step's KV history is still in L2.
-  Finish(price, parts, /*epilogue=*/0.0, steps, history.ring_slots?c.l2_latency:0.0);
+  double fresh=history.fresh?c.AttentionFresh(d,q,norm).value_or(0):0;
+  Finish(price, parts, fresh, steps, history.ring_slots?c.l2_latency:0.0);
   return price;
 }
 

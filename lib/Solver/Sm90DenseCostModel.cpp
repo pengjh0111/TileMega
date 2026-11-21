@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <numeric>
 #include <tuple>
 
 namespace tilemega::solver {
@@ -236,6 +237,11 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
   double compute=Waves(tasks,grid,kv_task)+per_cta*history.mma_blocks*mma;
   double stream=std::max(kv_tot/c.dram_gbps,compute);
   if(target_.arch_tag=="sm_80") {
+    // One fresh chunk per KV group. Consecutive groups stride by chunks in
+    // the grid-strided worker assignment, repeating after this many groups.
+    int period=grid/std::gcd(grid,a.chunks);
+    int fresh_tasks=(work.batch*work.hkv+period-1)/period;
+    double fresh=fresh_tasks*c.AttentionFresh(d,q,norm).value_or(0);
     double total=0;int weight=0;
     for(auto scenario:AttentionScenarios(a)) {
       double keys=0,worst_mma=0,worst_keys=0;
@@ -247,7 +253,7 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
       }
       double bytes=double(work.batch)*work.hkv*keys*d*4;
       total+=scenario.count*std::max(bytes/c.dram_gbps,
-          Waves(tasks,grid,worst_keys*d*4)+per_cta*worst_mma*mma);
+          Waves(tasks,grid,worst_keys*d*4)+per_cta*worst_mma*mma+fresh);
       weight+=scenario.count;
     }
     stream=total/weight;
