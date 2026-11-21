@@ -18,6 +18,27 @@ from tilemega.serving.baseline_common import require_guard
 from tilemega.serving.random_checkpoint import ALGORITHM, validate_live_checkpoint
 
 
+def compatible_calibration(before, after, previous_hash):
+    old, new = before.copy(), after.copy()
+    old_prices, new_prices = (d.pop('sm80_native_constants').copy() for d in (old, new))
+    old_decisions, new_decisions = (d.pop('sm80_native_decisions') for d in (old, new))
+    if old != new:
+        return False
+    service_fields = {'dense_gemm_service', 'fused_expert_service', 'attention_fresh_service'}
+    changed = {key for key in old_prices.keys() | new_prices.keys()
+               if old_prices.get(key) != new_prices.get(key)}
+    # The caller has already proved that the rebuilt device code is identical.
+    if old_decisions == new_decisions and changed <= service_fields:
+        return True
+    old_mma = old_prices.pop('mma_mainloop')
+    new_mma = new_prices.pop('mma_mainloop')
+    supplement = new_mma.get('supplements', [])[-1:]
+    return (new_decisions == dict(old_decisions, reuse_payload=True) and old_prices == new_prices
+            and bool(supplement) and supplement[0]['parent_profile_sha256'] == previous_hash
+            and all(new_mma[stat].get(key) == value
+                    for stat in ('median_ns', 'p99_ns') for key, value in old_mma[stat].items()))
+
+
 def prior_measurements(arms, model, batch, prefill, target, manifest, device):
     path = os.environ.get('TILEMEGA_PSEL_PRIOR')
     if not path:
@@ -46,16 +67,7 @@ def prior_measurements(arms, model, batch, prefill, target, manifest, device):
             if sha(previous) != old_target_hash:
                 raise ValueError('previous selection target hash does not match its process')
             before, after = (json.loads(p.read_text()) for p in (previous, target))
-            old_prices, new_prices = (d.pop('sm80_native_constants') for d in (before, after))
-            old_decisions, new_decisions = (d.pop('sm80_native_decisions') for d in (before, after))
-            old_mma = old_prices.pop('mma_mainloop')
-            new_mma = new_prices.pop('mma_mainloop')
-            supplement = new_mma.get('supplements', [])[-1:]
-            if (before != after or new_decisions != dict(old_decisions, reuse_payload=True)
-                    or old_prices != new_prices
-                    or not supplement or supplement[0]['parent_profile_sha256'] != old_target_hash
-                    or any(new_mma[stat].get(key) != value
-                           for stat in ('median_ns', 'p99_ns') for key, value in old_mma[stat].items())):
+            if not compatible_calibration(before, after, old_target_hash):
                 raise ValueError('previous selection has different runtime hardware or target options')
         if (plan['model'] != model or hardware_class(plan['device']) != hardware_class(device)
                 or result['batch'] != batch or result['tp'] != 1

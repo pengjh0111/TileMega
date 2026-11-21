@@ -30,6 +30,19 @@ def encodings(text):
     return result
 
 
+def without_default_sampler_suffix(functions):
+    converted = {}
+    for name, body in functions.items():
+        canonical = name
+        if 'Sm90DenseMoeFusedGemmI' in name:
+            canonical = re.sub(r'(ELb1E)(?:Li0E|Lb0E)(?=E(?:11(?:ProduceDown|ConsumeDown)|'
+                               r'13(?:ProduceGateUp|ConsumeGateUp)))', r'\1', name)
+        if canonical in converted:
+            raise ValueError('ambiguous device symbol after sampler normalization')
+        converted[canonical] = body
+    return converted
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--reference', type=Path, required=True)
@@ -37,6 +50,7 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--diagnostic', action='store_true',
                    help='compare two stage-trace libraries; never establish a final artifact')
+    p.add_argument('--normalize-disabled-sampler', action='store_true')
     a = p.parse_args()
     if a.out.exists():
         raise ValueError('retain previous rebuild evidence; choose a new output directory')
@@ -55,6 +69,11 @@ def main():
         assembly.append(text)
     old, new = [parse_sass(text) for text in assembly]
     old_encoding, new_encoding = [encodings(text) for text in assembly]
+    if a.normalize_disabled_sampler:
+        if a.diagnostic:
+            raise ValueError('only uninstrumented artifacts may normalize disabled sampler symbols')
+        old, new, old_encoding, new_encoding = (
+            without_default_sampler_suffix(rows) for rows in (old, new, old_encoding, new_encoding))
     record = dict(schema=1, reference_sha256=identities[0]['binary_sha256'],
         candidate_sha256=identities[1]['binary_sha256'],
         generated_source_sha256=sources,
@@ -65,6 +84,7 @@ def main():
         same_instruction_encoding=old_encoding == new_encoding,
         changed_functions=sorted(k for k in old.keys() | new.keys() if old.get(k) != new.get(k)),
         instruction_encoding_sha256=old_encoding,
+        normalized_disabled_sampler=a.normalize_disabled_sampler,
         diagnostic=a.diagnostic, performance_eligible=not a.diagnostic,
         evidence='verified static rebuild comparison; not a performance result')
     record['pass'] = all(record[k] for k in ('same_coordinates', 'same_workload',
