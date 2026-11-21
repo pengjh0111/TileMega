@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import statistics
 import subprocess
+import sys
 
 from a100_baselines import BATCHES, MODELS, inputs, inspect_inputs, sha
 from a800_baselines import ENVS, INVENTORY, calibrated_device, device_policy, hardware_class
@@ -14,6 +15,7 @@ from a800_native import artifact, verify_request_tokens
 from sm90r3_llm import order, selection_result, span
 from tilemega.bench.scheduler import write_json
 from tilemega.serving.baseline_common import require_guard
+from tilemega.serving.random_checkpoint import ALGORITHM, validate_live_checkpoint
 
 
 def prior_measurements(arms, model, batch, prefill, target, manifest, device):
@@ -78,6 +80,7 @@ def main():
     parser.add_argument('--target', required=True, type=Path)
     parser.add_argument('--candidates', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
+    parser.add_argument('--shared-checkpoint', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if (not os.environ.get('TILEMEGA_STRICT_HOST_GUARD_PID')
             or os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800'):
@@ -105,8 +108,6 @@ def main():
         arms[f"c{row['rank']}"] = dict(row, binary=str(binary))
     if len(arms) < 2:
         raise ValueError('P-SEL needs two or more compiled candidates')
-    args.out.mkdir(parents=True, exist_ok=False)
-
     config, prompt = inputs(args.model)
     manifest = inspect_inputs(INVENTORY)[args.model]
     checkpoint_limit = str(math.ceil(manifest['checkpoint_bytes']/2**30))
@@ -120,15 +121,33 @@ def main():
         checkpoint_hashes.add(result['checkpoint']['checkpoint_sha256'])
     sequence = [choice for choice in dict.fromkeys(order('sel', list(arms), args.model))
                 if choice not in reused]
+    checkpoint = (args.out/'shared-checkpoint').resolve()
+    if args.shared_checkpoint is None:
+        args.out.mkdir(parents=True, exist_ok=False)
+        if sequence:
+            # Retain one read-only seed-0 checkpoint supervisor for the whole
+            # allocation. The CUDA executors below still use separate processes.
+            command = [str(ENVS/'vllm/bin/python'), '-m', 'tilemega.serving.random_checkpoint',
+                       '--config', str(config), '--out', str(checkpoint), '--seed', '0',
+                       '--max-gib', checkpoint_limit, '--', sys.executable, str(Path(__file__).resolve()),
+                       *sys.argv[1:], '--shared-checkpoint', str(checkpoint)]
+            return subprocess.run(command).returncode
+    else:
+        if (args.shared_checkpoint.resolve(strict=True) != checkpoint or
+                os.environ.get('TILEMEGA_RANDOM_CHECKPOINT') != str(checkpoint)):
+            raise ValueError('the selection worker requires its allocation-owned checkpoint')
+        live = validate_live_checkpoint(checkpoint)
+        if (live['algorithm'] != ALGORITHM or live['config_sha256'] != manifest['config_sha256']
+                or live['seed'] != 0 or live['total_bytes'] != manifest['checkpoint_bytes']):
+            raise ValueError('the shared selection checkpoint changed its frozen workload')
+        checkpoint_hashes.add(live['checkpoint_sha256'])
     for index, choice in enumerate(sequence):
         row = arms[choice]
         folder = args.out/f'{index:02d}-{choice}'
         folder.mkdir()
         measure = folder/'measurements'
-        command = [str(ENVS/'vllm/bin/python'), '-m', 'tilemega.serving.random_checkpoint',
-            '--config', str(config), '--out', str(folder/'checkpoint'), '--seed', '0',
-            '--max-gib', checkpoint_limit, '--', str(ENVS/'tilemega/bin/python'),
-            '-m', 'tilemega.serving.r16_run', '--prefill', prefill, '--decode', row['binary'],
+        command = [str(ENVS/'tilemega/bin/python'), '-m', 'tilemega.serving.r16_run',
+            '--prefill', prefill, '--decode', row['binary'],
             '--prompt-ids', str(prompt), '--batch', str(args.batch), '--max-tokens', '1024',
             '--warmup', '1', '--repeats', '3', '--mode', 'L1', '--decode-loop', '1',
             '--prefill-mode', 'L1', '--out', str(measure), '--round-index', str(index)]
