@@ -69,6 +69,28 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     }
     if(!matched.AsObject("matched dense services").empty())c.ampere_gate_service_=std::move(matched);
   }
+  if(auto const* profiles=s.Find("dense_gemm_service")) {
+    if(!ampere || profiles->At("schema").AsNumber("dense gemm service schema")!=1)
+      throw std::invalid_argument("invalid SM80 dense GEMM service registry");
+    json::Value matched(json::Object{});
+    for(auto const& profile:profiles->At("profiles").AsArray("dense GEMM profiles")) {
+      auto const& hashes=profile.At("body_headers");
+      bool compatible=true;
+      for(auto name:{"Backend/Sm90DenseGemm.h","Backend/Sm80DenseService.cuh",
+                     "Backend/Sm90DenseLayout.h","Backend/Sm90DenseRing.cuh",
+                     "Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
+        if(FileHash(root+"/include/tilemega/"+name)==hashes.At(name).AsString("body hash"))continue;
+        compatible=false;break;
+      }
+      if(!compatible)continue;
+      for(auto const& [key,row]:profile.At("measurements").AsObject("dense GEMM measurements")) {
+        if(auto const* prior=matched.Find(key);prior && prior->Dump(0)!=row.Dump(0))
+          throw std::invalid_argument("conflicting compatible dense GEMM service for "+key);
+        matched.Set(key,row);
+      }
+    }
+    if(!matched.AsObject("matched dense GEMM services").empty())c.ampere_dense_service_=std::move(matched);
+  }
   if(auto const* forward=s.Find("forward"))c.forward_=*forward;
   if(auto const* cta=s.Find("cta_dram_gbps"))c.cta_dram_gbps_=Positive(*cta,"per-CTA DRAM bandwidth");
   if(auto const* task=s.Find("task_expert_ns"))c.task_expert_=*task;
@@ -168,14 +190,28 @@ std::optional<double> Sm90NativeConstants::AmpereMmaK16(int grid,int tn,int tk,i
   if(!value)return std::nullopt;
   return Positive(*value,"Ampere MMA K16 slice");
 }
-std::optional<Sm80DenseGateService> Sm90NativeConstants::AmpereGateService(
+std::string Sm80DenseServiceShape::Key() const {
+  std::string key=epilogue;
+  for(int v:{grid,n,k,batch,tn,tk,slots,warps_n,warps_k,register_stages,u,residual_tiles,
+             int(input_norm),int(live_rows),copy_issue_group})key+=":"+std::to_string(v);
+  return key;
+}
+std::optional<Sm80DenseService> Sm90NativeConstants::AmpereDenseService(Sm80DenseServiceShape const& shape) const {
+  auto const* row=ampere_dense_service_.Find(shape.Key());
+  if(!row)return std::nullopt;
+  return Sm80DenseService{
+      Positive(row->At("producer_issue_ns_per_tile"),"dense producer issue"),
+      Positive(row->At("consumer_mma_ns_per_tile"),"dense consumer MMA and norm"),
+      Positive(row->At("consumer_epilogue_ns_per_task"),"dense epilogue")};
+}
+std::optional<Sm80DenseService> Sm90NativeConstants::AmpereGateService(
     int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const {
   if(ampere_gate_service_.IsNull())return std::nullopt;
   std::string key=std::to_string(grid);
   for(int v:{n,k,batch,tn,tk,slots,wn,stages,u})key+=":"+std::to_string(v);
   auto const* row=ampere_gate_service_.Find(key);
   if(!row)return std::nullopt;
-  return Sm80DenseGateService{
+  return Sm80DenseService{
       Positive(row->At("producer_issue_ns_per_tile"),"dense gate producer issue"),
       Positive(row->At("consumer_mma_ns_per_tile"),"dense gate consumer MMA"),
       Positive(row->At("consumer_epilogue_ns_per_task"),"dense gate epilogue")};

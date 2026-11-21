@@ -41,13 +41,25 @@ double Sm90DenseCostModel::MmaK16Ns(Sm90DenseGemm const& g,int residency) const 
   return *measured;
 }
 
-std::optional<Sm80DenseGateService> Sm90DenseCostModel::GateService(
+std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
-    int u,bool alternate_path) const {
-  if(target_.arch_tag!="sm_80" || family!=2 || work.moe || alternate_path || g.multicast)return std::nullopt;
-  if(u==0)u=Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n);
-  return constants_.AmpereGateService(Grid(residency),work.shapes[2][0],work.shapes[2][1],
-      work.batch,g.tile_n,g.TileK(),g.slots,g.warps_n,g.register_stages,u);
+    Sm90DenseCoordinates const* coordinates) const {
+  if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast ||
+     (coordinates && coordinates->weight_stream))return std::nullopt;
+  bool residual=Sm90DenseCoordinates::ResidualFamily(family);
+  bool gate=family==2;
+  int u=gate?(coordinates?coordinates->swiglu_u:Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)):16;
+  bool live=coordinates && coordinates->live_epilogue_rows && work.batch<16 && (gate || g.warps_k>1);
+  int copy=coordinates && gate?coordinates->copy_issue_group:0;
+  int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1];
+  Sm80DenseServiceShape shape{gate?"swiglu":residual?"residual":"store",grid,n,k,work.batch,
+      g.tile_n,g.TileK(),g.slots,g.warps_n,g.warps_k,g.register_stages,u,
+      g.ResidualTiles(residual,n,grid),!residual,live,copy};
+  if(auto measured=constants_.AmpereDenseService(shape))return measured;
+  if(gate && !live && !copy)
+    return constants_.AmpereGateService(grid,n,k,work.batch,g.tile_n,g.TileK(),g.slots,
+        g.warps_n,g.register_stages,u);
+  return std::nullopt;
 }
 
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
@@ -60,7 +72,7 @@ double Sm90DenseCostModel::Waves(double tasks,int grid,double task_bytes) const 
 }
 
 double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
-    Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre,int u,bool alternate_path) const {
+    Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre,Sm90DenseCoordinates const* coordinates) const {
   auto const& c=constants_;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1],b=work.batch;
   // MoE experts (prompt §8): n_active x N/TN tasks over n_active expert
@@ -79,7 +91,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
   double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
-  auto service=GateService(work,family,g,residency,u,alternate_path);
+  auto service=DenseService(work,family,g,residency,coordinates);
   double producer=0;
   if(service) {
     double tiles=per_cta*k/g.TileK();
@@ -179,8 +191,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
     // Layer 0's qkv follows the ring-less embedding.
     int instances=f==4?1:f==0 && pre[0]?work.layers-1:work.layers;
     Sm90DensePrediction::Stage s{kSm90DenseFamilies[f],instances};
-    s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms,pre[f],c.swiglu_u,
-              c.live_epilogue_rows || c.weight_stream);
+    s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms,pre[f],&c);
     p.stages.push_back(std::move(s));
     if(f==0 && pre[0]) {
       Sm90DensePrediction::Stage first{kSm90DenseFamilies[0],1};

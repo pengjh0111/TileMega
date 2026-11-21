@@ -51,7 +51,7 @@ void Finish(Sm90NativeStagePrice& price, TaskPriceParts const& base, double epil
 Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned family,
                                          Sm90DenseGemm const& g, int residency,
                                          Sm90DenseCostModel const& cost, bool weight_stream,
-                                         bool pre,int u,bool alternate_path) {
+                                         bool pre,Sm90DenseCoordinates const* coordinates) {
   auto const& c = cost.Constants();
   int grid = cost.Grid(residency);
   int b = work.batch;
@@ -82,7 +82,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
 
   TaskPriceParts parts;
   // Eq. (7) c_x: the body's arithmetic and on-chip accesses.
-  auto service=cost.GateService(work,family,g,residency,u,alternate_path || weight_stream);
+  auto service=weight_stream?std::nullopt:cost.DenseService(work,family,g,residency,coordinates);
   double local=cost.MmaK16Ns(g,residency)*k/(16*g.warps_k);
   if(service)local=std::max(service->producer_issue_ns,service->consumer_mma_ns)*k/g.TileK();
   // Local service excludes full/empty waits. The flow still accounts for

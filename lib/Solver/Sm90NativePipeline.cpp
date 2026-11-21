@@ -270,7 +270,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if(!ampere || c.moe)return true;
     auto const& gate=c.gemms[2];
     return c.swiglu_u==Sm90DenseSearchSpace::DefaultGateInterleave(gate.tile_n) ||
-        cost.GateService(work,2,gate,c.residency,c.swiglu_u,c.live_epilogue_rows || c.weight_stream);
+        cost.DenseService(work,2,gate,c.residency,&c);
   };
 
   auto score = [&](Sm90DenseCoordinates const& c) -> double {
@@ -391,11 +391,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
             changed|=consider(trial,label);
             if(ampere && !trial.moe && family==2) {
               for(int u:{4,8,16}) {
-                if(u==trial.swiglu_u || geometry.tile_n%(2*u) ||
-                   !cost.GateService(work,2,geometry,trial.residency,u,
-                       trial.live_epilogue_rows || trial.weight_stream))continue;
+                if(u==trial.swiglu_u || geometry.tile_n%(2*u))continue;
                 auto interleave=trial;interleave.swiglu_u=u;
-                changed|=consider(interleave,label+"/gate interleave");
+                if(cost.DenseService(work,2,geometry,interleave.residency,&interleave))
+                  changed|=consider(interleave,label+"/gate interleave");
               }
             }
           }

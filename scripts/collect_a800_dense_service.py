@@ -16,6 +16,15 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+PRODUCTION_KEY_FIELDS = ('grid', 'n', 'k', 'batch', 'tn', 'tk', 'slots', 'warps_n', 'warps_k',
+                         'register_stages', 'u', 'residual_tiles', 'input_norm', 'live_rows',
+                         'copy_issue_group')
+
+
+def production_key(row):
+    return ':'.join((row['epilogue'], *(str(int(row[key])) for key in PRODUCTION_KEY_FIELDS)))
+
+
 def collect(run, target, binary):
     base = read(target)
     resources = base['resources']
@@ -39,34 +48,68 @@ def collect(run, target, binary):
     metrics = ('producer_issue_ns_per_tile', 'consumer_mma_ns_per_tile',
                'consumer_epilogue_ns_per_task', 'untraced_span_ns', 'traced_span_ns')
     measurements = {}
+    rejected = {}
+    typed = artifact.get('contract') == 'sm80-dense-gemm-service-v1'
     for case in artifact['cases']:
         if Path(case).name != case:
             raise ValueError('calibration case must be a local case label')
         row = read(run/f'{case}.json')
         if row['status'] == 'resource_rejected':
+            rejected[case] = 'linked resource capacity'
             continue
         if (row['status'] != 'measured' or not row['output_bitwise_equal']
-                or row['input_norm'] is not True or row['weight_layout'] != 'contiguous'
+                or row['weight_layout'] != 'contiguous'
                 or row['grid'] != device['sm_count'] * row['requested_residency']
                 or min(row['plain_residency'], row['traced_residency']) < row['requested_residency']
                 or row['warps_n'] * row['warps_k'] != 4
                 or any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics)):
             raise ValueError(f'invalid production GEMM service result for {case}')
-        u = int(row['epilogue'].removeprefix('swiglu-u'))
-        if u not in (4, 8, 16):
-            raise ValueError('unknown dense gate epilogue')
-        key = ':'.join(str(row[k]) for k in geometry) + f':{u}'
+        if typed:
+            # This probe isolates a stage. Occupancy capacity does not by itself
+            # establish co-residency for the enclosing persistent program.
+            if row['requested_residency'] != 1:
+                rejected[case] = 'requires linked full-program residency and overlap'
+                continue
+            ratio = row['traced_span_ns'] / row['untraced_span_ns']
+            if not 0.75 <= ratio <= 1.25:
+                rejected[case] = f'traced/untraced span {ratio:.3f}'
+                continue
+            if row['epilogue'] not in ('swiglu', 'store', 'residual'):
+                raise ValueError(f'unknown production epilogue for {case}')
+            if (row['input_norm'] != (row['epilogue'] != 'residual')
+                    or row['u'] not in (4, 8, 16) or row['copy_issue_group'] not in (0, 4, 8)
+                    or row['residual_tiles'] != (
+                        (row['n']//row['tn'] + row['grid']-1)//row['grid']
+                        if row['epilogue'] == 'residual' else 0)):
+                raise ValueError(f'inconsistent production geometry for {case}')
+            key = production_key(row)
+            if key != artifact['geometry_by_case'][case]:
+                raise ValueError(f'measured implementation differs from queued shape for {case}')
+        else:
+            if row['input_norm'] is not True:
+                raise ValueError('legacy gate pricing requires input normalization')
+            u = row.get('u') or int(row['epilogue'].removeprefix('swiglu-u'))
+            if u not in (4, 8, 16):
+                raise ValueError('unknown dense gate epilogue')
+            key = ':'.join(str(row[k]) for k in geometry) + f':{u}'
         if key in measurements:
             raise ValueError(f'duplicate service geometry {key}')
         measurements[key] = dict(row, case=case)
-    if not measurements:
-        raise ValueError('calibration has no accepted service geometry')
     constants = base['sm80_native_constants']
-    append_service(constants, [dict(
-        schema=1, base_target_sha256=sha(target), source_sha=artifact['source_sha'],
+    profile = dict(schema=1, base_target_sha256=sha(target), source_sha=artifact['source_sha'],
         body_headers=artifact['body_headers'], binary_sha256=artifact['binary_sha256'],
         gpu_uuid=device['nvml_uuid'], guard_result_sha256=sha(run/'guard/guard_result.json'),
-        evidence=run.name, measurements=measurements)])
+        evidence=str(run), measurements=measurements, rejected=rejected)
+    if typed:
+        registry = constants.setdefault('dense_gemm_service', dict(schema=1, profiles=[]))
+        if registry['schema'] != 1:
+            raise ValueError('unsupported dense GEMM service registry schema')
+        if profile not in registry['profiles']:
+            registry['profiles'].append(profile)
+    elif measurements:
+        append_service(constants, [profile])
+    else:
+        raise ValueError('calibration has no accepted service geometry')
     return base
 
 

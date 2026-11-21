@@ -14,7 +14,15 @@ struct Sm90NativeMissing : std::invalid_argument {
   using std::invalid_argument::invalid_argument;
 };
 
-struct Sm80DenseGateService {
+struct Sm80DenseServiceShape {
+  std::string epilogue;
+  int grid,n,k,batch,tn,tk,slots,warps_n,warps_k,register_stages,u,residual_tiles;
+  bool input_norm,live_rows;
+  int copy_issue_group;
+  std::string Key() const;
+};
+
+struct Sm80DenseService {
   double producer_issue_ns=0,consumer_mma_ns=0,epilogue_ns=0;
 };
 
@@ -51,7 +59,8 @@ class Sm90NativeConstants {
   // SM80 resident MMA and ldmatrix time per K16 step and split-K warp group.
   static std::string AmpereMmaKey(int grid,int tn,int tk,int wn,int stages);
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
-  std::optional<Sm80DenseGateService> AmpereGateService(
+  std::optional<Sm80DenseService> AmpereDenseService(Sm80DenseServiceShape const&) const;
+  std::optional<Sm80DenseService> AmpereGateService(
       int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const;
   bool HasDenseGateService() const {return !ampere_gate_service_.IsNull();}
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
@@ -77,7 +86,7 @@ class Sm90NativeConstants {
  private:
   std::map<int,double> barrier_;
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
-  json::Value ampere_gate_service_;
+  json::Value ampere_gate_service_,ampere_dense_service_;
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };

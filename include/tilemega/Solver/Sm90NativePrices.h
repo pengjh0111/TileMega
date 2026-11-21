@@ -34,7 +34,7 @@ struct Sm90NativeStagePrice {
 Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned family,
                                          Sm90DenseGemm const& gemm, int residency,
                                          Sm90DenseCostModel const& cost, bool weight_stream,
-                                         bool pre=false,int u=0,bool alternate_path=false);
+                                         bool pre=false,Sm90DenseCoordinates const* coordinates=nullptr);
 Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
                                               Sm90DenseAttention const& attention, int residency,
                                               Sm90DenseCostModel const& cost);

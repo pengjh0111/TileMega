@@ -69,8 +69,7 @@ std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
   for (unsigned f : c.Active()) {
     Sm90NativeStageNode node;
     node.price = Sm90NativeGemmPrice(work, f, c.gemms[f], c.residency, cost,
-                                     !isolated && c.weight_stream,!isolated && pre[f],c.swiglu_u,
-                                      c.live_epilogue_rows || c.weight_stream);
+                                     !isolated && c.weight_stream,!isolated && pre[f],&c);
     node.instances = f == 4 ? 1 : work.layers;
     // Appendix A. qkv releases attention by KV group when the coordinate asks
     // for the group wait (Coarsen); o and down reduce across ranks inside the
@@ -305,8 +304,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
               c.attention.FullyResident(575)) || (f==2 && resident(1)) ||
           (f==3 && resident(2)) || (f==4 && resident(last)) ||
           (f==5 && resident(1)) || (f==7 && !c.expert_fuse && resident(6)));
-      price=Sm90NativeGemmPrice(work,f,c.gemms[f],c.residency,cost,stage_stream,pre,
-                                   c.swiglu_u,c.live_epilogue_rows || c.weight_stream);
+      price=Sm90NativeGemmPrice(work,f,c.gemms[f],c.residency,cost,stage_stream,pre,&c);
       page=c.gemms[f].slot_bytes;pages=stage_stream?c.gemms[f].slots:0;
       if(c.moe && f==6)price.hop_ns=0;
       if(c.moe && f==7 && c.expert_fuse) {

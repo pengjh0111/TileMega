@@ -22,12 +22,25 @@ __global__ void Fill(Element* buffer,int size) {
     buffer[i]=Element(float((i*7u+2u)%31u)/256.0f-0.0625f);
 }
 
-template<int M,int N,int K,int TN,int TK,int Slots,int R,int Residency,bool Probe>
-using Body=Sm90DenseGemm<M,N,K,TN,TK,Slots,4,1,ServingEpilogueOp::kSwiGLU,16,true,R,false,0,true,Probe>;
+template<int Batch,int N,int K,int TN,int TK,int Slots,int R,int Residency,int WN=4,
+         ServingEpilogueOp Op=ServingEpilogueOp::kSwiGLU,int U=16,bool InputNorm=true>
+struct Case {
+  static constexpr int kBatch=Batch,kN=N,kK=K,kTN=TN,kTK=TK,kSlots=Slots,kR=R,kResidency=Residency;
+  static constexpr int kWN=WN,kWK=4/WN,kU=U;
+  static constexpr bool kNorm=InputNorm,kGate=Op==ServingEpilogueOp::kSwiGLU;
+  static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
+  static constexpr char const* Epilogue() {
+    return kGate?"swiglu":kResidual?"residual":"store";
+  }
+  static constexpr int kSide=kResidual?Sm90DenseLayout::ResidualTiles(N/TN,108*Residency):0;
+  template<bool Probe> using Body=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,kWK,Op,U,InputNorm,
+      R,false,kSide,true,Probe>;
+};
 
-template<int M,int N,int K,int TN,int TK,int Slots,int R,int Residency,bool Probe>
-__global__ __launch_bounds__(160,Residency)
-void Run(Element const* a,Element const* b,Element* output,Sm80DenseService* service,Tick* span) {
+template<class C,bool Probe>
+__global__ __launch_bounds__(160,C::kResidency)
+void Run(Element const* a,Element const* b,Element const* residual,Element* output,
+         Sm80DenseService* service,Tick* span) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
@@ -37,10 +50,10 @@ void Run(Element const* a,Element const* b,Element* output,Sm80DenseService* ser
     __syncthreads();
   }
   Sm90DenseOperands args{};
-  args.activation_address=a;args.weight=b;args.output=output;args.epsilon=1e-6f;
+  args.activation_address=a;args.weight=b;args.residual=residual;args.output=output;args.epsilon=1e-6f;
   Tick start=0;
   if(threadIdx.x==0)start=Sm80DenseService::Now();
-  Body<M,N,K,TN,TK,Slots,R,Residency,Probe>::Run(args,shared,&ring);
+  C::template Body<Probe>::Run(args,shared,&ring);
   if(threadIdx.x==0)span[blockIdx.x]=Sm80DenseService::Now()-start;
   ring.Invalidate<true>();
 }
@@ -64,11 +77,13 @@ static double Median(std::vector<T> values) {
   return double(values[values.size()/2]);
 }
 
-template<int M,int N,int K,int TN,int TK,int S,int R,int Residency>
+template<class C>
 int Profile(cudaDeviceProp const& p) {
-  constexpr int shared=Body<M,N,K,TN,TK,S,R,Residency,false>::kSharedBytes;
-  auto plain=Run<M,N,K,TN,TK,S,R,Residency,false>;
-  auto traced=Run<M,N,K,TN,TK,S,R,Residency,true>;
+  constexpr int M=C::kBatch,N=C::kN,K=C::kK,TN=C::kTN,TK=C::kTK,Residency=C::kResidency;
+  constexpr int shared=C::template Body<false>::kSharedBytes;
+  constexpr int output_elements=M*N/(C::kGate?2:1);
+  auto plain=Run<C,false>;
+  auto traced=Run<C,true>;
   if(shared>p.sharedMemPerBlockOptin) {
     std::printf("{\"status\":\"resource_rejected\",\"dynamic_shared\":%d}\n",shared);
     return 0;
@@ -87,14 +102,15 @@ int Profile(cudaDeviceProp const& p) {
     return 0;
   }
   int grid=p.multiProcessorCount*Residency;
-  Device<Element> a(M*K),b(N*K),out(M*N/2),trace_out(M*N/2);
+  Device<Element> a(M*K),b(N*K),residual(C::kResidual?M*N:1),out(output_elements),trace_out(output_elements);
   Device<Sm80DenseService> service(grid);
   Device<Tick> span(grid);
   Fill<<<128,256>>>(a.address,M*K);Fill<<<256,256>>>(b.address,N*K);
-  Run<M,N,K,TN,TK,S,R,Residency,false><<<grid,160,shared>>>(a.address,b.address,out.address,service.address,span.address);
-  Run<M,N,K,TN,TK,S,R,Residency,true><<<grid,160,shared>>>(a.address,b.address,trace_out.address,service.address,span.address);
+  if constexpr(C::kResidual)Fill<<<128,256>>>(residual.address,M*N);
+  Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
+  Run<C,true><<<grid,160,shared>>>(a.address,b.address,residual.address,trace_out.address,service.address,span.address);
   Check(cudaDeviceSynchronize());
-  std::vector<Element> reference(M*N/2),actual(M*N/2);
+  std::vector<Element> reference(output_elements),actual(output_elements);
   out.Read(reference);trace_out.Read(actual);
   if(std::memcmp(reference.data(),actual.data(),reference.size()*sizeof(Element)))
     throw std::runtime_error("instrumented production operator changed the output");
@@ -103,10 +119,10 @@ int Profile(cudaDeviceProp const& p) {
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
   std::vector<Tick> plain_ns,traced_ns;
   for(int trial=0;trial<7;++trial) {
-    Run<M,N,K,TN,TK,S,R,Residency,false><<<grid,160,shared>>>(a.address,b.address,out.address,service.address,span.address);
+    Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
     span.Read(times);
     plain_ns.push_back(*std::max_element(times.begin(),times.end()));
-    Run<M,N,K,TN,TK,S,R,Residency,true><<<grid,160,shared>>>(a.address,b.address,trace_out.address,service.address,span.address);
+    Run<C,true><<<grid,160,shared>>>(a.address,b.address,residual.address,trace_out.address,service.address,span.address);
     span.Read(times);service.Read(rows);
     traced_ns.push_back(*std::max_element(times.begin(),times.end()));
     for(int block=0;block<grid;++block) {
@@ -121,17 +137,25 @@ int Profile(cudaDeviceProp const& p) {
       epilogue.push_back(double(row.consumer_epilogue)/tasks);
     }
   }
-  std::printf("{\"status\":\"measured\",\"epilogue\":\"swiglu-u16\","
-              "\"input_norm\":true,\"weight_layout\":\"contiguous\","
+  std::printf("{\"status\":\"measured\",\"epilogue\":\"%s\","
+              "\"input_norm\":%s,\"weight_layout\":\"contiguous\",\"u\":%d,"
+              "\"live_rows\":%s,\"copy_issue_group\":%d,\"residual_tiles\":%d,"
               "\"batch\":%d,\"n\":%d,\"k\":%d,\"tn\":%d,\"tk\":%d,\"slots\":%d,"
-              "\"register_stages\":%d,\"warps_n\":4,\"warps_k\":1,\"grid\":%d,\"requested_residency\":%d,"
+              "\"register_stages\":%d,\"warps_n\":%d,\"warps_k\":%d,\"grid\":%d,\"requested_residency\":%d,"
               "\"plain_residency\":%d,\"traced_residency\":%d,\"dynamic_shared\":%d,"
               "\"static_shared\":%zu,\"registers\":%d,\"traced_registers\":%d,"
               "\"local_bytes\":%zu,\"traced_local_bytes\":%zu,"
               "\"untraced_span_ns\":%.3f,\"traced_span_ns\":%.3f,\"producer_wait_ns_per_tile\":%.3f,"
               "\"producer_issue_ns_per_tile\":%.3f,\"consumer_wait_ns_per_tile\":%.3f,"
               "\"consumer_mma_ns_per_tile\":%.3f,\"consumer_epilogue_ns_per_task\":%.3f,\"output_bitwise_equal\":true}\n",
-              M,N,K,TN,TK,S,R,grid,Residency,plain_capacity,traced_capacity,shared,plain_attr.sharedSizeBytes,
+              C::Epilogue(),C::kNorm?"true":"false",C::kU,
+#if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
+              M<16 && (C::kGate || C::kWK>1)?"true":"false",
+#else
+              "false",
+#endif
+              C::kGate?TILEMEGA_SM80_COPY_ISSUE_GROUP:0,C::kSide,
+              M,N,K,TN,TK,C::kSlots,C::kR,C::kWN,C::kWK,grid,Residency,plain_capacity,traced_capacity,shared,plain_attr.sharedSizeBytes,
               plain_attr.numRegs,traced_attr.numRegs,plain_attr.localSizeBytes,traced_attr.localSizeBytes,
               Median(plain_ns),Median(traced_ns),Median(producer_wait),Median(producer_issue),Median(consumer_wait),
               Median(consumer_mma),Median(epilogue));
@@ -152,7 +176,10 @@ int main(int argc,char** argv) {
     Check(cudaGetDeviceProperties(&device,0));
     if(device.major!=8 || device.minor || device.multiProcessorCount!=108)
       throw std::invalid_argument("requires the calibrated A800 hardware class");
-#define CASE(label,M,N,K,TN,TK,S,R,O) if(!std::strcmp(argv[1],label))return RetireContext(Profile<M,N,K,TN,TK,S,R,O>(device))
+#define CASE(label,...) if(!std::strcmp(argv[1],label))return RetireContext(Profile<Case<__VA_ARGS__>>(device))
+#ifdef TILEMEGA_SERVICE_CASES
+#include TILEMEGA_SERVICE_CASES
+#else
     CASE("llama8-gate-224s2",1,28672,4096,224,64,2,1,1);
     CASE("llama1-b16-64s2",16,16384,2048,64,64,2,1,1);
     CASE("llama1-b16-64s3",16,16384,2048,64,64,3,1,1);
@@ -162,6 +189,7 @@ int main(int argc,char** argv) {
     CASE("llama1-b16-64s4-r4",16,16384,2048,64,64,4,4,1);
     CASE("llama1-b16-64s2-res2",16,16384,2048,64,64,2,1,2);
     CASE("llama1-b16-64s4-res2",16,16384,2048,64,64,4,1,2);
+#endif
 #undef CASE
     throw std::invalid_argument("unknown service case");
   }catch(std::exception const& error) {
