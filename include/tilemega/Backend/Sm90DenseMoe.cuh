@@ -12,6 +12,14 @@
 #include <cmath>
 
 namespace tilemega::backend {
+#ifdef TILEMEGA_SM80_MOE_SLOT_PADDING
+#define TILEMEGA_SM80_MOE_PADDING_PARAMETER ,bool clear_padding
+#define TILEMEGA_SM80_MOE_FIRST_VISIT(first) ,(first)
+#else
+#define TILEMEGA_SM80_MOE_PADDING_PARAMETER
+#define TILEMEGA_SM80_MOE_FIRST_VISIT(first)
+#endif
+
 
 // Native MoE decode (prompt §8). M4 router + top-k: a GEMM over the
 // RMS-normalized x' whose last arriver selects each token's top-k, writes the
@@ -523,7 +531,7 @@ struct Sm90DenseMoeGemm {
   // Rows are loaded without waiting for count, so no load depends on another.
   struct Record {int expert,count,route;};
   __device__ static __forceinline__ void CopyActivation(Element* destination,Element const* source,
-      int tile,int rows,int token,bool clear_padding=true) {
+      int tile,int rows,int token TILEMEGA_SM80_MOE_PADDING_PARAMETER) {
     static_assert(CpAsync);
     auto* dst=reinterpret_cast<char*>(destination);
 #ifdef TILEMEGA_SM80_MOE_SLOT_PADDING
@@ -595,7 +603,7 @@ struct Sm90DenseMoeGemm {
   }
 
   __device__ static __forceinline__ void CopyActivationFromBases(
-      Element* destination,int tile,ActivationRouteBases const& plan,bool clear_padding=true) {
+      Element* destination,int tile,ActivationRouteBases const& plan TILEMEGA_SM80_MOE_PADDING_PARAMETER) {
     static_assert(CpAsync && Mode==Sm90DenseMoeMode::kGateUp && TK==64);
     auto* dst=reinterpret_cast<char*>(destination);
     int first_row=(threadIdx.x&31)/8,col=(threadIdx.x&7)*8;
@@ -661,8 +669,8 @@ struct Sm90DenseMoeGemm {
             if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
             // Dynamic records can shrink when the task changes. Establish
             // zeros on the first visit to each slot in the current task.
-            CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token,
-                (kDynamic?tile:sequence)<Slots);
+            CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token
+                TILEMEGA_SM80_MOE_FIRST_VISIT((kDynamic?tile:sequence)<Slots));
             Async::CompleteCopies(state.full+slot);
           }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
             // The producer lanes gather the slot's rows of x' (one TK segment
@@ -1092,10 +1100,10 @@ struct Sm90DenseMoeFusedGemm {
           else
 #elif defined(TILEMEGA_SM80_MOE_GU_ROUTE_BASES)
           if constexpr(TKGu==64)
-            Gu::CopyActivationFromBases(a+slot*kRows*kMaxTK,tile,route_bases,tile<Slots);
+            Gu::CopyActivationFromBases(a+slot*kRows*kMaxTK,tile,route_bases TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
           else
 #endif
-            Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token,tile<Slots);
+            Gu::CopyActivation(a+slot*kRows*kMaxTK,p.input,tile,record.count,token TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
           Async::CompleteCopies(state.full+slot);
         }else {
           // The producer lanes gather the slot's rows of x' (one TK segment each)
@@ -1165,7 +1173,7 @@ struct Sm90DenseMoeFusedGemm {
         auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
         for(int tile=0;tile<kAhead;++tile) {
           int slot=(first+tile)%Slots;
-          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0,tile<Slots);
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0 TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
           Async::CompleteCopies(state.full+slot);
         }
       }else if(lane==0) {
@@ -1185,7 +1193,7 @@ struct Sm90DenseMoeFusedGemm {
         if constexpr(CpAsync) {
           auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
           Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
-          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0,tile<Slots);
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0 TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
           Async::CompleteCopies(state.full+slot);
         }else if(lane==0) {
           Async::ExpectTx(state.full+slot,kSlotBytesDn);
@@ -1366,4 +1374,6 @@ struct Sm90DenseMoeFusedGemm {
   }
 };
 
+#undef TILEMEGA_SM80_MOE_PADDING_PARAMETER
+#undef TILEMEGA_SM80_MOE_FIRST_VISIT
 }  // namespace tilemega::backend
