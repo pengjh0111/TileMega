@@ -40,8 +40,11 @@ def main():
         p.error('specify both the Gu N tile and its N warp count')
     anchor = json.loads(a.anchor.read_text())
     library = Path(anchor['decode'])
-    if sha(library) != anchor['decode_sha256'] or anchor['coordinates']['residency'] != 1:
-        raise ValueError('expected the immutable single-resident fused incumbent')
+    if sha(library) != anchor['decode_sha256']:
+        raise ValueError('expected the immutable fused production artifact')
+    residency = anchor['coordinates']['residency']
+    if residency not in (1,2) or residency == 2 and not a.reserve_program_shared:
+        raise ValueError('dual-resident probes must reserve the linked production arena')
     build_identity = json.loads(Path(f'{library}.identity.json').read_text())
     if build_identity['binary_sha256'] != anchor['decode_sha256']:
         raise ValueError('incumbent build manifest has a different binary')
@@ -108,7 +111,7 @@ def main():
     cases = out/'cases.inc'
     params = (batch, ng, nd, hidden, tng, tkg, tnd, tkd, slots, wng, wnd, experts,
               floats, page, r, softmax_all, shared)
-    cases.write_text(f'CASE("{case}",{",".join(map(str, params))});\n')
+    cases.write_text(f'CASE("{case}",{",".join(map(str, (*params,residency)))});\n')
     binary = out/'probe'
     source = ROOT/'scripts/a800_fused_expert_service_probe.cu'
     command = ['/usr/local/cuda-12.8/bin/nvcc', '-std=c++17', '-arch=sm_80',
@@ -122,6 +125,7 @@ def main():
                'Backend/Sm80MoePageOffsets.h')
     (out/'probe.identity.json').write_text(json.dumps(dict(
         contract='sm80-fused-expert-service-v1', architecture='sm_80', roles=[32,128],
+        production_residency=residency, production_grid=build_identity['plan']['grid'],
         source_sha=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         source_file_sha256=sha(source), anchor_sha256=sha(a.anchor), body_parameters=params,
         production_payload=build_identity['plan']['native_dense'].get('payload', 'split'),

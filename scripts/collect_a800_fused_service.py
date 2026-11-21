@@ -23,7 +23,8 @@ def validate_payload_anchor(path, artifact, shape, measurement):
     coordinates = identity['plan']['native_dense']
     if (sha(path) != artifact['anchor_sha256'] or anchor['decode_sha256'] != identity['binary_sha256']
             or anchor['coordinates'] != coordinates or coordinates.get('payload') != 'reuse'
-            or not coordinates.get('expert_fuse') or coordinates['residency'] != 1
+            or not coordinates.get('expert_fuse') or coordinates['residency'] != shape.get('residency',1)
+            or identity['plan']['grid'] != measurement['grid']
             or coordinates['weight_stream'] or coordinates.get('route', 'local') != 'local'
             or coordinates.get('combine', 'la') != 'la'
             or identity['plan']['runtime_batch'] != shape['batch']
@@ -48,8 +49,11 @@ def validate_payload_anchor(path, artifact, shape, measurement):
 
 def append(base, target_sha, run, binary, payload_anchor=None):
     artifact = read(run/'artifact.json')
-    if artifact.get('production_payload') == 'reuse' and payload_anchor is None:
-        raise ValueError('shared-payload calibration requires its linked production anchor')
+    residency = artifact.get('production_residency', 1)
+    if (artifact.get('production_payload') == 'reuse' or residency == 2) and payload_anchor is None:
+        raise ValueError('shared-payload or dual-resident calibration requires the linked artifact')
+    if residency not in (1,2) or artifact['source_modifiers'].get('TILEMEGA_SM80_MOE_PACKED_GU_ROUTES'):
+        raise ValueError('unsupported fused registry residency or route mode')
     identity = binary.with_suffix('.identity.json')
     guard = read(run/'guard/guard_result.json')
     device = read(run/'job/physical-device-identity.json')
@@ -86,9 +90,11 @@ def append(base, target_sha, run, binary, payload_anchor=None):
     params = artifact['body_parameters']
     if (row['status'] != 'measured' or not row['bitwise_equal'] or len(params) != 17
             or row['sampled_ctas_per_launch'] != 1
-            or row['grid'] != resources['num_sms'] or row['batch'] != params[0]
+            or row['grid'] != residency*resources['num_sms'] or row['batch'] != params[0]
+            or artifact.get('production_grid', row['grid']) != row['grid']
+            or residency==2 and not 0<row.get('overlapping_sms',0)<=resources['num_sms']
             or not params[-1] or row['dynamic_shared'] != params[-1]
-            or any(row[f'{mode}_residency'] != 1 for mode in ('plain', 'producer', 'consumer'))
+            or any(row[f'{mode}_residency'] != residency for mode in ('plain', 'producer', 'consumer'))
             or any(row[f'{mode}_local_bytes'] != row['plain_local_bytes']
                    for mode in ('producer', 'consumer'))
             or any(not math.isfinite(row[field]) or row[field] <= 0 for field in fields)
@@ -116,6 +122,8 @@ def append(base, target_sha, run, binary, payload_anchor=None):
     shape['gu_route_bases'] = source.get('TILEMEGA_SM80_MOE_GU_ROUTE_BASES', 0)
     if payload_anchor is not None:
         shape['reuse_payload'] = 1
+    if residency == 2:
+        shape['residency'] = residency
     shape['gate_up_warps_k'] = 4 // shape['gate_up_warps_n']
     shape['down_warps_k'] = 4 // shape['down_warps_n']
     if registry['schema'] != 1:
@@ -127,6 +135,8 @@ def append(base, target_sha, run, binary, payload_anchor=None):
                    guard_sha256=sha(run/'guard/guard_result.json'), evidence=str(run))
     if payload_anchor is not None:
         profile['payload_anchor'] = validate_payload_anchor(payload_anchor, artifact, shape, row)
+    if residency == 2:
+        profile['residency_anchor'] = profile['payload_anchor']
     for previous in registry['profiles']:
         if all(previous.get(key) == value for key, value in profile.items()):
             return

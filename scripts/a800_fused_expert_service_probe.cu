@@ -81,21 +81,36 @@ __global__ void FillLogits(float* logits,int n,int experts) {
   }
 }
 
+struct ResidencySpan {Tick begin,end;unsigned sm;};
+
+int OverlappingSms(std::vector<ResidencySpan> spans,int working) {
+  spans.resize(working);
+  std::sort(spans.begin(),spans.end(),[](auto const& a,auto const& b){return a.sm<b.sm;});
+  int total=0;
+  for(std::size_t i=0,j=0;i<spans.size();i=j) {
+    j=i+1;
+    while(j<spans.size() && spans[j].sm==spans[i].sm)++j;
+    if(j-i==2)
+      total+=std::max(spans[i].begin,spans[i+1].begin)<std::min(spans[i].end,spans[i+1].end);
+  }
+  return total;
+}
+
 template<int B,int NGu,int NDn,int H,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WNDn,int Experts,bool FloatWeights,int Page,int R,bool SoftmaxAll,
-         int Shared>
+         int Shared,int Residency=1>
 struct Case {
   static constexpr int kB=B,kNGu=NGu,kNDn=NDn,kH=H,kE=Experts,kTop=8;
   static constexpr int kTNGu=TNGu,kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn,kSlots=Slots;
   static constexpr bool kFloatWeights=FloatWeights;
-  static constexpr int kShared=Shared;
+  static constexpr int kShared=Shared,kResidency=Residency;
   template<int Role> using Body=Sm90DenseMoeFusedGemm<B,NGu,NDn,H,TNGu,TKGu,TNDn,TKDn,
       Slots,WNGu,4/WNGu,WNDn,4/WNDn,16,Experts,kTop,FloatWeights,Page,R,SoftmaxAll,true,false,true,Role>;
 };
 
 template<class Case,int Role>
-__global__ __launch_bounds__(160,1)
-void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta,int phase) {
+__global__ __launch_bounds__(160,Case::kResidency)
+void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta,int phase,ResidencySpan* spans) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
@@ -122,7 +137,14 @@ void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta,int phase) 
     Case::template Body<Role>::Run(args,shared,&ring);
   else
     Case::template Body<false>::Run(args,shared,&ring);
-  if(threadIdx.x==0)data[Marks::kCount]=Marks::Now()-begin;
+  if(threadIdx.x==0) {
+    auto end=Marks::Now();
+    data[Marks::kCount]=end-begin;
+    if constexpr(Case::kResidency==2) {
+      unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+      spans[blockIdx.x]={begin,end,sm};
+    }
+  }
 #if TILEMEGA_FUSED_SERVICE_SHARED_MARKS
   if(sampled && threadIdx.x<Marks::kCount)data[threadIdx.x]=marks[threadIdx.x];
 #endif
@@ -131,7 +153,7 @@ void Run(Sm90DenseMoeFusedOperands args,Tick* samples,int sample_cta,int phase) 
 
 template<class C>
 int Profile(cudaDeviceProp const& device) {
-  int grid=device.multiProcessorCount;
+  int grid=device.multiProcessorCount*C::kResidency;
   constexpr int B=C::kB,E=C::kE,Top=C::kTop,NG=C::kNGu,ND=C::kNDn,H=C::kH;
   constexpr int stage_shared=C::template Body<false>::kSharedBytes;
   constexpr int shared=C::kShared?C::kShared:stage_shared;
@@ -153,8 +175,12 @@ int Profile(cudaDeviceProp const& device) {
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&plain_slots,plain,160,shared));
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&producer_slots,producer,160,shared));
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&consumer_slots,consumer,160,shared));
-  if(std::min({plain_slots,producer_slots,consumer_slots})<1)
-    throw std::runtime_error("fused service cannot be resident");
+  if(std::min({plain_slots,producer_slots,consumer_slots})<C::kResidency) {
+    std::printf("{\"status\":\"resource_rejected\",\"dynamic_shared\":%d,"
+        "\"requested\":%d,\"plain_residency\":%d,\"producer_residency\":%d,\"consumer_residency\":%d}\n",
+        shared,C::kResidency,plain_slots,producer_slots,consumer_slots);
+    return 0;
+  }
   Device<Elt> wg(std::size_t(E)*NG*H),wd(std::size_t(E)*ND*(NG/2)),input(B*H),x(B*ND),
       hidden(E*16*(NG/2));
   Device<float> output(B*Top*ND),logits(B*E);
@@ -163,6 +189,7 @@ int Profile(cudaDeviceProp const& device) {
   Device<unsigned> done(E);
   Device<std::uint64_t> combine(ND/C::kTNDn);
   Device<Tick> trace(grid*(Marks::kCount+1));
+  Device<ResidencySpan> spans(C::kResidency==2?grid:1);
   struct Event {
     cudaEvent_t event;
     Event() {Check(cudaEventCreate(&event));}
@@ -191,7 +218,7 @@ int Profile(cudaDeviceProp const& device) {
     return n;
   };
   auto read=[&](auto kernel,int cta,std::vector<double>& elapsed,int repeat,int phase=-1) {
-    void* params[]={&args,&trace.data,&cta,&phase};
+    void* params[]={&args,&trace.data,&cta,&phase,&spans.data};
     Check(cudaEventRecord(begin.event));
     Check(cudaLaunchKernel(reinterpret_cast<void const*>(kernel),grid,160,params,shared));
     Check(cudaEventRecord(end.event));
@@ -211,7 +238,7 @@ int Profile(cudaDeviceProp const& device) {
 #else
   constexpr int phases=1;
 #endif
-  int active=0;
+  int active=0,overlap=device.multiProcessorCount;
   for(int repeat=-1;repeat<samples*phases;++repeat) {
     // A stride coprime to 108 covers the task waves and K tile residues.
     int block=(std::max(0,repeat)/phases*37)%grid;
@@ -223,7 +250,12 @@ int Profile(cudaDeviceProp const& device) {
         max_time=std::max(max_time,rows[block*(Marks::kCount+1)+Marks::kCount]);
       return double(max_time);
     };
-    if(repeat>=0)plain_spans.push_back(span(raw));
+    if(repeat>=0) {
+      plain_spans.push_back(span(raw));
+      if constexpr(C::kResidency==2)
+        overlap=std::min(overlap,OverlappingSms(spans.Read(),
+            std::min(grid,active*(NG/C::kTNGu+ND/C::kTNDn))));
+    }
     expected=x.Read();routes_expected=index.Read();
     if(repeat<0)active=schedule.Read().front();
     auto check=[&](auto kernel,int cta,std::vector<double>& elapsed,int phase=-1) {
@@ -306,6 +338,7 @@ int Profile(cudaDeviceProp const& device) {
       Median(gu_issue),Median(gu_mma),Median(gu_epilogue),
       dn_issue.empty()?0.0:Median(dn_issue),Median(dn_mma),Median(dn_epilogue),
       Median(preissue),Median(activation));
+  if constexpr(C::kResidency==2)std::printf(",\"overlapping_sms\":%d",overlap);
 #if TILEMEGA_FUSED_SERVICE_SPLIT_PHASES
   std::printf(",\"phase_timing_ns\":[");
   for(int i=0;i<phases;++i) {
