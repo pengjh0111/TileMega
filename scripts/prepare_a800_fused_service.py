@@ -18,6 +18,7 @@ def main():
     p.add_argument('--copy-group', type=int, choices=(0, 4, 8))
     p.add_argument('--reserve-program-shared', action='store_true')
     p.add_argument('--gu-route-bases', action='store_true')
+    p.add_argument('--live-rows', action='store_true')
     a = p.parse_args()
     anchor = json.loads(a.anchor.read_text())
     library = Path(anchor['decode'])
@@ -53,8 +54,10 @@ def main():
         macro='TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES'
         if re.search(rf'^#define {macro}\b', generated, re.MULTILINE):
             variants[macro] = 1
-    if a.variant == 'live':
+    if a.variant == 'live' or a.live_rows:
         variants['TILEMEGA_SM80_ACTIVE_EPILOGUE'] = 1
+        if a.variant != 'live':
+            case += '-live-rows'
     if a.gu_route_bases:
         if tkg != 64 or batch > 16:
             raise ValueError('hoisted Gu routes require 64-wide tiles and at most 16 tokens')

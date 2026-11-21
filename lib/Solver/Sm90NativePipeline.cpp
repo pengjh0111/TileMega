@@ -294,10 +294,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       if(cost.FusedService(work,page))result.emplace_back(page,"expert weight pages");
       auto routes=c;routes.expert_gu_route_bases=!c.expert_gu_route_bases;
       if(cost.FusedService(work,routes))result.emplace_back(routes,"expert Gu activation routes");
-      if(work.batch<16) {
-        auto rows=c;rows.live_epilogue_rows=!c.live_epilogue_rows;
-        if(cost.FusedService(work,rows))result.emplace_back(rows,"expert accumulator rows");
-      }
+      auto rows=c;rows.live_epilogue_rows=!c.live_epilogue_rows;
+      if(cost.FusedService(work,rows))result.emplace_back(rows,"expert accumulator rows");
       return result;
     }
     if(work.batch<16) {
