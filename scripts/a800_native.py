@@ -117,7 +117,6 @@ def main():
                     prefill_sha256=prefill_id.get('binary_sha256', 'prompt'))
     if args.host_preparation:
         args.host_preparation = args.host_preparation.resolve(strict=True)
-        identity['host_preparation_sha256'] = sha(args.host_preparation)
     artifact_key = hashlib.sha256(json.dumps(
         [identity[key] for key in ('target_sha256', 'decode_sha256', 'prefill_sha256')],
         separators=(',', ':')).encode()).hexdigest()[:20]
@@ -152,6 +151,14 @@ def main():
                 reduced != dict(source, num_hidden_layers=layers)):
             parser.error('the diagnostic model may only reduce the number of layers')
         description = dict(description, config_sha256=sha(config/'config.json'))
+    if args.host_preparation:
+        from tilemega.serving.host_preparation import validate_artifact_binding
+
+        contents = args.host_preparation.read_bytes()
+        identities = (prefill_id, decode_id) if prefill_id else (decode_id,)
+        validate_artifact_binding(json.loads(contents), json.loads((config/'config.json').read_text()),
+                                  args.batch, plan['capacity'], identities)
+        identity['host_preparation_sha256'] = hashlib.sha256(contents).hexdigest()
     name = f'native-{stage}-r{args.round}'
     tokens = 1 if diagnostic else 1024
     if args.mode == 'plan':

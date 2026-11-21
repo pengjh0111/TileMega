@@ -6,17 +6,22 @@ import zlib
 from tilemega.build.identity import digest
 
 from .memory import allocation_metadata, memory_report
-from .weights import prepare_weight_recipes
+
+
+def artifact_binding(config, batch, capacity, identities):
+    return dict(schema=1, config=digest(config), batch=batch, capacity=capacity,
+                plans=[dict(binary=identity['binary_sha256'], manifest=identity['manifest_sha256'],
+                            source=identity['source']['source_digest']) for identity in identities])
 
 
 def binding(config, batch, capacity, identities, libraries):
-    return dict(schema=1, config=digest(config), batch=batch, capacity=capacity,
-                plans=[dict(binary=identity['binary_sha256'], manifest=identity['manifest_sha256'],
-                            source=identity['source']['source_digest']) for identity in identities],
+    return dict(artifact_binding(config, batch, capacity, identities),
                 abi=digest([[vars(buffer) for buffer in library.buffers] for library in libraries]))
 
 
 def prepare(config, batch, manifests, identities, libraries):
+    from .weights import prepare_weight_recipes
+
     capacity = manifests[-1]['capacity']
     metadata = [allocation_metadata(manifest, library) for manifest, library in zip(manifests, libraries, strict=True)]
     return dict(binding=binding(config, batch, capacity, identities, libraries),
@@ -27,6 +32,13 @@ def prepare(config, batch, manifests, identities, libraries):
 def validate(record, config, batch, capacity, libraries):
     if record['binding'] != binding(config, batch, capacity, [lib.identity for lib in libraries], libraries):
         raise ValueError('frozen host preparation has a different plan, ABI or workload')
+
+
+def validate_artifact_binding(record, config, batch, capacity, identities):
+    expected = artifact_binding(config, batch, capacity, identities)
+    frozen = record['binding']
+    if any(frozen.get(key) != value for key, value in expected.items()):
+        raise ValueError('frozen host preparation has a different plan or workload')
 
 
 def encode_schedule(raw, binary_sha256):
