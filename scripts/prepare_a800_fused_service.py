@@ -15,11 +15,16 @@ def main():
     p.add_argument('--anchor', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--variant', choices=('full', 'live', 'segments'), required=True)
+    p.add_argument('--copy-group', type=int, choices=(0, 4, 8))
+    p.add_argument('--reserve-program-shared', action='store_true')
     a = p.parse_args()
     anchor = json.loads(a.anchor.read_text())
     library = Path(anchor['decode'])
     if sha(library) != anchor['decode_sha256'] or anchor['coordinates']['residency'] != 1:
         raise ValueError('expected the immutable single-resident fused incumbent')
+    build_identity = json.loads(Path(f'{library}.identity.json').read_text())
+    if build_identity['binary_sha256'] != anchor['decode_sha256']:
+        raise ValueError('incumbent build manifest has a different binary')
     generated = Path(str(library)+'.cu').read_text()
     alias = next(iter(re.findall(r'\bMoeFused<([^>]+)>', generated)))
     values = alias.split(',')
@@ -33,6 +38,12 @@ def main():
     r, softmax_all = values[-6], values[-4]
     case = f'{anchor["model"]}-b{batch}-{a.variant}'
     variants = {}
+    copy = a.copy_group if a.copy_group is not None else anchor['coordinates'].get('copy_issue_group', 0)
+    if copy:
+        if page == '64' and a.variant != 'segments':
+            raise ValueError('grouped page64 copies require the segmented implementation')
+        variants['TILEMEGA_SM80_COPY_ISSUE_GROUP'] = copy
+        case += f'-copy{copy}'
     if a.variant == 'segments':
         if page != '64':
             raise ValueError('segments require paged weights')
@@ -43,11 +54,12 @@ def main():
             variants[macro] = 1
     if a.variant == 'live':
         variants['TILEMEGA_SM80_ACTIVE_EPILOGUE'] = 1
+    shared = build_identity['shared_memory_bytes'] if a.reserve_program_shared else 0
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = out/'cases.inc'
     params = (batch, ng, nd, hidden, tng, tkg, tnd, tkd, slots, wng, wnd, experts,
-              floats, page, r, softmax_all)
+              floats, page, r, softmax_all, shared)
     cases.write_text(f'CASE("{case}",{",".join(map(str, params))});\n')
     binary = out/'probe'
     source = ROOT/'scripts/a800_fused_expert_service_probe.cu'

@@ -49,11 +49,13 @@ __global__ void FillLogits(float* logits,int n,int experts) {
 }
 
 template<int B,int NGu,int NDn,int H,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
-         int WNGu,int WNDn,int Experts,bool FloatWeights,int Page,int R,bool SoftmaxAll>
+         int WNGu,int WNDn,int Experts,bool FloatWeights,int Page,int R,bool SoftmaxAll,
+         int Shared>
 struct Case {
   static constexpr int kB=B,kNGu=NGu,kNDn=NDn,kH=H,kE=Experts,kTop=8;
   static constexpr int kTKGu=TKGu,kTKDn=TKDn,kTNDn=TNDn,kSlots=Slots;
   static constexpr bool kFloatWeights=FloatWeights;
+  static constexpr int kShared=Shared;
   template<bool Sample> using Body=Sm90DenseMoeFusedGemm<B,NGu,NDn,H,TNGu,TKGu,TNDn,TKDn,
       Slots,WNGu,4/WNGu,WNDn,4/WNDn,16,Experts,kTop,FloatWeights,Page,R,SoftmaxAll,true,false,true,Sample>;
 };
@@ -84,7 +86,9 @@ template<class C>
 int Profile(cudaDeviceProp const& device) {
   int grid=device.multiProcessorCount;
   constexpr int B=C::kB,E=C::kE,Top=C::kTop,NG=C::kNGu,ND=C::kNDn,H=C::kH;
-  constexpr int shared=C::template Body<false>::kSharedBytes;
+  constexpr int stage_shared=C::template Body<false>::kSharedBytes;
+  constexpr int shared=C::kShared?C::kShared:stage_shared;
+  static_assert(shared>=stage_shared);
   if(shared>device.sharedMemPerBlockOptin) {
     std::printf("{\"status\":\"resource_rejected\",\"dynamic_shared\":%d}\n",shared);
     return 0;
