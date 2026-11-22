@@ -128,7 +128,7 @@ struct Sm90DenseCoordinates {
   int tp=1;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
   static constexpr bool PaddedFamily(unsigned family,int n,int tp,bool reuse_payload) {
-    return family<4 && reuse_payload && tp==1 && n%32==0;
+    return family<5 && reuse_payload && tp==1 && n%32==0;
   }
 
   // MR7: the fused stage's storage; a slot holds either task type, so each
@@ -237,7 +237,7 @@ struct Sm90DenseCoordinates {
     int arena=Sm90DenseArena(budget,reuse_payload);
     for(unsigned i:Active()) {
       auto const& gemm=gemms[i];
-      if(i<4 && nk[i][0]%gemm.tile_n && (grid<=0 || gemm.TaskCount(nk[i][0])>3*grid))
+      if(i<5 && nk[i][0]%gemm.tile_n && (grid<=0 || gemm.TaskCount(nk[i][0])>3*grid))
         throw std::invalid_argument("padded native GEMM exceeds three task waves");
       if(gemm.ResidualTiles(ResidualFamily(i),nk[i][0],grid)>backend::kSm90DenseResidualTiles)
         throw std::invalid_argument("native GEMM exceeds residual tasks per CTA");

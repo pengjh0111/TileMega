@@ -55,7 +55,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   if(c.cluster>1 && grid%c.cluster)return false;
   // D9: every CTA publishes one argmax partial into the head's [B][tasks]
   // outputs, so the head needs at least one task per CTA.
-  if(shapes[4][0]/c.gemms[4].tile_n<grid)return false;
+  if(c.gemms[4].TaskCount(shapes[4][0])<grid)return false;
   // D10c: both CTAs of a pair run the same task count.
   for(unsigned f:c.Active())
     if(c.gemms[f].multicast && ((shapes[f][0]/c.gemms[f].tile_n)%grid)%2)return false;
@@ -88,10 +88,17 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     // A sharded vocabulary is not a multiple of 128: Qwen3-1.7B gives 75968 at
     // TP2 and 37984 at TP4, which admit 16 and 32 but not 128 or 256. D9 still
     // requires at least one lm_head task per CTA.
-    if(tp>1)for(int tn:{16,32,64,128,256}) {
+    if(target.arch_tag=="sm_80" && tp==1) {
+      for(int tn=8;tn<=n;tn+=8) {
+        int count=(n+tn-1)/tn;
+        if(count>=grid && (n%tn==0 || (allow_n_tail && count<=3*grid)))
+          tiles.push_back(tn);
+      }
+      for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
+    }else if(tp>1)for(int tn:{16,32,64,128,256}) {
       if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
     }else for(int tn:{128,256})if(n%tn==0 && n/tn>=grid)tiles.push_back(tn);
-    depths={64,128,256};
+    if(depths.empty())depths={64,128,256};
   }else if(family>=5) {
     // M4: TN8, 16 tasks. The expert tiles belong to the geometry: R3 fitted
     // {96, 192} / {128, 256} to Qwen3's 128 experts of width 768, and A3 gives
