@@ -149,11 +149,15 @@ struct Sm90DenseGemm {
       int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
       int tile=sequence%kIterations;
       Sm80DenseService::Tick stamp=0;
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
       if constexpr(ServiceProbe)if(lane==0)stamp=Sm80DenseService::Now();
+#endif
       Async::Wait(state.empty+slot,(phase>>slot)&1);
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
       if constexpr(ServiceProbe)if(lane==0) {
         auto ready=Sm80DenseService::Now();service.producer_wait+=ready-stamp;stamp=ready;
       }
+#endif
       int prefix=0;
       if constexpr(Prefix>0)
         if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
@@ -181,13 +185,17 @@ struct Sm90DenseGemm {
       }
       // The barrier has 32 arrivals, including lanes with no copies in a tile.
       Async::CompleteCopies(state.full+slot);
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
       if constexpr(ServiceProbe)if(lane==0)service.producer_issue+=Sm80DenseService::Now()-stamp;
+#endif
       phase^=1u<<slot;
     }
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
     if constexpr(ServiceProbe)if(lane==0) {
       auto* out=Sm80DenseService::Output();
       out->producer_wait=service.producer_wait;out->producer_issue=service.producer_issue;
     }
+#endif
     if(lane==0 && tasks)
       for(int slot=0;slot<Slots;++slot)state.producer_generations[slot]=(phase>>slot)&1;
     __syncwarp();
@@ -326,11 +334,15 @@ struct Sm90DenseGemm {
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
         Sm80DenseService::Tick stamp=0;
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
         if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();
+#endif
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
         if constexpr(ServiceProbe)if(tid==0) {
           auto ready=Sm80DenseService::Now();service.consumer_wait+=ready-stamp;stamp=ready;
         }
+#endif
         if(tid==0)Sm90DenseMarkFirst(0);
         auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
         // A warp takes one uniform specialization. All 128-thread barriers
@@ -351,7 +363,9 @@ struct Sm90DenseGemm {
         // (PTX ISA 8.7 sec. 8.6 proxies; without it TN448 B1 lost 132/200 runs).
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
         if constexpr(ServiceProbe)if(tid==0)service.consumer_mma+=Sm80DenseService::Now()-stamp;
+#endif
         // The peer issued this slot's A into this CTA too: release it there.
         if constexpr(Multicast)
           if(unsigned(slot&1)!=(rank&1))Async::RemoteArrive(Async::Mapa(state.peer+slot/2,rank^1u));
@@ -359,6 +373,10 @@ struct Sm90DenseGemm {
       Sm80DenseService::Tick epilogue_start=0;
 #ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
       if constexpr(ServiceProbe)if(tid==0)epilogue_start=Sm80DenseService::Now();
+#else
+      Sm80DenseService::Tick side_ready=0;
+      static_assert(!ServiceProbe || kResidual,"cycle sampling isolates the residual epilogue");
+      if constexpr(ServiceProbe)if(tid==0)epilogue_start=Sm80DenseService::Cycles();
 #endif
       if(tid==0)Sm90DenseMark(1);
       if constexpr(InputNorm)
@@ -374,8 +392,7 @@ struct Sm90DenseGemm {
         tile_residual=residual+local*Batch*TN;
       }
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
-      static_assert(!ServiceProbe || kResidual,"cycle sampling isolates the residual epilogue");
-      if constexpr(ServiceProbe)if(tid==0)epilogue_start=Sm80DenseService::Cycles();
+      if constexpr(ServiceProbe)if(tid==0)side_ready=Sm80DenseService::Cycles();
 #endif
       if constexpr(kRegisterEpilogue) {
         float inv[2]={1,1};
@@ -411,15 +428,23 @@ struct Sm90DenseGemm {
       }
       if constexpr(ServiceProbe)if(tid==0)
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
-        service.consumer_epilogue+=Sm80DenseService::Cycles()-epilogue_start;
+      {
+        auto end=Sm80DenseService::Cycles();
+        service.consumer_epilogue+=end-epilogue_start;
+        service.consumer_residual_compute+=end-side_ready;
+      }
 #else
         service.consumer_epilogue+=Sm80DenseService::Now()-epilogue_start;
 #endif
     }
     if constexpr(ServiceProbe)if(tid==0) {
       auto* out=Sm80DenseService::Output();
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+      *out=service;
+#else
       out->consumer_wait=service.consumer_wait;out->consumer_mma=service.consumer_mma;
       out->consumer_epilogue=service.consumer_epilogue;
+#endif
     }
     // Every task has been consumed: the operand slots are free.
     if constexpr(Op==ServingEpilogueOp::kArgmaxPartial) {

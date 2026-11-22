@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
     parser.add_argument('--epilogue-clock', action='store_true',
-                        help='measure residual epilogues in SM cycles after the side wait')
+                        help='measure residual epilogue and side wait without mainloop timers')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
     parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K[:TILE_N[:WARPS_N]]]',
                         help='compile an alternative ring depth and optional K and N tiles and N warp count')

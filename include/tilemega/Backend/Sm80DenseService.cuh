@@ -13,6 +13,7 @@ struct Sm80DenseService {
     Tick value;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(value)::"memory");return value;
   }
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+  Tick consumer_residual_compute=0;
   __device__ static Tick Cycles() {
     Tick value;asm volatile("mov.u64 %0, %%clock64;":"=l"(value)::"memory");return value;
   }

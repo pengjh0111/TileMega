@@ -166,7 +166,7 @@ int Profile(cudaDeviceProp const& p) {
   std::vector<Sm80DenseService> rows(grid);
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
-  std::vector<double> epilogue_cycles,sm_ghz;
+  std::vector<double> epilogue_cycles,sm_ghz,residual_compute_ns;
 #endif
   std::vector<Tick> plain_ns,traced_ns;
   int min_overlapping=p.multiProcessorCount;
@@ -199,6 +199,7 @@ int Profile(cudaDeviceProp const& p) {
       sm_ghz.push_back(rate);
       epilogue_cycles.push_back(cycles);
       epilogue.push_back(cycles/rate);
+      residual_compute_ns.push_back(double(row.consumer_residual_compute)/(tasks*rate));
 #else
       epilogue.push_back(double(row.consumer_epilogue)/tasks);
 #endif
@@ -228,8 +229,9 @@ int Profile(cudaDeviceProp const& p) {
               Median(plain_ns),Median(traced_ns),Median(producer_wait),Median(producer_issue),Median(consumer_wait),
               Median(consumer_mma),Median(epilogue));
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
-  std::printf(",\"consumer_epilogue_cycles_per_task\":%.3f,\"epilogue_calibration_sm_ghz\":%.6f",
-      Median(epilogue_cycles),Median(sm_ghz));
+  std::printf(",\"consumer_epilogue_cycles_per_task\":%.3f,\"epilogue_calibration_sm_ghz\":%.6f,"
+              "\"consumer_residual_compute_ns_per_task\":%.3f,\"epilogue_only\":true",
+      Median(epilogue_cycles),Median(sm_ghz),Median(residual_compute_ns));
 #endif
   std::printf("}\n");
   return 0;
