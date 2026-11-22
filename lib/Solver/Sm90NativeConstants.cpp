@@ -147,6 +147,39 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
         c.ampere_projection_batch_=0;
     }
   }
+  if(auto const* routes=s.Find("expert_route_profile")) {
+    if(!ampere || routes->At("schema").AsNumber("expert route schema")!=1)
+      throw std::invalid_argument("invalid SM80 expert route profile");
+    for(auto const& entry:routes->At("workloads").AsArray("expert route workloads")) {
+      auto const& values=entry.At("scope").AsArray("expert route scope");
+      std::array<int,6> key{};
+      if(values.size()!=key.size())throw std::invalid_argument("invalid expert route scope");
+      for(std::size_t i=0;i<key.size();++i) {
+        double value=Positive(values[i],"expert route scope component");
+        if(value>65536 || std::floor(value)!=value)throw std::invalid_argument("invalid expert route scope");
+        key[i]=int(value);
+      }
+      if(key[0]>128 || key[1]>key[0] || key[2]>16)
+        throw std::invalid_argument("invalid expert route batch or top-k");
+      std::vector<double> weights(key[0]+1);
+      double samples=0;
+      for(auto const& sample:entry.At("occurrences").AsArray("expert route observations")) {
+        auto const& pair=sample.AsArray("expert count and frequency");
+        if(pair.size()!=2)throw std::invalid_argument("expected expert count and frequency");
+        double active=Positive(pair[0],"observed active experts");
+        double frequency=Positive(pair[1],"observed expert frequency");
+        if(std::floor(active)!=active || std::floor(frequency)!=frequency || active<key[1] ||
+           active>std::min(key[0],key[1]*key[2]) || weights[int(active)]!=0)
+          throw std::invalid_argument("invalid observed expert count");
+        weights[int(active)]=frequency;samples+=frequency;
+      }
+      if(samples!=entry.At("samples").AsNumber("expert route sample count") || samples<=0)
+        throw std::invalid_argument("expert route sample count does not match its frequencies");
+      for(double& weight:weights)weight/=samples;
+      if(!c.ampere_routes_.emplace(key,std::move(weights)).second)
+        throw std::invalid_argument("duplicate expert route scope");
+    }
+  }
   if(auto const* service=s.Find("dense_gate_service")) {
     auto schema=service->At("schema").AsNumber("dense gate service schema");
     if(!ampere || (schema!=1 && schema!=2))
@@ -526,6 +559,11 @@ std::optional<double> Sm90NativeConstants::AmpereProjectionIssueRate(int batch,i
   for(std::size_t i=0;i<features.size();++i)
     log_rate+=features[i]*ampere_projection_coefficients_[i];
   return std::exp(log_rate);
+}
+std::vector<double> const* Sm90NativeConstants::AmpereExpertRouteWeights(int experts,int top_k,
+    int batch,int hidden,int intermediate,int layers) const {
+  auto found=ampere_routes_.find({experts,top_k,batch,hidden,intermediate,layers});
+  return found==ampere_routes_.end()?nullptr:&found->second;
 }
 std::string Sm80DenseServiceShape::Key() const {
   std::string key=epilogue;

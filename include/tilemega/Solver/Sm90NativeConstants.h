@@ -80,6 +80,8 @@ class Sm90NativeConstants {
   std::optional<double> AmpereResidualEpilogue(Sm80DenseServiceShape const&) const;
   std::optional<double> AmpereProjectionIssueRate(int batch,int n,int k,int tn,int tk,
       int slots,int grid,bool input_norm) const;
+  std::vector<double> const* AmpereExpertRouteWeights(int experts,int top_k,int batch,
+      int hidden,int intermediate,int layers) const;
   std::optional<Sm80FusedExpertService> AmpereFusedService(Sm80FusedExpertShape const&) const;
   std::optional<double> AmpereFusedBody(Sm80FusedExpertShape const&) const;
   std::vector<Sm80FusedExpertShape> const& AmpereFusedShapes() const {return ampere_fused_shapes_;}
@@ -117,6 +119,7 @@ class Sm90NativeConstants {
   std::map<std::array<int,4>,double> ampere_compact_attention_;
   std::map<std::array<int,22>,Sm80FusedExpertService> ampere_fused_service_;
   std::map<std::array<int,22>,double> ampere_fused_body_;
+  std::map<std::array<int,6>,std::vector<double>> ampere_routes_;
   std::vector<Sm80FusedExpertShape> ampere_fused_shapes_;
   std::vector<Sm80DenseServiceShape> ampere_dense_shapes_;
   int ampere_projection_batch_=0,ampere_projection_sms_=0;

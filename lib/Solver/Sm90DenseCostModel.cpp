@@ -217,12 +217,15 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
       work.softmax_all)-constants_.Barrier(grid));
   double combine=service->combine_tail_ns;
   if(combine<0)combine=constants_.l2_latency+38.*dn.tile_n*work.batch/constants_.sm_gbps;
+  auto const* route_weights=constants_.AmpereExpertRouteWeights(work.experts,work.top_k,work.batch,
+      work.shapes[6][1],work.shapes[6][0]/2,work.layers);
   auto key=std::make_tuple(work.experts,work.top_k,work.batch,work.shapes[6],work.shapes[7],
       gu.tile_n,gu.TileK(),dn.tile_n,dn.TileK(),gu.slots,grid,active_experts,
       constants_.dram_gbps,constants_.l2_gbps,constants_.CtaDramGbps(),service->gu_issue,
       service->gu_mma,service->gu_epilogue,service->dn_issue,service->dn_mma,
       service->dn_epilogue,service->dn_preissue,service->dn_activation,
-      startup,combine,constants_.dram_latency,service->production_body_ns);
+      startup,combine,constants_.dram_latency,service->production_body_ns,
+      route_weights?*route_weights:std::vector<double>{});
   static thread_local std::map<decltype(key),Sm80FusedPipelinePrice> cache;
   if(auto found=cache.find(key);found!=cache.end())return found->second;
 
@@ -252,7 +255,8 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
   };
   if(active_experts)return cache.emplace(key,evaluate(active_experts)).first->second;
   Sm80FusedPipelinePrice price{};
-  auto weights=Sm90NativeActiveExpertWeights(work.experts,work.top_k,work.batch);
+  auto weights=route_weights?*route_weights:Sm90NativeActiveExpertWeights(work.experts,work.top_k,work.batch);
+  price.measured_route_weights=route_weights!=nullptr;
   double active=0;
   for(std::size_t count=1;count<weights.size();++count) {
     if(!weights[count])continue;
@@ -535,6 +539,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
     if(fusion) {
       fused.ns=constants_.Barrier(grid)+fusion->body_ns;
       fused.terms.Set("active_experts",fusion->active_experts);
+      if(fusion->measured_route_weights)fused.terms.Set("measured_route_weights",true);
       fused.terms.Set("production_body_ns",fusion->body_ns);
       if(fusion->direct_body)fused.terms.Set("price_source","same-boundary production stage");
       else {

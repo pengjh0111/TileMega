@@ -20,6 +20,7 @@ struct Sm80FusedPipelinePrice {
   int active_experts;
   double local_ns,stream_ns,body_ns;
   bool direct_body=false;
+  bool measured_route_weights=false;
 };
 
 struct Sm90DensePrediction {
