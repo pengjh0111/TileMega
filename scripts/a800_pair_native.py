@@ -32,6 +32,8 @@ def main():
     parser.add_argument('--batch', choices=BATCHES, required=True, type=int)
     parser.add_argument('--control', type=Path, required=True)
     parser.add_argument('--trial', type=Path, required=True)
+    parser.add_argument('--control-preparation', type=Path)
+    parser.add_argument('--trial-preparation', type=Path)
     shared = parser.add_mutually_exclusive_group(required=True)
     shared.add_argument('--decode', type=Path)
     shared.add_argument('--prefill', type=Path)
@@ -57,10 +59,15 @@ def main():
     if libraries['control'] == libraries['trial']:
         parser.error('the two variant libraries must be distinct')
     runner = [sys.executable, str(ROOT/'scripts/a800_native.py')]
+    preparations = {}
+    for label in libraries:
+        path = getattr(args, f'{label}_preparation')
+        preparations[label] = ['--host-preparation', str(path.resolve(strict=True))] if path else []
     if args.mode == 'plan':
-        for library in (args.control, args.trial):
+        for label in libraries:
+            library = getattr(args, label)
             subprocess.run([*runner, 'plan', *options, '--round', '0', f'--{phase}',
-                            str(library), '--budget-s', str(args.budget_s)], check=True)
+                            str(library), '--budget-s', str(args.budget_s), *preparations[label]], check=True)
         return 0
 
     job = int(os.environ['SLURM_JOB_ID'])
@@ -78,7 +85,8 @@ def main():
         round_index = job * 6 + position
         remaining = int(deadline - time.monotonic())
         subprocess.run([*runner, 'run', *options, '--round', str(round_index),
-                        f'--{phase}', str(getattr(args, label)), '--budget-s', str(remaining)],
+                        f'--{phase}', str(getattr(args, label)), '--budget-s', str(remaining),
+                        *preparations[label]],
                        check=True, timeout=remaining)
         receipts = (RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/{stage}-{round_index}.json')
         receipt, = [json.loads(path.read_text()) for path in receipts]
