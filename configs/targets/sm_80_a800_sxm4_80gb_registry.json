@@ -8954,38 +8954,70 @@
       "disabled_macro": "TILEMEGA_SM80_RESIDUAL_COPY_GROUP"
     },
     "compact_attention_service": {
-      "schema": 1,
-      "measurement": {
-        "status": "measured",
-        "grid": 216,
-        "dynamic_shared": 79872,
-        "residency": 2,
-        "overlapping_sms": 108,
-        "consumer_threads": 128,
-        "iterations": 1024,
-        "samples": 1944,
-        "barrier_ns": 25.0
-      },
-      "body_headers": {
-        "Backend/Sm90DenseAttentionBody.cuh": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
-        "Backend/Sm80AttentionScratch.h": "e425479aad79f13c1c8ca7daff90649c9c45ef8f2cd01aceb37a6b9fc9d92337",
-        "Codegen/executor/ComputeGroup.cuh": "60e3da614f830d30eff3c12fd7500bf9cef3b2c72f81564a8cbf7baaeb57a8bc"
-      },
-      "source_sha": "d76e5c6b7c63b3ebd2537114d97317447ed128a9",
-      "binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
-      "gpu_uuid": "GPU-b7817d38-dabe-8812-398d-3c31e493e072",
-      "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350775",
-      "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
-      "measurement_sha256": "a07560187c7236a04589e3d9eb79795f2b06bbc18d7ff4ee4145b1f375ee7c5b",
-      "probe_body_equivalence": {
-        "reference_sha256": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
-        "equivalent_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
-        "sass_sha256": "d45d5de74140eea37031faabe4cfdee91a7a0dde6a61c1eef8b604b5a29e2c37",
-        "resources_sha256": "b6033ed4488d1859f2596f6ee4c9278b4d4b5b6227f7c90f09a76c54093f9d88",
-        "reference_binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
-        "rebuild_binary_sha256": "b75fb015eb5f09bb0a9ecc0397e0558f01290e2f35f40c6a7c65b7c93eee26e4",
-        "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-probe-equivalence"
-      }
+      "schema": 2,
+      "profiles": [
+        {
+          "schema": 1,
+          "measurement": {
+            "status": "measured",
+            "grid": 216,
+            "dynamic_shared": 79872,
+            "residency": 2,
+            "overlapping_sms": 108,
+            "consumer_threads": 128,
+            "iterations": 1024,
+            "samples": 1944,
+            "barrier_ns": 25.0
+          },
+          "body_headers": {
+            "Backend/Sm90DenseAttentionBody.cuh": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
+            "Backend/Sm80AttentionScratch.h": "e425479aad79f13c1c8ca7daff90649c9c45ef8f2cd01aceb37a6b9fc9d92337",
+            "Codegen/executor/ComputeGroup.cuh": "60e3da614f830d30eff3c12fd7500bf9cef3b2c72f81564a8cbf7baaeb57a8bc"
+          },
+          "source_sha": "d76e5c6b7c63b3ebd2537114d97317447ed128a9",
+          "binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
+          "gpu_uuid": "GPU-b7817d38-dabe-8812-398d-3c31e493e072",
+          "evidence": "TileMega-a800/runs/a800/calibration/r2-supplement-service/350775",
+          "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "measurement_sha256": "a07560187c7236a04589e3d9eb79795f2b06bbc18d7ff4ee4145b1f375ee7c5b",
+          "probe_body_equivalence": {
+            "reference_sha256": "2ed8b5f515629d1946325903de2b20368efe13d677a701ee99bbccdd4239f77c",
+            "equivalent_sha256": "d89d0e59e6520900d298cb3600d1c262cb398b63db6a25bd650a0baed531a1b4",
+            "sass_sha256": "d45d5de74140eea37031faabe4cfdee91a7a0dde6a61c1eef8b604b5a29e2c37",
+            "resources_sha256": "b6033ed4488d1859f2596f6ee4c9278b4d4b5b6227f7c90f09a76c54093f9d88",
+            "reference_binary_sha256": "ae122ec5bda561eca9d91ef8daa839fd95fc8c9aac715d3503b68ba908135eb4",
+            "rebuild_binary_sha256": "b75fb015eb5f09bb0a9ecc0397e0558f01290e2f35f40c6a7c65b7c93eee26e4",
+            "evidence": "TileMega-a800/runs/a800/optimization/r2-pressure/attention-probe-equivalence"
+          }
+        },
+        {
+          "schema": 1,
+          "measurement": {
+            "status": "measured",
+            "grid": 216,
+            "dynamic_shared": 79872,
+            "residency": 2,
+            "overlapping_sms": 108,
+            "consumer_threads": 128,
+            "iterations": 1024,
+            "samples": 1944,
+            "barrier_ns": 25.0,
+            "queries": 3
+          },
+          "body_headers": {
+            "Backend/Sm90DenseAttentionBody.cuh": "b13c0cf2607f9b8fd64775a0b93f87f7cb4ac2c6d5ef2a04a0e3fc6d235886f7",
+            "Backend/Sm80AttentionScratch.h": "e425479aad79f13c1c8ca7daff90649c9c45ef8f2cd01aceb37a6b9fc9d92337",
+            "Codegen/executor/ComputeGroup.cuh": "60e3da614f830d30eff3c12fd7500bf9cef3b2c72f81564a8cbf7baaeb57a8bc"
+          },
+          "source_sha": "575c8637cdedb26d2edbfbdbe331ed3b824ef64a",
+          "binary_sha256": "4564f9f3905a326ebe31e1bcaa9e3dad79e9c4aab3f3350aea3ea7ef9cdde47f",
+          "gpu_uuid": "GPU-ed4fbe57-03fc-8ffc-8b85-076ba4ce65d3",
+          "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "measurement_sha256": "3c1fa49842b98e93e9066011df9e9d251b43e63c33fc300634857b4137318a18",
+          "base_target_sha256": "fcd427c7bd0aec62a7ab89f7950176b5babc4152d38c5f7ba0dc3903e032a51e",
+          "evidence": "/work/TileMega-a800/runs/a800/calibration/r2-supplement-service/352688/r4-q3-compact"
+        }
+      ]
     },
     "fused_trace_header_equivalence": {
       "Backend/Sm90DenseMark.cuh": {
