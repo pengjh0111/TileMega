@@ -204,6 +204,22 @@ def release_bandwidth(args):
         releases[iteration, stage][worker] = stamp
     config, _ = inputs(plan['model'])
     config = read(config/'config.json')
+    expert_counts = defaultdict(dict)
+    if args.expert_trace:
+        if not fused:
+            raise ValueError('observed expert counts require the same fused decode geometry')
+        paired = argparse.Namespace(run=args.expert_trace, plan=args.expert_trace.parent/'trace.plan.json')
+        route_plan, route_report, _ = accepted_trace(paired)
+        if (route_plan['original_sha256'] != plan['original_sha256']
+                or route_report['checkpoint'] != report['checkpoint']
+                or read(args.expert_trace/'ledger/reference-tokens.json') != read(ledger/'reference-tokens.json')):
+            raise ValueError('expert counts belong to another decode artifact or request')
+        for row in tsv(args.expert_trace/'ledger/stage_trace.tsv'):
+            past, stage, count = (int(row[k]) for k in ('past', 'stage', 'active_experts'))
+            if stages[stage] != 'expert_gate_up' or not count:
+                continue
+            if expert_counts[past].setdefault(stage, count) != count:
+                raise ValueError('fused CTA records disagree on routed experts')
     rates, spans, weight = defaultdict(list), defaultdict(list), defaultdict(list)
     iterations = {iteration for iteration, _ in headers}
     for iteration in sorted(iterations):
@@ -230,11 +246,19 @@ def release_bandwidth(args):
             begin = boundary
         # At 1 GB/s, the existing logical floor in us is bytes / 1000.
         logical = {stage: value*1000 for stage,value in bounds(config, plan['batch'], moe, 1).items()}
-        logical['attention'] *= positions.pop()/575
+        past = positions.pop()
+        logical['attention'] *= past/575
         if 'qkv_attention' in measurements:
             logical['qkv_attention'] = logical['qkv']+logical['attention']
         if fused:
             logical['expert_fused'] = logical['expert_gate_up']+logical['expert_down']
+        if args.expert_trace:
+            counts = expert_counts[past]
+            if len(counts) != config['num_hidden_layers']:
+                raise ValueError('measured expert schedule does not cover this decode position')
+            hidden = config['hidden_size']
+            intermediate = config.get('moe_intermediate_size') or config['intermediate_size']
+            logical['expert_fused'] = 6 * hidden * intermediate * sum(counts.values())
         for label, span in measurements.items():
             if label in logical and span > 0:
                 spans[label].append(span)
@@ -242,8 +266,10 @@ def release_bandwidth(args):
                 rates[label].append(logical[label]/span)
     rows = [dict(stage=label, logical_bytes=statistics.median(weight[label]),
                  stage_span_ns=statistics.median(spans[label]), effective_gbps=statistics.median(values),
-                 samples=len(values), bytes_basis='expected active experts' if label.startswith('expert_')
-                 else 'weight and position-matched KV bytes') for label,values in sorted(rates.items())]
+                 samples=len(values), bytes_basis=(
+                     ('observed active experts' if args.expert_trace else 'expected active experts')
+                     if label.startswith('expert_') else 'weight and position-matched KV bytes'))
+            for label,values in sorted(rates.items())]
     if not {'o', 'lm_head'} <= set(rates) or not ({'qkv', 'qkv_attention'} & set(rates)):
         raise ValueError('release ledger lacks native projection boundaries')
     write_json(args.out, dict(model=plan['model'], batch=plan['batch'], gpu_uuid=device['nvml_uuid'],
@@ -261,6 +287,8 @@ def main():
         collect = modes.add_parser(name)
         for flag in ('run', 'plan', 'out'):
             collect.add_argument(f'--{flag}', required=True, type=Path)
+        if name == 'release-bandwidth':
+            collect.add_argument('--expert-trace', type=Path)
     args = p.parse_args()
     {'prepare': prepare, 'analyze': analyze, 'release-bandwidth': release_bandwidth}[args.mode](args)
 
