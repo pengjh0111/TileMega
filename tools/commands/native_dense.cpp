@@ -293,7 +293,6 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
   space.moe=work.moe;space.experts=work.experts;space.top_k=work.top_k;
   space.qk_norm_row=work.qk_norm_row;space.tp=work.tp;
-  space.third_gate_wave=constants.HasDenseGateService();
   auto target_json=json::ParseFile(o.target);
   auto decision_key=target.arch_tag=="sm_80"?"sm80_native_decisions":"sm90_native_decisions";
   auto const* decisions=target_json.Find(decision_key);
@@ -320,19 +319,21 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     for(int residency:{1,2})for(bool reuse:{false,true})for(unsigned f:solver::Sm90DenseActiveFamilies(space.moe)) {
       if(reuse && !space.search_payload_reuse)continue;
       int grid=space.Grid(residency);
-      std::map<std::pair<std::string,bool>,int> keys;
+      std::map<std::tuple<std::string,bool,bool>,int> keys;
       for(auto const& g:space.FamilyCandidates(f,residency,reuse))
         ++keys[{solver::Sm90NativeConstants::AmpereMmaKey(grid,g.tile_n,g.TileK(),
-            g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency)}];
+            g.warps_n,g.register_stages),cost.HasCalibratedMma(g,residency),
+            space.shapes[f][0]%g.tile_n!=0}];
       for(auto const& [key,options]:keys) {
+        auto const& [mma_key,measured,padded]=key;
         options_by_grid[grid]+=options;
-        if(!key.second) {
+        if(!measured) {
           missing_by_grid[grid]+=options;
-          missing_keys_by_grid[grid].insert(key.first);
+          missing_keys_by_grid[grid].insert(mma_key);
         }
         coverage.emplace_back(json::Object{{"family",solver::kSm90DenseFamilies[f]},
-            {"mma_key",key.first},{"reuse_payload",reuse},{"measured",key.second},
-            {"family_options",options}});
+            {"mma_key",mma_key},{"reuse_payload",reuse},{"measured",measured},
+            {"family_options",options},{"padded_n",padded}});
       }
     }
     json::Array grid_summary;

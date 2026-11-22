@@ -35,7 +35,6 @@ int main(int argc,char** argv) {try {
     auto const& decisions=target_json.At(target.arch_tag=="sm_80"?"sm80_native_decisions":"sm90_native_decisions");
     space.weight_stream=decisions.At("weight_stream").AsBool("weight_stream");
     space.layer_loop=decisions.At("layer_loop").AsBool("layer_loop");
-    space.third_gate_wave=constants.HasDenseGateService();
     if(auto const* reuse=decisions.Find("reuse_payload"))
       space.search_payload_reuse=reuse->AsBool("reuse_payload");
     if(!space.Legal(seed) || !space.Legal(inspected))throw std::invalid_argument("illegal seed or inspected coordinate");

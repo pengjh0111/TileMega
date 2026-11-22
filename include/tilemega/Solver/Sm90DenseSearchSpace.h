@@ -30,7 +30,7 @@ struct Sm90DenseSearchSpace {
   // grouped stages' task counts (§8 solver item 3; MR6 takes E, k from the
   // workload).
   int experts=0,top_k=0;
-  bool third_gate_wave=false,search_payload_reuse=false;
+  bool search_payload_reuse=false;
   double ExpectedActive() const {return experts*(1-std::pow(1-double(top_k)/experts,batch));}
 
   bool Legal(Sm90DenseCoordinates const&) const;

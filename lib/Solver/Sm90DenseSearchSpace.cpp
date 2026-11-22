@@ -76,8 +76,8 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   auto budget=Sm90DenseSharedBudget(target,residency);
   int arena=Sm90DenseArena(budget,reuse_payload);
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
-  bool allow_n_tail=target.arch_tag=="sm_80" && family==2 && reuse_payload &&
-      batch==16 && residency==2 && tp==1 && n%32==0;
+  bool allow_n_tail=target.arch_tag=="sm_80" &&
+      Sm90DenseCoordinates::PaddedFamily(family,n,tp,reuse_payload);
   std::vector<int> tiles,depths;
   // Tasks of the busiest CTA: experts run n_active x N/TN tasks (§8).
   auto tasks=[&](int tn) {
@@ -107,13 +107,11 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     else tiles={128,256};
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }else {
-    // Dense gates can issue a third task with the same ring. Unlike the
-    // residual families, there is no per-task side buffer to enlarge.
-    int waves=target.arch_tag=="sm_80" && (residual || (family==2 && third_gate_wave))?3:2;
+    int waves=target.arch_tag=="sm_80"?3:2;
     for(int tn=8;tn<=n;tn+=8) {
       int count=(n+tn-1)/tn;
-      bool padded=allow_n_tail && (tn==96 || tn==160 || tn==192) && count<=grid;
-      if((n%tn==0 || padded) && count*4>=grid && count<=waves*grid)
+      bool padded=n%tn && allow_n_tail;
+      if((n%tn==0 || padded) && count*(padded?8:4)>=grid && count<=waves*grid)
         tiles.push_back(tn);
     }
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);

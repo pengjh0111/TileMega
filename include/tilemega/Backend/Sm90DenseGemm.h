@@ -30,7 +30,10 @@ struct Sm90DenseGemm {
 #if defined(TILEMEGA_SM80_PADDED_GATE)
   static constexpr int kTasks=(N+TN-1)/TN;
   static_assert(Batch>0 && Batch<=16 && TN%8==0 && TK%64==0 && K%TK==0);
-  static_assert(N%TN==0 || (CpAsync && Op==ServingEpilogueOp::kSwiGLU && N%(2*U)==0));
+  static_assert(N%TN==0 || (CpAsync && N%8==0 &&
+      (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
+       Op==ServingEpilogueOp::kArgmaxPartial ||
+       (Op==ServingEpilogueOp::kSwiGLU && N%(2*U)==0))));
 #else
   static_assert(Batch>0 && Batch<=16 && N%TN==0 && TN%8==0 && TK%64==0 && K%TK==0);
 #endif
@@ -147,6 +150,15 @@ struct Sm90DenseGemm {
     if constexpr(kResidual)
       for(int local=0;local<tasks;++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x);
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+        if constexpr(N%TN!=0) {
+          for(int i=lane*8;i<Batch*TN;i+=32*8) {
+            int column=task*TN+i%TN;
+            if(column<N)
+              Async::Copy16(residual+local*Batch*TN+i,p.residual+std::size_t(i/TN)*N+column);
+          }
+        }else
+#endif
         for(int i=lane*8;i<Batch*TN;i+=32*8)
           Async::Copy16(residual+local*Batch*TN+i,p.residual+std::size_t(i/TN)*N+task*TN+i%TN);
         Async::CompleteCopies(state.side+local);

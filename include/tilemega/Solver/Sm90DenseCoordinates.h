@@ -35,7 +35,7 @@ struct Sm90DenseGemm {
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
   int TaskCount(int n) const {return (n+tile_n-1)/tile_n;}
   int ResidualTiles(bool residual,int n,int grid) const {
-    return !residual?0:grid>0?backend::Sm90DenseLayout::ResidualTiles(n/tile_n,grid):2;
+    return !residual?0:grid>0?backend::Sm90DenseLayout::ResidualTiles(TaskCount(n),grid):2;
   }
   std::int64_t SharedBytes(int batch,bool residual,int n=0,int grid=0) const {
     return backend::Sm90DenseLayout::Gemm(tile_n,TileK(),slots,warps_k,batch,
@@ -127,6 +127,9 @@ struct Sm90DenseCoordinates {
   // rank's; tp only prices the cross-rank reduction.
   int tp=1;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
+  static constexpr bool PaddedFamily(unsigned family,int n,int tp,bool reuse_payload) {
+    return family<4 && reuse_payload && tp==1 && n%32==0;
+  }
 
   // MR7: the fused stage's storage; a slot holds either task type, so each
   // geometry takes the larger of the two (Sm90DenseLayout::MoeFused).
@@ -207,8 +210,8 @@ struct Sm90DenseCoordinates {
          return g.multicast && cluster<2;}) || gemms[5].multicast || gemms[6].multicast || gemms[7].multicast)
       throw std::invalid_argument("illegal sm90 dense cluster coordinate");
     for(unsigned i:Active()) {
-      bool allow_n_tail=i==2 && reuse_payload && batch==16 && residency==2 && tp==1 &&
-          nk[i][0]%(2*swiglu_u)==0;
+      bool allow_n_tail=PaddedFamily(i,nk[i][0],tp,reuse_payload) &&
+          (i!=2 || nk[i][0]%(2*swiglu_u)==0);
       gemms[i].Validate(nk[i][0],nk[i][1],allow_n_tail);
     }
     // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
@@ -229,13 +232,13 @@ struct Sm90DenseCoordinates {
   void ValidateSchedule(Sm90DenseShapeTable const& nk,int batch,
       int dim,int queries,int capacity,std::int64_t budget,int grid=0) const {
     Validate(nk,batch);
-    if(!moe && nk[2][0]%gemms[2].tile_n && gemms[2].TaskCount(nk[2][0])>grid)
-      throw std::invalid_argument("padded native gate must fit in one task wave");
     // Overlapping stages require disjoint preissue storage. A plan without
     // preissue can reuse the entire payload after each CTA-local stage join.
     int arena=Sm90DenseArena(budget,reuse_payload);
     for(unsigned i:Active()) {
       auto const& gemm=gemms[i];
+      if(i<4 && nk[i][0]%gemm.tile_n && (grid<=0 || gemm.TaskCount(nk[i][0])>3*grid))
+        throw std::invalid_argument("padded native GEMM exceeds three task waves");
       if(gemm.ResidualTiles(ResidualFamily(i),nk[i][0],grid)>backend::kSm90DenseResidualTiles)
         throw std::invalid_argument("native GEMM exceeds residual tasks per CTA");
       if(gemm.SharedBytes(batch,ResidualFamily(i),nk[i][0],grid)-1024>arena)

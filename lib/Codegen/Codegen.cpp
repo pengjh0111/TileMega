@@ -2186,6 +2186,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     return std::to_string(attr.getInt());
   };
   std::ostringstream out,types;
+  bool padded_n=false;
+  for(unsigned f:c.Active())
+    padded_n|=f<5 && nk[f][0]%c.gemms[f].tile_n;
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from native CTG/tmexec coordinates.\n"
      <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID "<<(cp_async?800:900)<<"\n"
@@ -2199,7 +2202,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.copy_issue_group?"#define TILEMEGA_SM80_COPY_ISSUE_GROUP "+
          std::to_string(c.copy_issue_group)+"\n":"")
      <<(c.residual_copy_issue?"#define TILEMEGA_SM80_RESIDUAL_COPY_GROUP 1\n":"")
-     <<(!c.moe && nk[2][0]%c.gemms[2].tile_n?"#define TILEMEGA_SM80_PADDED_GATE 1\n":"")
+     <<(padded_n?"#define TILEMEGA_SM80_PADDED_GATE 1\n":"")
      <<(c.attention.compact_workspace?"#define TILEMEGA_SM80_COMPACT_ATTN 1\n":"")
      <<(c.expert_page_segments?"#define TILEMEGA_SM80_MOE_PAGE_SEGMENTS 1\n":"")
      <<(c.expert_gu_route_bases?"#define TILEMEGA_SM80_MOE_GU_ROUTE_BASES 1\n":"")
@@ -2441,8 +2444,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="residual_ar"?"kResidualAllReduce":op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
       weight=name(integerField(g,"b"));tasks=cfg.TaskCount(int(n));
-      if(n%cfg.tile_n && (!cp_async || tasks>grid))
-        throw std::invalid_argument("padded native gate requires one SM80 task wave");
+      if(n%cfg.tile_n && (!cp_async || c.weight_stream || op=="residual_ar"))
+        throw std::invalid_argument("padded native GEMM requires an unsharded SM80 payload");
       bytes=2ull*tasks*cfg.tile_n*k;
       bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
       head<<(cp_async?"AmpereGemm<":"Gemm<")<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','

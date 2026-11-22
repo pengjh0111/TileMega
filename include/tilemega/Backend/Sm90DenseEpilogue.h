@@ -133,6 +133,9 @@ struct Sm90DenseEpilogue {
       #pragma unroll
       for(int i=0;i<int(cute::size(accum));i+=2) {
         int row=cute::get<0>(owned(i)),col=cute::get<1>(owned(i));
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+        if constexpr(N%TN!=0)if(task*TN+col>=N)continue;
+#endif
         if(row<Batch) {
           float scale=InputNorm?inv[row>=8]:1.0f;
           Store2(base,row,col,accum(i)*scale,accum(i+1)*scale,residual);
@@ -171,6 +174,9 @@ struct Sm90DenseEpilogue {
       for(int row=warp;row<Batch;row+=4) {
         float scale=inverse(row),best=-INFINITY;int arg=INT_MAX;
         for(int col=lane;col<TN;col+=32) {
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+          if constexpr(N%TN!=0)if(task*TN+col>=N)continue;
+#endif
           float v=float(Element(value(row,col)*scale));
           if(v>best) {best=v;arg=task*TN+col;}
         }
@@ -202,6 +208,10 @@ struct Sm90DenseEpilogue {
       for(int i=tid;i<Batch*kOutput/2;i+=128) {
         int row=i/(kOutput/2),col=2*(i%(kOutput/2));
         float scale=inverse(row);
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+        if constexpr(Op!=ServingEpilogueOp::kSwiGLU && N%TN!=0)
+          if(task*kOutput+col>=kStride)continue;
+#endif
         if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
 #if defined(TILEMEGA_SM80_PADDED_GATE)
           // Weight packing zero-pads the final tile. The activation keeps its
