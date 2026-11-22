@@ -414,6 +414,9 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true,
          bool StageCombine=false,bool CpAsync=false>
 struct MoeFused {
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+  static constexpr bool kFusedTraceStage=true;
+#endif
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
       WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,
       LocalRouting,StageCombine,CpAsync>;
@@ -568,6 +571,12 @@ struct Argmax {
     __syncthreads();
   }
 };
+
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+template<class Stage,class=void> inline constexpr bool kFusedTraceStage=false;
+template<class Stage> inline constexpr bool
+    kFusedTraceStage<Stage,std::void_t<decltype(Stage::kFusedTraceStage)>> =Stage::kFusedTraceStage;
+#endif
 
 // GroupTiles > 0 (D8, qkv only): the boundary after this stage releases
 // each computed tile's KV group (GroupTiles tiles per group) instead of the
@@ -822,6 +831,12 @@ struct Program {
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
   static_assert(boundary_diagnostic::ValidStages(kStages));
 #endif
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+  template<unsigned... J>
+  __device__ static bool IsFusedStage(unsigned g,std::integer_sequence<unsigned,J...>) {
+    return g>0 && g<kHead && (((g-1)%kGroup==J && kFusedTraceStage<GroupStage<J>>) || ...);
+  }
+#endif
 
   // One executed boundary g of typed stage Body (arena and ring parity
   // Parity) for runtime layer `layer`; Next runs next for `next_layer` with
@@ -845,13 +860,10 @@ struct Program {
 #endif
 #if TILEMEGA_TRACE_STAGE
 #if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
-    static_assert(kCpAsync && kPerLayer==5 && !kPostHead &&
-        TILEMEGA_TRACE_STAGE==2 && TILEMEGA_SM80_FUSED_PHASE_TRACE);
-    // QKV, attention, O, router, fused expert. Keep every CTA at the
-    // fused boundary and its two neighbors to test interval isolation.
-    unsigned layer_stage=g%kPerLayer;
-    bool marks=g>0 && layer_stage==0;
-    bool trace_stage=g>0 && (marks || layer_stage==1 || layer_stage==4);
+    static_assert(kCpAsync && TILEMEGA_TRACE_STAGE==2 && TILEMEGA_SM80_FUSED_PHASE_TRACE);
+    using Stages=std::make_integer_sequence<unsigned,kGroup>;
+    bool marks=IsFusedStage(g,Stages{});
+    bool trace_stage=marks || IsFusedStage(g+1,Stages{}) || (g && IsFusedStage(g-1,Stages{}));
 #endif
     StageTrace* record=
 #if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE

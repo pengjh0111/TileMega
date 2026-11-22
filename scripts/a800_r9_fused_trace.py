@@ -36,6 +36,10 @@ def prepare(args):
             or not plan['native_dense']['expert_fuse']):
         raise ValueError('expected a frozen SM80 fused decode artifact')
     recorded = shlex.split(sidecar(original, '.build_command.txt').read_text())
+    if '--split-compile' in recorded:
+        recorded[recorded.index('--split-compile')+1] = '1'
+    recorded = ['--split-compile=1' if word.startswith('--split-compile=') else word
+                for word in recorded]
     inputs = [word for word in recorded if word.endswith('.cu')]
     output = recorded[recorded.index('-o')+1]
     if len(inputs) != 1 or Path(output).resolve() != original:
