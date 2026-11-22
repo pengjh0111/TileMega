@@ -1419,6 +1419,15 @@ struct Sm90DenseMoeFusedGemm {
 #endif
     int total=active*(kTilesGu+kTilesDn);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
+#if TILEMEGA_SM80_FUSED_PRICES_TRACE
+    if(threadIdx.x==0)
+      if(auto* marks=Sm90DenseMarks::Base()) {
+        int gu=active*kTilesGu;
+        int local_gu=gu/int(gridDim.x)+(blockIdx.x<unsigned(gu%int(gridDim.x)));
+        marks[Sm90DenseMarks::kGuTasks]=local_gu;
+        marks[Sm90DenseMarks::kDnTasks]=tasks-local_gu;
+      }
+#endif
     if(threadIdx.x<128) {
       // One CTA republishes the global schedule for the routing check; it is
       // off the task path because no stage reads it any more.

@@ -11,12 +11,18 @@
   },
   "Backend/Sm90DenseMoe.cuh": {
     "disabled_macro": "TILEMEGA_SM80_PADDED_GATE",
+    "also_disabled": "TILEMEGA_SM80_FUSED_PRICES_TRACE",
     "reference_sha256": "d5965a882a79f2211db05cce8e231ee265b40adf1281a834023c60b83a58381e",
-    "equivalent_sha256": "983db253e1e291ea8fdc144b2992b26ccd4e343580acd5b60a0de58a22523a06"
+    "equivalent_sha256": "d9dce5056146cd0f019011845539e7262ae6efde95e3ba1315e1bc6f2de89ccc"
   },
   "Backend/Sm80DenseService.cuh": {
     "disabled_macro": "TILEMEGA_SM80_DENSE_ROLE_CLOCK",
     "reference_sha256": "31049f70db45741b2b5456331d2fef1c29a1be2839b078a344b4d980e6d0d9f5",
     "equivalent_sha256": "8e268a4b57ac82fdab8239e2346fdc33d043921e0aaf96b6b892b09d91f7e9e8"
+  },
+  "Backend/Sm90DenseMark.cuh": {
+    "disabled_macro": "TILEMEGA_SM80_FUSED_PRICES_TRACE",
+    "reference_sha256": "93d31802f0037a1d8b8b55b669d82e804c1cd1c1bab2a30383f499e0eb493267",
+    "equivalent_sha256": "715849b8d926cbec9e8ba9ff5ef1d391d7ba90099875f0151fb42f95e8872dcd"
   }
 }

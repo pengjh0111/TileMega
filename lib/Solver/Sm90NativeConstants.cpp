@@ -36,7 +36,8 @@ std::string UnpaddedBodyHeader(json::Value const& constants,std::string_view hea
   if(proof && proof->At("equivalent_sha256").AsString("guarded body header")==compiled) {
     auto const& macro=proof->At("disabled_macro").AsString("body guard");
     if(macro=="TILEMEGA_SM80_PADDED_GATE" ||
-       (header=="Backend/Sm80DenseService.cuh" && macro=="TILEMEGA_SM80_DENSE_ROLE_CLOCK"))
+       (header=="Backend/Sm80DenseService.cuh" && macro=="TILEMEGA_SM80_DENSE_ROLE_CLOCK") ||
+       (header=="Backend/Sm90DenseMark.cuh" && macro=="TILEMEGA_SM80_FUSED_PRICES_TRACE"))
       return proof->At("reference_sha256").AsString("default body header");
   }
   return compiled;

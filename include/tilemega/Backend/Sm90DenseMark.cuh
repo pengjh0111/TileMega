@@ -54,9 +54,13 @@ __device__ __forceinline__ void Sm90DenseMark(int index) {
 // Kept from the first task that reaches it; zero means "not reached", which the
 // analysis treats as absent (a stage whose geometry has no such task).
 __device__ __forceinline__ void Sm90DenseMarkFirst(int index) {
-#if TILEMEGA_TRACE_STAGE == 2 && !TILEMEGA_SM80_FUSED_PRICES_TRACE
+#if TILEMEGA_TRACE_STAGE == 2
+#if TILEMEGA_SM80_FUSED_PRICES_TRACE
+  (void)index;
+#else
   auto* marks=Sm90DenseMarks::Base();
   if(marks && !marks[index])marks[index]=Sm90DenseMarks::Now();
+#endif
 #else
   (void)index;
 #endif
