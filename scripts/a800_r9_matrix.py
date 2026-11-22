@@ -136,7 +136,7 @@ def run(args):
         if sha(proof) != plan['assets'][original]:
             raise ValueError('the linked correctness evidence has different contents')
     job = os.environ['SLURM_JOB_ID']
-    index = MODELS.index(model) * len(BATCHES) + BATCHES.index(batch)
+    index = tuple(MODELS).index(model) * len(BATCHES) + BATCHES.index(batch)
     round_index = int(job) * len(MODELS) * len(BATCHES) + index
     remaining = int(deadline - time.monotonic())
     command = [sys.executable, str(RUNNER), 'run', '--stage', 'candidate-timing', '--model', model,
