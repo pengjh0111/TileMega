@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <fstream>
 #include <string_view>
 
 namespace tilemega::solver {
@@ -13,6 +14,18 @@ std::string FileHash(std::string const& path) {
   if(!pipe)throw std::runtime_error("cannot hash "+path);
   char text[65]{};auto* got=fgets(text,sizeof(text),pipe);pclose(pipe);
   return got?std::string(text):std::string();
+}
+void AddSourceEquivalence(json::Value& constants,std::string const& root) {
+  // Probe-only instrumentation is compiled out of the production body.
+  // Carry its exact token proof for targets calibrated before the probe.
+  auto path=root+"/configs/targets/sm80_epilogue_probe_equivalence.json";
+  if(!std::ifstream(path))return;
+  auto source=json::ParseFile(path);
+  auto const* declared=constants.Find("default_body_equivalence");
+  auto proofs=declared?*declared:json::Value(json::Object{});
+  for(auto const& [name,proof]:source.AsObject("source body equivalence"))
+    if(!proofs.Find(name))proofs.Set(name,proof);
+  constants.Set("default_body_equivalence",std::move(proofs));
 }
 std::string DefaultBodyHeader(json::Value const& constants,std::string_view header,
     std::string const& compiled) {
@@ -65,7 +78,9 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   auto key=ampere?"sm80_native_constants":"sm90_native_constants";
   auto const* found=target.Find(key);
   if(!found)throw std::invalid_argument(std::string("target lacks measured ")+key);
-  Sm90NativeConstants c;c.section=*found;auto const& s=*found;
+  Sm90NativeConstants c;c.section=*found;
+  if(ampere)AddSourceEquivalence(c.section,root);
+  auto const& s=c.section;
   if(s.At("schema").AsNumber("constants schema")!=1)
     throw std::invalid_argument("unknown sm90_native_constants schema");
   for(auto const& item:s.At("c_bar_ns").AsObject("c_bar"))

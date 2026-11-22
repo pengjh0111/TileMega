@@ -1,0 +1,20 @@
+{
+  "Backend/Sm90DenseGemm.h": {
+    "reference_sha256": "a4b77806b3c2850c54006920fc64687a2a8a77a2372342dbb618549e007d89d1",
+    "equivalent_sha256": "f4cba0524342e0fe505191aa63be90a2cc2f2b2ae5a79aa6f9582d907a482aed",
+    "preprocessed_sha256": "f4c349c63ba2ced90d7f7530bf18560b8e312f7f81abc36983aba739a6d6507e",
+    "cases": {
+      "default": "d20ef5c32b65abe67aaebb25c26b97186129c8c327423255115b8d951fed0557",
+      "copy-group": "b9f718aeab21cd57320d4efec07e8a493bb45fef20cae4e1b5146fbf10e395ff",
+      "live-epilogue": "264f93b2385b1880db0fd4a5367e25f575d431238b0a6b27cc90376a0a49f5ff"
+    }
+  },
+  "Backend/Sm80DenseService.cuh": {
+    "reference_sha256": "1bfd850109cd9450a20d4c5ca0359e264755702c5780d30b1b0111ad18d57173",
+    "equivalent_sha256": "31049f70db45741b2b5456331d2fef1c29a1be2839b078a344b4d980e6d0d9f5",
+    "preprocessed_sha256": "61560e1cbda08a9a34145efb9c214c13f06df8217bb330b37ce2100668636491",
+    "cases": {
+      "default": "4650a5d6b2bdaf31fbb280d1a911a393edfdef227c735e326c634282a091e082"
+    }
+  }
+}
