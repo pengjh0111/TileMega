@@ -2189,6 +2189,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   bool padded_n=false;
   for(unsigned f:c.Active())
     padded_n|=nk[f][0]%c.gemms[f].tile_n!=0;
+  bool aligned_gate_pages=cp_async && (c.expert_aligned_gate_pages>=0?
+      bool(c.expert_aligned_gate_pages):
+      !c.expert_page_segments && c.expert_fuse && shared_expert_page==64 &&
+      c.gemms[6].tile_n==128 && c.gemms[6].TileK()==64);
+  if(!cp_async && (c.expert_slot_padding || c.expert_aligned_gate_pages>=0))
+    throw std::invalid_argument("experimental expert copies require SM80");
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from native CTG/tmexec coordinates.\n"
      <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID "<<(cp_async?800:900)<<"\n"
@@ -2206,9 +2212,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.attention.compact_workspace?"#define TILEMEGA_SM80_COMPACT_ATTN 1\n":"")
      <<(c.expert_page_segments?"#define TILEMEGA_SM80_MOE_PAGE_SEGMENTS 1\n":"")
      <<(c.expert_gu_route_bases?"#define TILEMEGA_SM80_MOE_GU_ROUTE_BASES 1\n":"")
-     <<(cp_async && !c.expert_page_segments && c.expert_fuse && shared_expert_page==64 &&
-         c.gemms[6].tile_n==128 && c.gemms[6].TileK()==64?
-         "#define TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES 1\n":"")
+     <<(c.expert_slot_padding?"#define TILEMEGA_SM80_MOE_SLOT_PADDING 1\n":"")
+     <<(aligned_gate_pages?"#define TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES 1\n":"")
      // Only a sharded program names its degree and the all-reduce width, so a
      // TP1 generated source stays byte identical (prompt appendix C.6).
      <<(tp>1?"#define TILEMEGA_NATIVE_TP "+std::to_string(tp)+"\n#define TILEMEGA_NATIVE_TP_HIDDEN "+

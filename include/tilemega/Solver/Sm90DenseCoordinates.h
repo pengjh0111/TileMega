@@ -107,6 +107,8 @@ struct Sm90DenseCoordinates {
   bool residual_copy_issue=false;
   bool expert_page_segments=false;
   bool expert_gu_route_bases=false;
+  bool expert_slot_padding=false;
+  int expert_aligned_gate_pages=-1;
   // D8 (prompt §7): attention waits only for its KV group's qkv tiles
   // (group counters) instead of the grid barrier after qkv; P-SEL decides.
   bool group_wait=false;
@@ -198,6 +200,12 @@ struct Sm90DenseCoordinates {
     if(expert_gu_route_bases &&
        (!moe || !expert_fuse || weight_stream || gemms[6].TileK()!=64))
       throw std::invalid_argument("hoisted Gu routes require 64-wide fused expert K tiles");
+    if(expert_slot_padding && !moe)
+      throw std::invalid_argument("expert slot padding requires MoE");
+    if(expert_aligned_gate_pages>=0 && (!moe || !expert_fuse ||
+       (expert_aligned_gate_pages &&
+        (nk[5][0]!=128 || gemms[6].tile_n%64 || expert_page_segments))))
+      throw std::invalid_argument("aligned expert pages require whole-page fused gate tiles");
     if(live_epilogue_rows && (tp!=1 || (moe?!expert_fuse:batch>=16)))
       throw std::invalid_argument("live epilogue rows require TP1 small dense batches or fused experts");
     if(tp>1 && moe)throw std::invalid_argument("sm90 dense tensor parallel MoE is unsupported");
@@ -274,7 +282,8 @@ struct Sm90DenseCoordinates {
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
     bool const explicit_body=live_epilogue_rows || reuse_payload || copy_issue_group || residual_copy_issue ||
-        expert_page_segments || expert_gu_route_bases || attention.compact_workspace;
+        expert_page_segments || expert_gu_route_bases || expert_slot_padding ||
+        expert_aligned_gate_pages>=0 || attention.compact_workspace;
     json::Value attention_json=json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
         {"slots",attention.slots},{"new_row_work",attention.new_row_work},
         {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}};
@@ -292,6 +301,9 @@ struct Sm90DenseCoordinates {
     if(expert_page_segments)result.emplace_back("expert_page_copy","segments");
     if(expert_gu_route_bases)
       result.emplace_back("expert_gu_routes","bases");
+    if(expert_slot_padding)result.emplace_back("expert_slot_padding",true);
+    if(expert_aligned_gate_pages>=0)
+      result.emplace_back("expert_aligned_gate_pages",bool(expert_aligned_gate_pages));
     if(explicit_body || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("argmax",argmax_stage?"stage":"la");
     if(GlobalRoute() || combine_stage) {
       result.emplace_back("route",RouteName());
@@ -327,7 +339,8 @@ struct Sm90DenseCoordinates {
     if(schema==10)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload",
-          "copy_issue_group","residual_copy_issue","expert_page_copy","expert_gu_routes","route","combine"});
+          "copy_issue_group","residual_copy_issue","expert_page_copy","expert_gu_routes",
+          "expert_slot_padding","expert_aligned_gate_pages","route","combine"});
     else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
@@ -373,8 +386,13 @@ struct Sm90DenseCoordinates {
           throw std::invalid_argument("invalid expert Gu activation routing plan");
         result.expert_gu_route_bases=true;
       }
+      if(auto const* padding=value.Find("expert_slot_padding"))
+        result.expert_slot_padding=padding->AsBool("expert slot padding");
+      if(auto const* aligned=value.Find("expert_aligned_gate_pages"))
+        result.expert_aligned_gate_pages=aligned->AsBool("aligned expert gate pages");
       if(!result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
           !result.expert_page_segments && !result.expert_gu_route_bases &&
+          !result.expert_slot_padding && result.expert_aligned_gate_pages<0 &&
           !value.At("attention").Find("compact_workspace"))
         throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     }
