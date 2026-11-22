@@ -33,9 +33,12 @@ std::string UnpaddedBodyHeader(json::Value const& constants,std::string_view hea
     std::string const& compiled) {
   auto const* headers=constants.Find("padded_gate_header_equivalence");
   auto const* proof=headers?headers->Find(std::string(header)):nullptr;
-  if(proof && proof->At("disabled_macro").AsString("gate tail guard")=="TILEMEGA_SM80_PADDED_GATE" &&
-     proof->At("equivalent_sha256").AsString("padded gate header")==compiled)
-    return proof->At("reference_sha256").AsString("unpadded gate header");
+  if(proof && proof->At("equivalent_sha256").AsString("guarded body header")==compiled) {
+    auto const& macro=proof->At("disabled_macro").AsString("body guard");
+    if(macro=="TILEMEGA_SM80_PADDED_GATE" ||
+       (header=="Backend/Sm80DenseService.cuh" && macro=="TILEMEGA_SM80_DENSE_ROLE_CLOCK"))
+      return proof->At("reference_sha256").AsString("default body header");
+  }
   return compiled;
 }
 std::string DefaultBodyHeader(json::Value const& constants,std::string_view header,

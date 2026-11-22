@@ -50,12 +50,18 @@ def main():
                         help='instrument every Nth CTA in the diagnostic arm')
     parser.add_argument('--epilogue-clock', action='store_true',
                         help='measure residual epilogue and side wait without mainloop timers')
+    parser.add_argument('--role-clock', action='store_true',
+                        help='sample stage roles and the native V3 barrier every 16 CTAs')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
     parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K[:TILE_N[:WARPS_N]]]',
                         help='compile an alternative ring depth and optional K and N tiles and N warp count')
     args = parser.parse_args()
-    if args.width_scan and (args.epilogue_clock or args.sample_stride != 1):
+    if args.width_scan and (args.epilogue_clock or args.role_clock or args.sample_stride != 1):
         parser.error('--width-scan does not sample role or epilogue clocks')
+    if args.role_clock:
+        if args.epilogue_clock or args.sample_stride not in (1, 16):
+            parser.error('--role-clock requires sparse role sampling')
+        args.sample_stride = 16
     if 'lm_head' in args.families and not args.width_scan:
         parser.error('vocabulary head uses the stage-span probe')
     if args.epilogue_clock and any(family not in ('o', 'down') for family in args.families):
@@ -160,6 +166,7 @@ def main():
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
+               *(['-DTILEMEGA_SM80_DENSE_ROLE_CLOCK=1'] if args.role_clock else []),
                *(['-DTILEMEGA_DENSE_SERVICE_WIDTH_SCAN=1'] if args.width_scan else []),
                *(['-DTILEMEGA_SM80_PADDED_GATE=1'] if partial_n else []),
                *([f'-DTILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE={args.sample_stride}'] if args.sample_stride>1 else []),
@@ -169,8 +176,10 @@ def main():
     listing = subprocess.check_output(['/usr/local/cuda-12.8/bin/cuobjdump', '--list-elf', str(binary)], text=True)
     if 'sm_80' not in listing:
         raise ValueError('probe has no linked SM80 image')
+    contract = ('sm80-dense-width-scan-v1' if args.width_scan else
+                'sm80-dense-role-scan-v1' if args.role_clock else 'sm80-dense-gemm-service-v1')
     (out/'probe.identity.json').write_text(json.dumps(dict(
-        contract='sm80-dense-width-scan-v1' if args.width_scan else 'sm80-dense-gemm-service-v1',
+        contract=contract,
         source_sha=subprocess.check_output(
             ['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         anchor_sha256=sha(args.anchor), source_file_sha256=sha(ROOT/'scripts/a800_dense_service_probe.cu'),

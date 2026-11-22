@@ -10,13 +10,24 @@ struct Sm80DenseService {
   Tick producer_wait=0,producer_issue=0,consumer_wait=0,consumer_mma=0,consumer_epilogue=0;
 
   __device__ static Tick Now() {
+#ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
+    return Cycles();
+#else
     Tick value;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(value)::"memory");return value;
+#endif
   }
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
   Tick consumer_residual_compute=0;
   __device__ static Tick Cycles() {
     Tick value;asm volatile("mov.u64 %0, %%clock64;":"=l"(value)::"memory");return value;
   }
+#endif
+#ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+  __device__ static Tick Cycles() {
+    Tick value;asm volatile("mov.u64 %0, %%clock64;":"=l"(value)::"memory");return value;
+  }
+#endif
 #endif
   __device__ static Sm80DenseService* Output() {
     extern __shared__ __align__(1024) char shared[];

@@ -13,5 +13,10 @@
     "disabled_macro": "TILEMEGA_SM80_PADDED_GATE",
     "reference_sha256": "d5965a882a79f2211db05cce8e231ee265b40adf1281a834023c60b83a58381e",
     "equivalent_sha256": "983db253e1e291ea8fdc144b2992b26ccd4e343580acd5b60a0de58a22523a06"
+  },
+  "Backend/Sm80DenseService.cuh": {
+    "disabled_macro": "TILEMEGA_SM80_DENSE_ROLE_CLOCK",
+    "reference_sha256": "31049f70db45741b2b5456331d2fef1c29a1be2839b078a344b4d980e6d0d9f5",
+    "equivalent_sha256": "8e268a4b57ac82fdab8239e2346fdc33d043921e0aaf96b6b892b09d91f7e9e8"
   }
 }
