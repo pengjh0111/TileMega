@@ -58,6 +58,9 @@ class Sm90DenseCostModel {
       double tasks,bool first_use) const;
   std::optional<Sm80DenseService> GemmService(Sm90DenseWorkload const&,unsigned family,
       Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const* coordinates=nullptr) const;
+  std::optional<double> GemmEpilogueService(Sm90DenseWorkload const&,unsigned family,
+      Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const*,
+      std::optional<Sm80DenseService> const&) const;
   std::optional<Sm80DenseServiceShape> DenseServiceShape(Sm90DenseWorkload const&,unsigned family,
       Sm90DenseGemm const&,int residency,Sm90DenseCoordinates const*) const;
   std::optional<Sm80FusedExpertShape> FusedServiceShape(

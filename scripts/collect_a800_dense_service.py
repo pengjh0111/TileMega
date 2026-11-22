@@ -55,6 +55,9 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
     measurements = {}
     rejected = {}
     typed = artifact.get('contract') == 'sm80-dense-gemm-service-v1'
+    epilogue_only = '-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1' in artifact.get('command', [])
+    if epilogue_only and not typed:
+        raise ValueError('isolated epilogue sampling requires a production service key')
     for case in artifact['cases']:
         if Path(case).name != case:
             raise ValueError('calibration case must be a local case label')
@@ -70,8 +73,18 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
                 or not math.isfinite(row['consumer_epilogue_ns_per_task'])
                 or row['consumer_epilogue_ns_per_task'] < 0
                 or not typed and row['consumer_epilogue_ns_per_task'] == 0
-                or any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics)):
+                or any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics[2:])):
             raise ValueError(f'invalid production GEMM service result for {case}')
+        if epilogue_only:
+            epilogue = row['consumer_epilogue_ns_per_task']
+            compute = row.get('consumer_residual_compute_ns_per_task', 0)
+            sm_ghz = row.get('epilogue_calibration_sm_ghz', 0)
+            if (row.get('epilogue_only') is not True or row['epilogue'] != 'residual'
+                    or not math.isfinite(sm_ghz) or sm_ghz <= 0 or not 0 < compute <= epilogue
+                    or any(row[m] != 0 for m in metrics[:2])):
+                raise ValueError(f'invalid isolated epilogue service result for {case}')
+        elif any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics[:2]):
+            raise ValueError(f'invalid mainloop service result for {case}')
         if typed:
             if row['dynamic_shared'] < artifact.get('reserved_program_shared', 0):
                 raise ValueError(f'{case} did not reserve the frozen program arena')
@@ -83,7 +96,8 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
                 rejected[case] = 'no active-CTA overlap in the frozen arena'
                 continue
             ratio = row['traced_span_ns'] / row['untraced_span_ns']
-            if abs(ratio-1) > maximum_perturbation:
+            threshold = min(maximum_perturbation, 0.05) if epilogue_only else maximum_perturbation
+            if abs(ratio-1) > threshold:
                 rejected[case] = f'traced/untraced span {ratio:.3f}'
                 continue
             if row['epilogue'] not in ('swiglu', 'store', 'residual'):
@@ -126,6 +140,12 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
         if any((profile['evidence'], profile['binary_sha256']) ==
                (previous['evidence'], previous['binary_sha256']) for previous in registry['profiles']):
             return base
+        if epilogue_only:
+            profile['measurements'] = {}
+            profile['epilogue_measurements'] = measurements
+            registry['profiles'].append(profile)
+            return base
+
         def compatible_headers(headers):
             current = profile['body_headers']
             header = 'Backend/Sm90DenseGemm.h'

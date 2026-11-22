@@ -75,6 +75,7 @@ class Sm90NativeConstants {
   static std::string AmpereMmaKey(int grid,int tn,int tk,int wn,int stages);
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   std::optional<Sm80DenseService> AmpereDenseService(Sm80DenseServiceShape const&) const;
+  std::optional<double> AmpereResidualEpilogue(Sm80DenseServiceShape const&) const;
   std::optional<Sm80FusedExpertService> AmpereFusedService(Sm80FusedExpertShape const&) const;
   std::optional<double> AmpereFusedBody(Sm80FusedExpertShape const&) const;
   std::vector<Sm80FusedExpertShape> const& AmpereFusedShapes() const {return ampere_fused_shapes_;}
@@ -107,7 +108,7 @@ class Sm90NativeConstants {
  private:
   std::map<int,double> barrier_;
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
-  json::Value ampere_gate_service_,ampere_dense_service_;
+  json::Value ampere_gate_service_,ampere_dense_service_,ampere_residual_epilogue_;
   json::Value ampere_attention_fresh_;
   std::map<std::array<int,5>,double> ampere_compact_attention_;
   std::map<std::array<int,22>,Sm80FusedExpertService> ampere_fused_service_;

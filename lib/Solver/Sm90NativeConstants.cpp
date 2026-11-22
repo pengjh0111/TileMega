@@ -25,12 +25,13 @@ std::string DefaultBodyHeader(json::Value const& constants,std::string_view head
 }
 bool SameBodyHeader(json::Value const& constants,std::string_view header,
     std::string const& current,std::string const& expected) {
-  if(current==expected || DefaultBodyHeader(constants,header,current)==expected)return true;
+  auto reference=DefaultBodyHeader(constants,header,current);
+  if(current==expected || reference==expected)return true;
   auto const* proof=constants.Find("residual_copy_header_equivalence");
   return header=="Backend/Sm90DenseGemm.h" && proof &&
       proof->At("disabled_macro").AsString("residual copy macro")=="TILEMEGA_SM80_RESIDUAL_COPY_GROUP" &&
       proof->At("inactive_sha256").AsString("inactive residual copy header")==expected &&
-      proof->At("compiled_sha256").AsString("compiled residual copy header")==current;
+      proof->At("compiled_sha256").AsString("compiled residual copy header")==reference;
 }
 bool SameAttentionProbeHeader(json::Value const& constants,json::Value const& profile,
     std::string_view header,std::string const& compiled,std::string const& expected) {
@@ -115,6 +116,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     if(!ampere || profiles->At("schema").AsNumber("dense gemm service schema")!=1)
       throw std::invalid_argument("invalid SM80 dense GEMM service registry");
     json::Value matched(json::Object{});
+    json::Value epilogues(json::Object{});
     for(auto const& profile:profiles->At("profiles").AsArray("dense GEMM profiles")) {
       auto const& hashes=profile.At("body_headers");
       bool compatible=true;
@@ -131,7 +133,18 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           throw std::invalid_argument("conflicting compatible dense GEMM service for "+key);
         matched.Set(key,row);
       }
+      if(auto const* rows=profile.Find("epilogue_measurements")) {
+        for(auto const& [key,row]:rows->AsObject("residual epilogue measurements")) {
+          if(key.compare(0,9,"residual:")!=0)
+            throw std::invalid_argument("residual epilogue service requires a residual shape");
+          double ns=Positive(row.At("consumer_epilogue_ns_per_task"),"residual epilogue service");
+          if(auto const* prior=epilogues.Find(key);prior && prior->AsNumber("residual epilogue")!=ns)
+            throw std::invalid_argument("conflicting residual epilogue for "+key);
+          epilogues.Set(key,ns);
+        }
+      }
     }
+    c.ampere_residual_epilogue_=std::move(epilogues);
     for(auto const& [key,row]:matched.AsObject("matched dense GEMM services")) {
       auto number=[&](char const* name){return int(row.At(name).AsNumber(name));};
       Sm80DenseServiceShape shape{row.At("epilogue").AsString("production epilogue"),
@@ -420,6 +433,10 @@ std::optional<Sm80DenseService> Sm90NativeConstants::AmpereDenseService(Sm80Dens
       Positive(row->At("producer_issue_ns_per_tile"),"dense producer issue"),
       Positive(row->At("consumer_mma_ns_per_tile"),"dense consumer MMA and norm"),
       epilogue>0?std::optional<double>(epilogue):std::nullopt};
+}
+std::optional<double> Sm90NativeConstants::AmpereResidualEpilogue(Sm80DenseServiceShape const& shape) const {
+  auto const* value=ampere_residual_epilogue_.Find(shape.Key());
+  return value?std::optional<double>(value->AsNumber("residual epilogue service")):std::nullopt;
 }
 std::optional<Sm80DenseService> Sm90NativeConstants::AmpereGateService(
     int grid,int n,int k,int batch,int tn,int tk,int slots,int wn,int stages,int u) const {

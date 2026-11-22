@@ -139,6 +139,15 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
   return std::nullopt;
 }
 
+std::optional<double> Sm90DenseCostModel::GemmEpilogueService(
+    Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
+    Sm90DenseCoordinates const* coordinates,std::optional<Sm80DenseService> const& service) const {
+  if(service && service->epilogue_ns)return service->epilogue_ns;
+  if(!Sm90DenseCoordinates::ResidualFamily(family))return std::nullopt;
+  auto shape=DenseServiceShape(work,family,g,residency,coordinates);
+  return shape?constants_.AmpereResidualEpilogue(*shape):std::nullopt;
+}
+
 std::optional<Sm80FusedExpertShape> Sm90DenseCostModel::FusedServiceShape(
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
   if(target_.arch_tag!="sm_80" || !work.moe || work.top_k!=8 || !c.expert_fuse ||
@@ -290,7 +299,8 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
       per_cta*c.TaskExpert((family==6?"expert_gate_up":"expert_down")+geometry,b):0;
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head",
       "router","expert_gate_up","expert_down"};
-  double epilogue=service && service->epilogue_ns?*service->epilogue_ns*per_cta:
+  auto epilogue_service=GemmEpilogueService(work,family,g,residency,coordinates,service);
+  double epilogue=epilogue_service?*epilogue_service*per_cta:
       c.Epilogue(kEpilogue[family]+geometry,g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
   // Tensor parallel o/down sum their tile across ranks inside the epilogue.
