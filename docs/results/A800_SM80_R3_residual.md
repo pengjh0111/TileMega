@@ -11,7 +11,7 @@
 | R2 | Llama-3B 和 Llama-8B B16 分别采纳 TN96 和 TN160 三槽，保留 216 CTA。Mistral B16 的 TN160 收益在平局范围内。 | Mistral B16 的 TN192 两槽进入完整正确性与请求对照。 |
 | R3 | 前一轮已正式采纳 9 个双驻留配置，覆盖 Llama-8B、Mistral 和 Llama-3B。 | 重点 dense B16 仍未达到 0.83 带宽效率。 |
 | R4 | 已对照 MoE padding、attention mask 和 dense live-row，并为五个 residual 几何补测 epilogue。 | 保留经过端到端验证的现有选择。 |
-| R5 | activation issue、wave tail、register stages 和 fresh KV 已进入普通成本路径。40 格重放误差中位数为 5.398%。Qwen B16 两个分页策略的排序已补价。 | 实际跨阶段 HBM 流量仍受权限限制。作业 `352601` 在 CUPTI 可用性查询返回 `CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`。 |
+| R5 | activation issue、wave tail、register stages 和 fresh KV 已进入普通成本路径。Qwen B16 的分页策略和 B2 的融合环排序均已用独立阶段证据重新核对。 | 实际跨阶段 HBM 流量仍受权限限制。作业 `352601` 在 CUPTI 可用性查询返回 `CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`。 |
 | R6 | 有界 L2 预取已做同卡对照，收益落在平局阈值内。 | 保留关闭状态。 |
 | R7 | Qwen30 B16 已采用四槽共享环，本轮 Qwen30 B2 正式采纳四槽，OLMoE B16 采纳三槽。Qwen30 B1/B8 的四槽对照均为平局。 | 继续 Qwen30 B4 对正式旧二进制的验收。 |
 | R8 | 生产路径仍使用 128 consumer 和 32 producer。 | 尚未开启新角色 ABI。更改参与范围需要新的校准和同步验证。 |
@@ -141,3 +141,19 @@
 **Verified** · Mistral TN192 通过 353597 的 exact 末 tile 校准。普通 solver 353610 的 replay 对 TN224 和 TN192 给出 9.961930 和 9.883654 ms，同卡完整请求为 11.445683 和 11.363110 ms/token，TPOT 降低 0.721%。三次配对均改善，输出与冻结参考一致。正式正确性作业 353669 在对应独立计时前执行。
 
 **Verified** · 353581 的对照与四槽 trace 扰动分别为 6.007% 和 5.973%，两份校准均未入表。353668 保留所有相关 CTA 的阶段起止及 route/最后一次合并所需的标记，去掉首 tile 轮询和额外的 trace rendezvous，仍在同一批完全插桩的 16 个位置评估每臂扰动。
+
+## R5 · Qwen30 B2 排序校准
+
+**Verified** · 353668 的对照与四槽 trace 扰动分别降至 1.701% 和 1.395%。同卡两臂分别覆盖 768 个融合区间，完整 520-token 输出一致，融合区间与直接相邻的计算阶段无重叠。两臂的 route startup 中位数都是 5.120 µs，combine tail 都是 1.024 µs，融合阶段跨度分别为 110.592 和 106.496 µs。
+
+**Verified** · 只写入 startup 和 combine 后，重放仍将三槽排在四槽之前。按相同位置和层对齐各臂的活动专家数，再用独立 trace 的跨度为 14、15、16 个活动专家定价。三类各有 148、359、245 个样本。留一层验证覆盖每臂 752 个样本，阶段绝对相对误差中位数分别为 0.826% 和 0.797%。其余 16 个样本没有足够的跨层对照，solver 在这些活动数使用已有的 ring 与流量模型。
+
+| Qwen30 B2 · 三槽对四槽 | 三槽 | 四槽 |
+|---|---:|---:|
+| 只加入 startup 和 combine 的整步 replay (ms) | 12.438469 | 12.651403 |
+| 加入对应活动专家数的整步 replay (ms) | 12.145659 | 11.989202 |
+| 353321 同卡完整请求 TPOT (ms/token) | 10.181285 | 10.073889 |
+
+**Verified** · 新价格修复了 B2 的排序。锁定正式产物的独立计时为 10.065277 ms/token，绝对预测仍有约 19.1% 偏差。该价格仅适用于绑定的 B2 几何与经过隔离核验的融合区间。
+
+**Verified** · 新价格通过 Linux 登录节点的 native prices、flow、pipeline 测试。将同卡证据字段改为 false 的目标被拒绝。沿用冻结正式请求重放全部 40 格，B2 以外的预测逐格一致，整矩阵绝对相对误差中位数为 5.0134%。历史 Llama-8B 两个 216 CTA 坐标排序一致，Qwen30 B16 的 segments/copy8 方向一致。B16 的行基址对照仍按原同卡数据归为平局。
