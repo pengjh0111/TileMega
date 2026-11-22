@@ -42,6 +42,16 @@ def process_timeout(model):
     return 420
 
 
+def accepted_check(row):
+    evidence = Path(row['evidence'])
+    guard = read(evidence.parent.parent/'guard_result.json')
+    step = read(evidence/'c2.json')
+    return (not guard['code'] and guard['acceptance'] == 'strict' and guard['ownership_verified']
+            and step['pass'] and step['same_binary']
+            and sha(evidence/'reference_tokens.json') == row['tokens_sha256']
+            and (not row['hf_pass'] or read(evidence/'c1.json')['pass']))
+
+
 def prepare(args):
     if os.environ.get('SLURM_JOB_ID'):
         raise ValueError('prepare the matrix with GPU access disabled on the login node')
@@ -77,9 +87,9 @@ def prepare(args):
         for root in args.history:
             for file in sorted(root.glob(f'*/{cell}/*/correctness-*.json')):
                 row = read(file)
-                if (row['pass'] and row['protocol_version'] == PROTOCOL
+                if (row['pass'] and row.get('protocol_version', PROTOCOL) == PROTOCOL
                         and row['tokens_sha256'] == tokens[cell] and matching(row, identity)
-                        and hardware_class(row['device']) == hardware_class(dev)):
+                        and hardware_class(row['device']) == hardware_class(dev) and accepted_check(row)):
                     proofs.setdefault(row['round'], file.resolve())
         if not any(read(file)['hf_pass'] for file in proofs.values()):
             raise ValueError(f'{cell} has no accepted full HF receipt for the identical artifacts')
