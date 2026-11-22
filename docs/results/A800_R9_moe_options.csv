@@ -1,0 +1,9 @@
+model,batch,job,option,probe,stage_span_ns,grid,gpu_uuid,binary_sha256,matched_control,span_ratio
+qwen3_30b_a3b,16,354479,aligned-gate-pages,fused_expert,599040.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,5247117bc8fd5ca2b224437eeab0cc0b3d69e67cce7b5c7767644704e1f74a58,fused-control,0.936
+qwen3_30b_a3b,16,354479,copy-group,fused_expert,589824.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,f36beb82f884b3ec8f50a8658331919f753a772859082ba2c79631465e0a9dee,page-segments,1.0491803278688525
+qwen3_30b_a3b,16,354479,fused-control,fused_expert,640000.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,dc6627bb52c63c2487dce3288c9302b02ced2aa05a8d19586dae976bf8d87edc,,
+qwen3_30b_a3b,16,354479,gu-route-bases,fused_expert,605184.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,cec8dff9e96bfc353e9d83c6df1434dc821e64e33b299fb52e86c4ea55290baf,fused-control,0.9456
+qwen3_30b_a3b,16,354479,page-segments,fused_expert,562176.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,e3fd73b0cdaa3334ee03be1356cde5ecf47cf376f40d326b643ce1ac1a0e7603,fused-control,0.8784
+qwen3_30b_a3b,16,354479,residual-control,residual_o,43008.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,0416ee8c3b51c08d4553ddf3eae3cbca0dabc1b5f69ffbb00b632c4fd7f5eb02,,
+qwen3_30b_a3b,16,354479,residual-copy-group,residual_o,43008.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,1e40f963d5afef5f19ea60a8f2f5befae5bdf5e5f221fda775fcd0ed5663ed1e,residual-control,1.0
+qwen3_30b_a3b,16,354479,slot-padding,fused_expert,688128.0,108,GPU-c373caf2-fd6b-6368-4c44-dd9b4b5e5f77,df1f7b6300600ae6447503f7a8c7b2d7c000efee900c5973c1204a53be29a619,fused-control,1.0752
