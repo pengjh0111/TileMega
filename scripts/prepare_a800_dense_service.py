@@ -25,6 +25,8 @@ def main():
     parser.add_argument('--copy', type=int, choices=(0, 4, 8), default=0)
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
+    parser.add_argument('--sample-stride', type=int, choices=(1, 8, 16, 32), default=1,
+                        help='instrument every Nth CTA in the diagnostic arm')
     parser.add_argument('--epilogue-clock', action='store_true',
                         help='measure residual epilogue and side wait without mainloop timers')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
@@ -140,6 +142,7 @@ def main():
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
                *(['-DTILEMEGA_SM80_PADDED_GATE=1'] if partial_n else []),
+               *([f'-DTILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE={args.sample_stride}'] if args.sample_stride>1 else []),
                str(ROOT/'scripts/a800_dense_service_probe.cu'), '-o', str(binary)]
     with (out/'build.log').open('w') as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=260)

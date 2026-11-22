@@ -21,6 +21,14 @@ struct BodySpan {
 #endif
 };
 
+#ifndef TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE
+#define TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE 1
+#endif
+
+static __host__ __device__ constexpr bool SampleBlock(unsigned block) {
+  return block%TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE==0;
+}
+
 #ifndef TILEMEGA_DENSE_SERVICE_RESERVE_SHARED
 #define TILEMEGA_DENSE_SERVICE_RESERVE_SHARED 0
 #endif
@@ -64,7 +72,7 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
-  if constexpr(Probe) {
+  if constexpr(Probe)if(SampleBlock(blockIdx.x)) {
     if(threadIdx.x==0)
       *reinterpret_cast<Sm80DenseService**>(shared+Sm90DenseOperandHeader::kTraceSlot)=service+blockIdx.x;
     __syncthreads();
@@ -79,7 +87,10 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
     observed.begin_cycles=Sm80DenseService::Cycles();
 #endif
   }
-  C::template Body<Probe>::Run(args,shared,&ring);
+  if constexpr(Probe) {
+    if(SampleBlock(blockIdx.x))C::template Body<true>::Run(args,shared,&ring);
+    else C::template Body<false>::Run(args,shared,&ring);
+  }else C::template Body<false>::Run(args,shared,&ring);
   if(threadIdx.x==0) {
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
     observed.end_cycles=Sm80DenseService::Cycles();
@@ -210,7 +221,7 @@ int Profile(cudaDeviceProp const& p) {
     traced_ns.push_back(Longest(times));
     for(int block=0;block<grid;++block) {
       int tasks=tiles/grid+(block<tiles%grid);
-      if(!tasks)continue;
+      if(!tasks || !SampleBlock(block))continue;
       double steps=tasks*(K/TK);
       auto const& row=rows[block];
       producer_wait.push_back(row.producer_wait/steps);
@@ -264,6 +275,8 @@ int Profile(cudaDeviceProp const& p) {
 #endif
   if constexpr(N!=C::kPaddedN)
     std::printf(",\"padded_n\":%d,\"clipped_output_bitwise_equal\":true",C::kPaddedN);
+  if constexpr(TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE>1)
+    std::printf(",\"sample_stride\":%d",TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE);
   std::printf("}\n");
   return 0;
 }
