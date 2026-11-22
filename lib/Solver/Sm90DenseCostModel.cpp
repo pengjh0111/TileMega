@@ -213,7 +213,7 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
       constants_.dram_gbps,constants_.l2_gbps,constants_.CtaDramGbps(),service->gu_issue,
       service->gu_mma,service->gu_epilogue,service->dn_issue,service->dn_mma,
       service->dn_epilogue,service->dn_preissue,service->dn_activation,
-      startup,combine,constants_.dram_latency);
+      startup,combine,constants_.dram_latency,service->production_body_ns);
   static thread_local std::map<decltype(key),Sm80FusedPipelinePrice> cache;
   if(auto found=cache.find(key);found!=cache.end())return found->second;
 
@@ -236,8 +236,10 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
         (weights+activations)/constants_.l2_gbps,per_cta/constants_.CtaDramGbps()});
     // Dn's measured epilogue already contains last-arriver work. Only the
     // transfer bound needs the exclusive combine tail after the last partial.
-    return Sm80FusedPipelinePrice{active,local,std::max(local,transfer),
-        startup+constants_.dram_latency+std::max(local,transfer+combine)};
+    double body=active<int(service->production_body_ns.size())?
+        service->production_body_ns[active]:0.;
+    if(body==0.)body=startup+constants_.dram_latency+std::max(local,transfer+combine);
+    return Sm80FusedPipelinePrice{active,local,std::max(local,transfer),body};
   };
   if(active_experts)return cache.emplace(key,evaluate(active_experts)).first->second;
   Sm80FusedPipelinePrice price{};

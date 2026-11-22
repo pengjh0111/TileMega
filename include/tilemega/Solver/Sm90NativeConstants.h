@@ -32,6 +32,8 @@ struct Sm80FusedExpertService {
   // The same producer owns Gu, Dn preissue, activation and the Dn mainloop.
   double gu_issue,gu_mma,gu_epilogue,dn_issue,dn_mma,dn_epilogue,dn_preissue,dn_activation;
   double route_startup_ns=-1,combine_tail_ns=-1;
+  // Optional isolated stage measurements for the observed batch-two route sizes.
+  std::array<double,17> production_body_ns{};
 };
 
 struct Sm80FusedExpertShape {

@@ -295,6 +295,23 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       if(auto const* phases=profile.Find("production_phases")) {
         service.route_startup_ns=Positive(phases->At("route_startup_ns"),"fused route startup");
         service.combine_tail_ns=Positive(phases->At("combine_tail_ns"),"fused combine tail");
+        if(auto const* observed=phases->Find("body_by_active_experts")) {
+          double trace=Positive(phases->At("window_over_reference"),"fused trace window ratio");
+          if(geometry.batch!=2 || !phases->At("same_gpu").AsBool("same GPU") ||
+             phases->At("overlapping_external_stages").AsNumber("external overlap")!=0 ||
+             std::abs(trace-1.)>0.05)
+            throw std::invalid_argument("per-route expert service requires an isolated guarded B2 trace");
+          for(auto const& sample:observed->AsArray("fused body by active experts")) {
+            double active=sample.At("active_experts").AsNumber("active experts");
+            double count=sample.At("sample_count").AsNumber("sample count");
+            if(!std::isfinite(active) || active<8 || active>16 || active!=std::floor(active) ||
+               !std::isfinite(count) || count<2 || count!=std::floor(count))
+              throw std::invalid_argument("invalid observed expert count or sample size");
+            auto& ns=service.production_body_ns[std::size_t(active)];
+            if(ns>0)throw std::invalid_argument("duplicate observed expert count");
+            ns=Positive(sample.At("body_ns"),"fused body time");
+          }
+        }
       }
       if(!c.ampere_fused_service_.emplace(geometry.Key(),service).second)
         throw std::invalid_argument("conflicting compatible fused expert service");
