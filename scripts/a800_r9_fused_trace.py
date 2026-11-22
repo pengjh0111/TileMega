@@ -175,6 +175,13 @@ def release_bandwidth(args):
     if plan.get('trace_kind') != 'release':
         raise ValueError('expected the compact native release trace')
     ledger = args.run/'ledger'
+    if args.expected_tokens:
+        observed = read(ledger/'reference-tokens.json')
+        expected = read(args.expected_tokens)
+        if (len(observed)!=plan['batch'] or len(expected)!=plan['batch']
+                or any(len(row)!=report['tokens'] or row!=frozen[:len(row)]
+                       for row,frozen in zip(observed,expected))):
+            raise ValueError('release trace changed the frozen greedy output')
     meta = read(ledger/'native_release.json')
     if (meta['observation'] != 'release_after_cta_barrier' or meta['grid'] != plan['grid']
             or meta['performance_eligible'] or meta['uniform_overhead_subtracted']):
@@ -293,6 +300,7 @@ def main():
             collect.add_argument(f'--{flag}', required=True, type=Path)
         if name == 'release-bandwidth':
             collect.add_argument('--expert-trace', type=Path)
+            collect.add_argument('--expected-tokens', type=Path)
     args = p.parse_args()
     {'prepare': prepare, 'analyze': analyze, 'release-bandwidth': release_bandwidth}[args.mode](args)
 
