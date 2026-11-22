@@ -127,7 +127,7 @@ def analyze(args):
                 by_stage[int(row['iteration']), stage].append(row)
     if not by_stage:
         raise ValueError('trace contains no fused decode observations')
-    split = Counter()
+    split, active_counts = Counter(), Counter()
     ratios, tail = [], []
     grid = plan['grid']
     for rows in by_stage.values():
@@ -137,6 +137,7 @@ def analyze(args):
         if len(counts) != 1 or min(counts) <= 0:
             raise ValueError('active expert count differs across CTAs')
         active = counts.pop()
+        active_counts[active] += 1
         durations = []
         for row in rows:
             worker, gu, dn = (int(row[k]) for k in ('worker', 'gu_tasks', 'dn_tasks'))
@@ -158,6 +159,8 @@ def analyze(args):
         stages=len(by_stage), grid=grid, perturbation_pct=report['overhead_pct'],
         max_over_median_cta_span=statistics.median(ratios),
         worst_cta_span_ratio=max(ratios), median_lag_ns=statistics.median(tail),
+        stages_over_1_3=sum(r > 1.3 for r in ratios),
+        active_expert_counts=dict(sorted(active_counts.items())),
         task_distribution=[dict(gate_up=gu,down=dn,samples=count)
                            for (gu,dn),count in sorted(split.items())],
         trace_sha256=report['decode_sha256'], control_sha256=report['reference_sha256'],
