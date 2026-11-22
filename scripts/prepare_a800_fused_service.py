@@ -31,6 +31,8 @@ def main():
     routes.add_argument('--gu-route-bases', action='store_true')
     routes.add_argument('--packed-gu-routes', action='store_true')
     p.add_argument('--live-rows', action='store_true')
+    p.add_argument('--slot-padding', action='store_true')
+    p.add_argument('--aligned-gate-pages', choices=('on', 'off'))
     a = p.parse_args()
     if a.shared_marks and not a.reserve_program_shared:
         p.error('shared marks require the reserved production program arena')
@@ -78,13 +80,21 @@ def main():
         variants['TILEMEGA_SM80_COPY_ISSUE_GROUP'] = copy
         case += f'-copy{copy}'
     if a.variant == 'segments':
-        if page != '64':
-            raise ValueError('segments require paged weights')
+        if page != '64' or a.aligned_gate_pages == 'on':
+            raise ValueError('segments require the generic page64 copy path')
         variants['TILEMEGA_SM80_MOE_PAGE_SEGMENTS'] = 1
     else:
         macro='TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES'
-        if re.search(rf'^#define {macro}\b', generated, re.MULTILINE):
+        if a.aligned_gate_pages == 'on' and (page != '64' or tng % 64):
+            raise ValueError('aligned gate pages require complete 64-row pages')
+        if a.aligned_gate_pages == 'on' or a.aligned_gate_pages is None and re.search(
+                rf'^#define {macro}\b', generated, re.MULTILINE):
             variants[macro] = 1
+    if a.aligned_gate_pages is not None:
+        case += f'-aligned-{a.aligned_gate_pages}'
+    if a.slot_padding:
+        variants['TILEMEGA_SM80_MOE_SLOT_PADDING'] = 1
+        case += '-slot-padding'
     if a.variant == 'live' or a.live_rows:
         variants['TILEMEGA_SM80_ACTIVE_EPILOGUE'] = 1
         if a.variant != 'live':
