@@ -142,8 +142,16 @@ def merge(paths):
             if not 0 < median <= p99 < math.inf:
                 raise ValueError(f'invalid MMA measurement for {key}')
             origin = supplemental.get(key, mma)
-            identity = {'binary_sha256': origin['binary_sha256'],
-                        'gpu_uuid': origin['gpu_uuid'], 'evidence': origin['evidence']}
+            identity = {'gpu_uuid': origin['gpu_uuid'], 'evidence': origin['evidence']}
+            if 'binary_sha256' in origin:
+                identity['binary_sha256'] = origin['binary_sha256']
+            else:
+                # A guarded cohort can bind several linked binaries in one plan.
+                for field in ('plan_sha256', 'admission_sha256'):
+                    evidence_hash = origin[field]
+                    if len(evidence_hash) != 64:
+                        raise ValueError(f'invalid MMA cohort {field} in {path}')
+                    identity[field] = evidence_hash
             row = dict(key=shape, unit='ns_per_k16_per_split', input_norm=True,
                        residency=shape['grid']//sms, **identity)
             previous = versions.setdefault(key, row)
