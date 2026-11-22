@@ -16,6 +16,23 @@ EPILOGUE = {'qkv': ('store', 'kStore'), 'o': ('residual', 'kResidual'),
             'gate_up': ('swiglu', 'kSwiGLU'), 'down': ('residual', 'kResidual')}
 
 
+def production_shape(generated, family, batch, geometry):
+    pattern = (r'AmpereGemm<(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),\d+,'
+               r'backend::ServingEpilogueOp::(\w+),(\d+),(true|false),')
+    tn = geometry['tile_n']
+    shape = (tn, geometry['slot_bytes']//(2*tn), geometry['slots'], geometry['warps_n'])
+    operator = EPILOGUE[family][1]
+    aliases = (tuple((*(int(v) for v in row[:7]), row[7], int(row[8]), row[9] == 'true'))
+               for row in re.findall(pattern, generated))
+    matching = list(dict.fromkeys(row for row in aliases
+                                  if row[0] == batch and row[3:7] == shape and row[7] == operator))
+    if family in ('o', 'down') and len(matching) == 2:
+        matching = [matching[1 if family == 'down' else 0]]
+    if len(matching) != 1:
+        raise ValueError(f'{family} does not identify one production alias')
+    return matching[0]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--anchor', type=Path, required=True)
@@ -74,9 +91,6 @@ def main():
     # Generated body aliases carry the actual padded N, K and epilogue.
     # An export input shape can differ after QKV fusion and weight packing.
     generated = Path(str(decode)+'.cu').read_text()
-    aliases = [tuple((*(int(v) for v in row[:7]), row[7], int(row[8]), row[9] == 'true'))
-               for row in re.findall(r'AmpereGemm<(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),\d+,'
-                                     r'backend::ServingEpilogueOp::(\w+),(\d+),(true|false),', generated)]
     cases = {}
     definitions = []
     partial_n = False
@@ -84,14 +98,8 @@ def main():
     for family in args.families:
         g = gems[family]
         epilogue, operator = EPILOGUE[family]
-        matching = list(dict.fromkeys(row for row in aliases if row[0] == batch
-                                     and row[3:7] == (g['tile_n'], g['slot_bytes']//(2*g['tile_n']), g['slots'], g['warps_n'])
-                                     and row[7] == operator))
-        if family in ('o', 'down') and len(matching) == 2:
-            matching = [matching[1 if family == 'down' else 0]]
-        if len(matching) != 1:
-            raise ValueError(f'{family} does not identify one production alias')
-        _, n, k, incumbent_tn, incumbent_tk, incumbent_slots, incumbent_wn, _, packed_u, norm = matching[0]
+        _, n, k, incumbent_tn, incumbent_tk, incumbent_slots, incumbent_wn, _, packed_u, norm = (
+            production_shape(generated, family, batch, g))
         if 4//incumbent_wn != g['warps_k'] or norm != (epilogue != 'residual'):
             raise ValueError(f'incumbent {family} coordinate and body disagree')
         for slots, tile_k, tile_n, warps_n in rings.get(family, [(incumbent_slots, None, None, None)]):

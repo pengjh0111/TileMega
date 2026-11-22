@@ -1,0 +1,11 @@
+{
+  "models": ["llama3_1_8b", "mistral_7b_v0_3", "llama3_2_3b", "qwen3_1_7b"],
+  "batch": 16,
+  "families": ["down", "o", "qkv"],
+  "width_multipliers": [1, 2, 4],
+  "slots": [2, 3],
+  "residencies": [1, 2],
+  "maximum_perturbation": 0.05,
+  "role_sample_stride": 16,
+  "h1_bandwidth_gbps": 1400
+}
