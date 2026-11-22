@@ -8,7 +8,7 @@
 |---|---|---|
 | R0 | 已复核三格。Llama-3B B16 和 OLMoE B8 已有新正式数据。Llama-1B B16 在 0.50% 阈值内。 | 无需重复原对照。 |
 | R1 | MMA 注册键由 92 增至 418。40 格正式坐标已重放。 | 新几何须补对应的实测价格。 |
-| R2 | Llama-3B 和 Llama-8B B16 分别采纳 TN96 和 TN160 三槽，保留 216 CTA。Mistral B16 的 TN160 收益在平局范围内。 | Mistral B16 的 TN192 两槽进入完整正确性与请求对照。 |
+| R2 | Llama-3B、Llama-8B 和 Mistral B16 分别采纳 TN96 三槽、TN160 三槽和 TN192 两槽，均使用 216 CTA。 | 三格持续按 0.83 带宽效率目标核算差距。 |
 | R3 | 前一轮已正式采纳 9 个双驻留配置，覆盖 Llama-8B、Mistral 和 Llama-3B。 | 重点 dense B16 仍未达到 0.83 带宽效率。 |
 | R4 | 已对照 MoE padding、attention mask 和 dense live-row，并为五个 residual 几何补测 epilogue。 | 保留经过端到端验证的现有选择。 |
 | R5 | activation issue、wave tail、register stages 和 fresh KV 已进入普通成本路径。Qwen B16 的分页策略和 B2 的融合环排序均已用独立阶段证据重新核对。 | 实际跨阶段 HBM 流量仍受权限限制。作业 `352601` 在 CUPTI 可用性查询返回 `CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`。 |
@@ -102,13 +102,15 @@
 
 **Verified** · Qwen30 B2 四槽方案在 353367 和 353477 共通过五次正式正确性。独立计时 353552 测得 T1 0.408795 s、T1024 10.705574 s 和 TPOT 10.065277 ms/token，较旧正式值 10.308939 ms/token 降低 2.364%。正式 decode SHA-256 为 79842224ce5287400ac0de6f292135aacb9bb77a936c243e30cbd43b6f2a5fe5。
 
+**Verified** · Mistral B16 的 TN192 两槽在 353669 通过五次正式正确性。独立计时 353785 测得 T1 0.458800 s、T1024 12.071637 s 和 TPOT 11.351747 ms/token，较旧正式值 11.472326 ms/token 降低 1.051%，从平局转为胜出。带宽效率为 0.8067，正式 decode SHA-256 为 f6f96b3f6fd967402b4d7864f356fec579e38e21498eaf70134467f58b6bed53。
+
 **Verified** · 登录节点重新导入原 40 格正式 CTG。新旧编译器对每格的 additive、pool、replay 和逐 stage 价格均完全一致。编译器的 native prices、flow 和 pipeline 单元测试全部通过。
 
 **Verified** · 将本轮四个正式坐标与新增实测价格合并后，再重放全部 40 格。其余 36 格的 additive、pool、replay 和逐 stage 价格逐项相同。正式 TPOT 对 replay 的绝对相对误差中位数为 5.0134%。
 
 **Verified** · Qwen30 B8 在 353302_1 完成同卡筛选。四槽共享 ring 与对照输出相同，TPOT 为 19.381591 对 19.407654 ms/token，差异 0.134%，保留正式对照。
 
-**Verified** · 40 格目前为 32 胜、2 平、6 负，几何平均加速比 1.100581，带宽效率的几何平均为 0.693883。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
+**Verified** · 40 格目前为 33 胜、1 平、6 负，几何平均加速比 1.100872，带宽效率的几何平均为 0.694067。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
 
 ## 后续对照
 
@@ -157,3 +159,17 @@
 **Verified** · 新价格修复了 B2 的排序。锁定正式产物的独立计时为 10.065277 ms/token，绝对预测仍有约 19.1% 偏差。该价格仅适用于绑定的 B2 几何与经过隔离核验的融合区间。
 
 **Verified** · 新价格通过 Linux 登录节点的 native prices、flow、pipeline 测试。将同卡证据字段改为 false 的目标被拒绝。沿用冻结正式请求重放全部 40 格，B2 以外的预测逐格一致，整矩阵绝对相对误差中位数为 5.0134%。历史 Llama-8B 两个 216 CTA 坐标排序一致，Qwen30 B16 的 segments/copy8 方向一致。B16 的行基址对照仍按原同卡数据归为平局。
+
+## B16 带宽效率与跨架构差距
+
+**Verified** · 使用匹配输入的每步逻辑字节数和实测 A800 带宽 1685.62 GB/s。表中的 83% TPOT 是同一带宽口径下的目标值。
+
+| Dense B16 | 正式 TPOT (ms/token) | 带宽效率 | 83% 对应 TPOT (ms/token) |
+|---|---:|---:|---:|
+| Llama-3.2-3B | 6.016750 | 73.774% | 5.347940 |
+| Llama-3.1-8B | 11.833390 | 81.303% | 11.591514 |
+| Mistral-7B | 11.351747 | 80.665% | 11.032399 |
+
+**Verified** · 当前六个负格仍集中在 Qwen30 各 batch 和 OLMoE B16。A800 最快 baseline 的匹配带宽效率几何平均为 0.63047，约比 H800 的 0.5309 高 18.8%。 [H800 匹配数据](SM90R6_hw_bound.csv)
+
+**Inferred** · 更高的 baseline 带宽效率，以及 H800 上的 TMA 和 cluster 合并，继续影响两种架构的相对收益。A800 本轮主要通过减轻 dense gate 尾部、重排 MoE ring 来缩短 TPOT。表中的三个 dense B16 仍低于 83% 目标。
