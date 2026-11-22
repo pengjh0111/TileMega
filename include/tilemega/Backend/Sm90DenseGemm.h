@@ -357,7 +357,9 @@ struct Sm90DenseGemm {
           if(unsigned(slot&1)!=(rank&1))Async::RemoteArrive(Async::Mapa(state.peer+slot/2,rank^1u));
       }
       Sm80DenseService::Tick epilogue_start=0;
+#ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
       if constexpr(ServiceProbe)if(tid==0)epilogue_start=Sm80DenseService::Now();
+#endif
       if(tid==0)Sm90DenseMark(1);
       if constexpr(InputNorm)
         #pragma unroll
@@ -371,6 +373,10 @@ struct Sm90DenseGemm {
         Async::Wait(state.side+local,(side>>local)&1);side^=1u<<local;
         tile_residual=residual+local*Batch*TN;
       }
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+      static_assert(!ServiceProbe || kResidual,"cycle sampling isolates the residual epilogue");
+      if constexpr(ServiceProbe)if(tid==0)epilogue_start=Sm80DenseService::Cycles();
+#endif
       if constexpr(kRegisterEpilogue) {
         float inv[2]={1,1};
         if constexpr(InputNorm)
@@ -404,7 +410,11 @@ struct Sm90DenseGemm {
         if(tid==0)Sm90DenseMark(2);
       }
       if constexpr(ServiceProbe)if(tid==0)
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+        service.consumer_epilogue+=Sm80DenseService::Cycles()-epilogue_start;
+#else
         service.consumer_epilogue+=Sm80DenseService::Now()-epilogue_start;
+#endif
     }
     if constexpr(ServiceProbe)if(tid==0) {
       auto* out=Sm80DenseService::Output();

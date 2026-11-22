@@ -25,10 +25,14 @@ def main():
     parser.add_argument('--copy', type=int, choices=(0, 4, 8), default=0)
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
+    parser.add_argument('--epilogue-clock', action='store_true',
+                        help='measure residual epilogues in SM cycles after the side wait')
     parser.add_argument('--u', nargs='+', type=int, choices=(4, 8, 16))
     parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K[:TILE_N[:WARPS_N]]]',
                         help='compile an alternative ring depth and optional K and N tiles and N warp count')
     args = parser.parse_args()
+    if args.epilogue_clock and any(family not in ('o', 'down') for family in args.families):
+        parser.error('clock-based epilogue timing requires residual families')
     if args.residual_copy and (not args.copy or not any(f in ('o', 'down') for f in args.families)):
         parser.error('--residual-copy requires a copy group and at least one residual family')
     rings = {}
@@ -127,6 +131,7 @@ def main():
                f'-DTILEMEGA_SM80_ACTIVE_EPILOGUE={int(args.live)}',
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
+               *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
                str(ROOT/'scripts/a800_dense_service_probe.cu'), '-o', str(binary)]
     with (out/'build.log').open('w') as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=260)

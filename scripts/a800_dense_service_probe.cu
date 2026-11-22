@@ -16,6 +16,9 @@ using Tick=Sm80DenseService::Tick;
 struct BodySpan {
   Tick begin,end;
   unsigned sm;
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+  Tick begin_cycles,end_cycles;
+#endif
 };
 
 #ifndef TILEMEGA_DENSE_SERVICE_RESERVE_SHARED
@@ -70,9 +73,15 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
   if(threadIdx.x==0) {
     asm volatile("mov.u32 %0, %%smid;" : "=r"(observed.sm));
     observed.begin=Sm80DenseService::Now();
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+    observed.begin_cycles=Sm80DenseService::Cycles();
+#endif
   }
   C::template Body<Probe>::Run(args,shared,&ring);
   if(threadIdx.x==0) {
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+    observed.end_cycles=Sm80DenseService::Cycles();
+#endif
     observed.end=Sm80DenseService::Now();
     span[blockIdx.x]=observed;
   }
@@ -156,6 +165,9 @@ int Profile(cudaDeviceProp const& p) {
   std::vector<BodySpan> times(grid);
   std::vector<Sm80DenseService> rows(grid);
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+  std::vector<double> epilogue_cycles,sm_ghz;
+#endif
   std::vector<Tick> plain_ns,traced_ns;
   int min_overlapping=p.multiProcessorCount;
   constexpr int tiles=N/TN;
@@ -176,7 +188,20 @@ int Profile(cudaDeviceProp const& p) {
       producer_issue.push_back(row.producer_issue/steps);
       consumer_wait.push_back(row.consumer_wait/steps);
       consumer_mma.push_back(row.consumer_mma/steps);
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+      // The global timer has microsecond resolution on A800. Use a separate
+      // per-CTA clock for the short epilogue and scale it by the full span.
+      auto const& wall=times[block];
+      if(wall.end<=wall.begin || wall.end_cycles<=wall.begin_cycles || !row.consumer_epilogue)
+        throw std::runtime_error("invalid residual epilogue clock sample");
+      double rate=double(wall.end_cycles-wall.begin_cycles)/(wall.end-wall.begin);
+      double cycles=double(row.consumer_epilogue)/tasks;
+      sm_ghz.push_back(rate);
+      epilogue_cycles.push_back(cycles);
+      epilogue.push_back(cycles/rate);
+#else
       epilogue.push_back(double(row.consumer_epilogue)/tasks);
+#endif
     }
   }
   std::printf("{\"status\":\"measured\",\"epilogue\":\"%s\","
@@ -190,7 +215,7 @@ int Profile(cudaDeviceProp const& p) {
               "\"local_bytes\":%zu,\"traced_local_bytes\":%zu,"
               "\"untraced_span_ns\":%.3f,\"traced_span_ns\":%.3f,\"producer_wait_ns_per_tile\":%.3f,"
               "\"producer_issue_ns_per_tile\":%.3f,\"consumer_wait_ns_per_tile\":%.3f,"
-              "\"consumer_mma_ns_per_tile\":%.3f,\"consumer_epilogue_ns_per_task\":%.3f,\"output_bitwise_equal\":true}\n",
+              "\"consumer_mma_ns_per_tile\":%.3f,\"consumer_epilogue_ns_per_task\":%.3f,\"output_bitwise_equal\":true",
               C::Epilogue(),C::kNorm?"true":"false",C::kU,
 #if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
               M<16 && (C::kGate || C::kWK>1)?"true":"false",
@@ -202,6 +227,11 @@ int Profile(cudaDeviceProp const& p) {
               plain_attr.numRegs,traced_attr.numRegs,plain_attr.localSizeBytes,traced_attr.localSizeBytes,
               Median(plain_ns),Median(traced_ns),Median(producer_wait),Median(producer_issue),Median(consumer_wait),
               Median(consumer_mma),Median(epilogue));
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+  std::printf(",\"consumer_epilogue_cycles_per_task\":%.3f,\"epilogue_calibration_sm_ghz\":%.6f",
+      Median(epilogue_cycles),Median(sm_ghz));
+#endif
+  std::printf("}\n");
   return 0;
 }
 

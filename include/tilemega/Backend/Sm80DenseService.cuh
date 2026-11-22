@@ -12,6 +12,11 @@ struct Sm80DenseService {
   __device__ static Tick Now() {
     Tick value;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(value)::"memory");return value;
   }
+#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+  __device__ static Tick Cycles() {
+    Tick value;asm volatile("mov.u64 %0, %%clock64;":"=l"(value)::"memory");return value;
+  }
+#endif
   __device__ static Sm80DenseService* Output() {
     extern __shared__ __align__(1024) char shared[];
     return *reinterpret_cast<Sm80DenseService**>(shared+Sm90DenseOperandHeader::kTraceSlot);
