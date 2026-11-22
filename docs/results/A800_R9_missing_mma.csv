@@ -1,0 +1,150 @@
+mma_key,family_options,cells,families
+108:56:64:1:1,945,40,down expert_down gate_up o qkv
+108:56:128:1:1,945,40,down expert_down gate_up o qkv
+108:56:128:1:2,945,40,down expert_down gate_up o qkv
+108:56:256:1:1,405,40,down expert_down gate_up o qkv
+108:56:256:1:2,405,40,down expert_down gate_up o qkv
+108:56:256:1:4,405,40,down expert_down gate_up o qkv
+108:56:512:1:1,135,40,down expert_down gate_up o qkv
+108:56:512:1:2,135,40,down expert_down gate_up o qkv
+108:56:512:1:4,135,40,down expert_down gate_up o qkv
+108:72:64:1:1,945,40,down expert_down gate_up o qkv
+108:72:128:1:1,783,40,down expert_down gate_up o qkv
+108:72:128:1:2,783,40,down expert_down gate_up o qkv
+108:72:256:1:1,270,40,down expert_down gate_up o qkv
+108:72:256:1:2,270,40,down expert_down gate_up o qkv
+108:72:256:1:4,270,40,down expert_down gate_up o qkv
+108:88:64:1:1,875,40,down expert_down gate_up o qkv
+108:88:128:1:1,500,40,down expert_down gate_up o qkv
+108:88:128:1:2,500,40,down expert_down gate_up o qkv
+108:88:256:1:1,125,40,down expert_down gate_up o qkv
+108:88:256:1:2,125,40,down expert_down gate_up o qkv
+108:88:256:1:4,125,40,down expert_down gate_up o qkv
+108:104:64:1:1,980,40,down expert_down gate_up lm_head o qkv
+108:104:128:1:1,420,40,down expert_down gate_up lm_head o qkv
+108:104:128:1:2,420,40,down expert_down gate_up lm_head o qkv
+108:104:256:1:1,140,40,down expert_down gate_up lm_head o qkv
+108:104:256:1:2,140,40,down expert_down gate_up lm_head o qkv
+108:104:256:1:4,140,40,down expert_down gate_up lm_head o qkv
+108:112:64:1:1,988,40,down expert_down gate_up lm_head o qkv
+108:112:64:2:1,1010,40,down expert_down gate_up lm_head o qkv
+108:112:64:2:2,1010,40,down expert_down gate_up lm_head o qkv
+108:112:128:1:1,408,40,down expert_down gate_up lm_head o qkv
+108:112:128:1:2,408,40,down expert_down gate_up lm_head o qkv
+108:112:128:2:1,430,40,down expert_down gate_up lm_head o qkv
+108:112:128:2:2,430,40,down expert_down gate_up lm_head o qkv
+108:112:128:2:4,430,40,down expert_down gate_up lm_head o qkv
+108:112:256:1:1,128,40,down expert_down gate_up lm_head o qkv
+108:112:256:1:2,128,40,down expert_down gate_up lm_head o qkv
+108:112:256:1:4,128,40,down expert_down gate_up lm_head o qkv
+108:112:256:2:1,140,40,down expert_down gate_up lm_head o qkv
+108:112:256:2:2,140,40,down expert_down gate_up lm_head o qkv
+108:112:256:2:4,140,40,down expert_down gate_up lm_head o qkv
+108:120:64:1:1,940,40,down expert_down gate_up lm_head o qkv
+108:120:128:1:1,380,40,down expert_down gate_up lm_head o qkv
+108:120:128:1:2,380,40,down expert_down gate_up lm_head o qkv
+108:120:256:1:1,100,32,down expert_down gate_up lm_head o qkv
+108:120:256:1:2,100,32,down expert_down gate_up lm_head o qkv
+108:120:256:1:4,100,32,down expert_down gate_up lm_head o qkv
+108:136:64:1:1,788,40,down expert_down gate_up lm_head o qkv
+108:136:128:1:1,280,40,down expert_down gate_up lm_head o qkv
+108:136:128:1:2,280,40,down expert_down gate_up lm_head o qkv
+108:144:64:1:1,688,40,down expert_down gate_up lm_head o qkv
+108:144:64:2:1,828,40,down expert_down gate_up lm_head o qkv
+108:144:64:2:2,828,40,down expert_down gate_up lm_head o qkv
+108:144:128:1:1,268,40,down expert_down gate_up lm_head o qkv
+108:144:128:1:2,268,40,down expert_down gate_up lm_head o qkv
+108:144:128:2:1,280,40,down expert_down gate_up lm_head o qkv
+108:144:128:2:2,280,40,down expert_down gate_up lm_head o qkv
+108:144:128:2:4,280,40,down expert_down gate_up lm_head o qkv
+108:152:64:1:1,660,40,down expert_down gate_up lm_head o qkv
+108:152:128:1:1,240,40,down expert_down gate_up lm_head o qkv
+108:152:128:1:2,240,40,down expert_down gate_up lm_head o qkv
+108:168:64:1:1,454,40,down expert_down gate_up lm_head o qkv
+108:168:128:1:1,115,40,down expert_down gate_up lm_head o qkv
+108:168:128:1:2,115,40,down expert_down gate_up lm_head o qkv
+108:176:64:1:1,425,40,down expert_down gate_up lm_head o qkv
+108:176:64:2:1,540,40,down expert_down gate_up lm_head o qkv
+108:176:64:2:2,540,40,down expert_down gate_up lm_head o qkv
+108:176:128:1:1,115,40,down expert_down gate_up lm_head o qkv
+108:176:128:1:2,115,40,down expert_down gate_up lm_head o qkv
+108:176:128:2:1,195,40,down expert_down gate_up lm_head o qkv
+108:176:128:2:2,195,40,down expert_down gate_up lm_head o qkv
+108:176:128:2:4,195,40,down expert_down gate_up lm_head o qkv
+108:184:64:1:1,345,40,down expert_down gate_up lm_head o qkv
+108:184:128:1:1,115,40,down expert_down gate_up lm_head o qkv
+108:184:128:1:2,115,40,down expert_down gate_up lm_head o qkv
+108:200:64:1:1,339,40,down expert_down gate_up lm_head o qkv
+108:200:128:1:1,109,40,down expert_down gate_up lm_head o qkv
+108:200:128:1:2,109,40,down expert_down gate_up lm_head o qkv
+108:208:64:1:1,304,40,down expert_down gate_up lm_head o qkv
+108:208:64:2:1,413,40,down expert_down gate_up lm_head o qkv
+108:208:64:2:2,413,40,down expert_down gate_up lm_head o qkv
+108:208:128:1:1,74,32,down expert_down gate_up lm_head o qkv
+108:208:128:1:2,74,32,down expert_down gate_up lm_head o qkv
+108:208:128:2:1,115,40,down expert_down gate_up lm_head o qkv
+108:208:128:2:2,115,40,down expert_down gate_up lm_head o qkv
+108:208:128:2:4,115,40,down expert_down gate_up lm_head o qkv
+108:216:64:1:1,230,40,down expert_down gate_up lm_head o qkv
+108:232:64:1:1,224,40,down expert_down gate_up lm_head o qkv
+108:240:64:1:1,196,40,down expert_down gate_up lm_head o qkv
+108:240:64:2:1,296,40,down expert_down gate_up lm_head o qkv
+108:240:64:2:2,296,40,down expert_down gate_up lm_head o qkv
+108:240:128:2:1,96,40,down expert_down gate_up lm_head o qkv
+108:240:128:2:2,96,40,down expert_down gate_up lm_head o qkv
+108:240:128:2:4,96,40,down expert_down gate_up lm_head o qkv
+108:248:64:1:1,188,40,down expert_down gate_up lm_head o qkv
+108:272:64:2:1,200,40,down expert_down gate_up lm_head o qkv
+108:272:64:2:2,200,40,down expert_down gate_up lm_head o qkv
+108:288:64:2:1,226,40,down expert_down expert_gate_up gate_up lm_head o qkv
+108:288:64:2:2,226,40,down expert_down expert_gate_up gate_up lm_head o qkv
+108:288:64:4:1,230,40,down expert_down expert_gate_up gate_up lm_head o qkv
+108:288:64:4:2,230,40,down expert_down expert_gate_up gate_up lm_head o qkv
+108:288:64:4:4,230,40,down expert_down expert_gate_up gate_up lm_head o qkv
+108:304:64:2:1,192,40,down expert_down gate_up lm_head o qkv
+108:304:64:2:2,192,40,down expert_down gate_up lm_head o qkv
+108:320:64:2:1,70,40,expert_down expert_gate_up gate_up lm_head qkv
+108:320:64:2:2,70,40,expert_down expert_gate_up gate_up lm_head qkv
+108:320:64:4:1,140,40,expert_down expert_gate_up gate_up lm_head qkv
+108:320:64:4:2,140,40,expert_down expert_gate_up gate_up lm_head qkv
+108:320:64:4:4,140,40,expert_down expert_gate_up gate_up lm_head qkv
+108:336:64:2:1,65,40,expert_down gate_up lm_head qkv
+108:336:64:2:2,65,40,expert_down gate_up lm_head qkv
+108:352:64:2:1,80,40,expert_down expert_gate_up gate_up lm_head qkv
+108:352:64:2:2,80,40,expert_down expert_gate_up gate_up lm_head qkv
+108:352:64:4:1,160,40,expert_down expert_gate_up gate_up lm_head qkv
+108:352:64:4:2,160,40,expert_down expert_gate_up gate_up lm_head qkv
+108:352:64:4:4,160,40,expert_down expert_gate_up gate_up lm_head qkv
+108:368:64:2:1,65,40,expert_down gate_up lm_head qkv
+108:368:64:2:2,65,40,expert_down gate_up lm_head qkv
+108:400:64:2:1,70,35,expert_down gate_up lm_head qkv
+108:400:64:2:2,70,35,expert_down gate_up lm_head qkv
+108:416:64:2:1,85,40,expert_down expert_gate_up gate_up lm_head qkv
+108:416:64:2:2,85,40,expert_down expert_gate_up gate_up lm_head qkv
+108:416:64:4:1,85,40,expert_down expert_gate_up gate_up lm_head qkv
+108:416:64:4:2,85,40,expert_down expert_gate_up gate_up lm_head qkv
+108:416:64:4:4,85,40,expert_down expert_gate_up gate_up lm_head qkv
+108:480:64:4:1,75,40,expert_down expert_gate_up gate_up lm_head
+108:480:64:4:2,75,40,expert_down expert_gate_up gate_up lm_head
+108:480:64:4:4,75,40,expert_down expert_gate_up gate_up lm_head
+216:56:64:1:1,946,40,down expert_down gate_up lm_head o qkv
+216:56:128:1:1,380,40,down expert_down gate_up lm_head o qkv
+216:56:128:1:2,380,40,down expert_down gate_up lm_head o qkv
+216:56:256:1:1,100,32,down expert_down gate_up lm_head o qkv
+216:56:256:1:2,100,32,down expert_down gate_up lm_head o qkv
+216:56:256:1:4,100,32,down expert_down gate_up lm_head o qkv
+216:72:64:1:1,660,40,down expert_down gate_up lm_head o qkv
+216:72:128:1:1,240,40,down expert_down gate_up lm_head o qkv
+216:72:128:1:2,240,40,down expert_down gate_up lm_head o qkv
+216:88:64:1:1,345,40,down expert_down gate_up lm_head o qkv
+216:88:128:1:1,115,40,down expert_down gate_up lm_head o qkv
+216:88:128:1:2,115,40,down expert_down gate_up lm_head o qkv
+216:104:64:1:1,230,40,down expert_down gate_up lm_head o qkv
+216:120:64:1:1,172,40,down expert_down gate_up lm_head o qkv
+216:136:64:1:1,96,40,down expert_down gate_up lm_head o qkv
+216:144:64:1:1,96,40,down expert_down gate_up lm_head o qkv
+216:144:64:2:1,196,40,down expert_down gate_up lm_head o qkv
+216:144:64:2:2,196,40,down expert_down gate_up lm_head o qkv
+216:152:64:1:1,72,32,down expert_down gate_up lm_head o qkv
+216:176:64:2:1,65,40,expert_down gate_up lm_head qkv
+216:176:64:2:2,65,40,expert_down gate_up lm_head qkv
