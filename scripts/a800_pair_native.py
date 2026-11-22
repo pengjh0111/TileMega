@@ -40,6 +40,8 @@ def main():
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--trial-target', type=Path,
                         help='an updated calibration for the same physical hardware class')
+    parser.add_argument('--formal-trial', action='store_true',
+                        help='independently time a solver winner after five correctness processes')
     parser.add_argument('--budget-s', type=int, default=810)
     parser.add_argument('--process-timeout-s', type=int, default=125)
     args = parser.parse_args()
@@ -52,10 +54,13 @@ def main():
     prompt_mode = shared_phase == 'prefill' and str(shared_library) == 'prompt'
     if prompt_mode and args.model != 'olmoe_1b_7b':
         parser.error('only OLMoE uses the decode library for prompt processing')
-    stage = f'tune-{phase}'
+    if args.formal_trial and phase != 'decode':
+        parser.error('formal trial timing requires a solver-selected decode artifact')
     options = ['--model', args.model, '--batch', str(args.batch),
                f'--{shared_phase}', str(shared_library),
-               '--stage', stage, '--timeout-s', str(args.process_timeout_s)]
+               '--timeout-s', str(args.process_timeout_s)]
+    stages = {'control': f'tune-{phase}',
+              'trial': 'candidate-timing' if args.formal_trial else f'tune-{phase}'}
     targets = {'control': args.target, 'trial': args.trial_target or args.target}
     if args.trial_target:
         control, trial = (json.loads(target.read_text()) for target in targets.values())
@@ -76,7 +81,7 @@ def main():
     if args.mode == 'plan':
         for label in libraries:
             library = getattr(args, label)
-            subprocess.run([*runner, 'plan', *options, '--round', '0', f'--{phase}',
+            subprocess.run([*runner, 'plan', *options, '--stage', stages[label], '--round', '0', f'--{phase}',
                             str(library), '--target', str(targets[label]), '--budget-s',
                             str(args.budget_s), *preparations[label]], check=True)
         return 0
@@ -85,6 +90,15 @@ def main():
     if os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800':
         parser.error('paired tuning requires the ordinary single-GPU allocation')
     deadline = time.monotonic() + args.budget_s
+    if args.formal_trial:
+        pair = dict(decode_sha256=libraries['trial'], target_sha256=sha(targets['trial']),
+                    prefill_sha256='prompt' if prompt_mode else sha(shared_library))
+        checks = [json.loads(path.read_text()) for path in (RUN/'native').glob(
+            f'*/{args.model}/B{args.batch}/*/correctness-*.json')]
+        accepted = [r for r in checks if r['pass'] and all(r[k] == v for k, v in pair.items())]
+        if (len({r['round'] for r in accepted}) < 5 or len({r['tokens_sha256'] for r in accepted}) != 1
+                or not any(r['hf_pass'] for r in accepted) or any(r['job'] == str(job) for r in accepted)):
+            raise ValueError('formal paired timing needs five prior independent correctness processes and full HF')
     out = RUN/'optimization'/f'{phase}-pairs'/str(job)
     out.mkdir(parents=True, exist_ok=False)
     order = ('control', 'trial')
@@ -96,7 +110,8 @@ def main():
     for position, label in enumerate(order):
         round_index = job * 6 + position
         remaining = int(deadline - time.monotonic())
-        subprocess.run([*runner, 'run', *options, '--round', str(round_index),
+        stage = stages[label]
+        subprocess.run([*runner, 'run', *options, '--stage', stage, '--round', str(round_index),
                         f'--{phase}', str(getattr(args, label)), '--target', str(targets[label]),
                         '--budget-s', str(remaining),
                         *preparations[label]],
@@ -135,7 +150,7 @@ def main():
     paired_tpot = [old/new for old,new in zip(control['tpot_by_repeat_seconds'],
                                              trial['tpot_by_repeat_seconds'])]
     write_json(out/'result.json', dict(protocol_version='a800-single-v2',kind='paired_tuning',
-        formal_timing=False, rounds=len(rounds), medians=medians,
+        formal_timing=args.formal_trial, rounds=len(rounds), medians=medians,
         paired_tpot_ratios=paired_tpot,
         clears_tpot_screen=all(ratio>1 for ratio in paired_tpot)
             and trial['tpot_seconds'] < .995 * control['tpot_seconds'],
