@@ -16,10 +16,11 @@ struct alignas(16) Sm90DenseRingState {
   // CTA pair) waits on peer[s / 2] for the peer's 128 consumer releases.
   std::uint64_t peer[4];
   unsigned side_phase;
-  template<bool CpAsync=false>
+  template<bool CpAsync=false,unsigned Producers=32>
   __device__ void Initialize() {
     using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
-    constexpr unsigned producers=CpAsync?32:1;
+    static_assert(Producers==32 || (CpAsync && Producers==64));
+    constexpr unsigned producers=CpAsync?Producers:1;
     if(threadIdx.x==0) {
       for(int i=0;i<8;++i) {
         Async::Init(full+i,producers);Async::Init(empty+i,128);

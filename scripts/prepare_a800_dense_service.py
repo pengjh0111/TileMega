@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
     parser.add_argument('--residency', type=int, choices=(1, 2))
+    parser.add_argument('--producers', type=int, choices=(32,64), default=32)
     parser.add_argument('--width-scan', action='store_true',
                         help='measure stage span by active CTA boundaries with cold weights')
     parser.add_argument('--sample-stride', type=int, choices=(1, 8, 16, 32), default=1,
@@ -58,6 +59,8 @@ def main():
     args = parser.parse_args()
     if args.width_scan and (args.epilogue_clock or args.role_clock or args.sample_stride != 1):
         parser.error('--width-scan does not sample role or epilogue clocks')
+    if args.producers != 32 and not args.width_scan:
+        parser.error('expanded producer calibration uses the uninstrumented width probe')
     if args.role_clock:
         if args.epilogue_clock or args.sample_stride not in (1, 16):
             parser.error('--role-clock requires sparse role sampling')
@@ -164,6 +167,7 @@ def main():
                f'-DTILEMEGA_SERVICE_CASES="{include}"', f'-DTILEMEGA_SM80_COPY_ISSUE_GROUP={args.copy}',
                f'-DTILEMEGA_SM80_ACTIVE_EPILOGUE={int(args.live)}',
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
+               f'-DTILEMEGA_DENSE_SERVICE_PRODUCERS={args.producers}',
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
                *(['-DTILEMEGA_SM80_DENSE_ROLE_CLOCK=1'] if args.role_clock else []),
@@ -183,7 +187,7 @@ def main():
         source_sha=subprocess.check_output(
             ['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         anchor_sha256=sha(args.anchor), source_file_sha256=sha(ROOT/'scripts/a800_dense_service_probe.cu'),
-        command=command, architecture='sm_80', roles=[32,128],
+        command=command, architecture='sm_80', roles=[args.producers,128],
         reserved_program_shared=reserve,
         cases=list(cases), geometry_by_case=cases, binary_sha256=sha(binary),
         body_headers={name: sha(ROOT/'include/tilemega'/name) for name in HEADERS}), indent=2)+'\n')
