@@ -71,6 +71,7 @@ def main():
                                      r'backend::ServingEpilogueOp::(\w+),(\d+),(true|false),', generated)]
     cases = {}
     definitions = []
+    partial_n = False
     suffix = f'{anchor["model"]}-b{batch}'
     for family in args.families:
         g = gems[family]
@@ -95,6 +96,7 @@ def main():
                            or n % (2*packed_u) or (tn, tk, slots, wn) !=
                            (incumbent_tn, incumbent_tk, incumbent_slots, incumbent_wn)):
                 raise ValueError('partial N probe requires the linked one-wave gate')
+            partial_n |= bool(n % tn)
             if tn % (8 * wn):
                 raise ValueError(f'{family} has unaligned N tile {tn}')
             if k % tk or tk % 64 or tk < 16 * wk * g['register_stages']:
@@ -137,6 +139,7 @@ def main():
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
+               *(['-DTILEMEGA_SM80_PADDED_GATE=1'] if partial_n else []),
                str(ROOT/'scripts/a800_dense_service_probe.cu'), '-o', str(binary)]
     with (out/'build.log').open('w') as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=260)

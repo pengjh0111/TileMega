@@ -199,7 +199,7 @@ int Profile(cudaDeviceProp const& p) {
 #endif
   std::vector<Tick> plain_ns,traced_ns;
   int min_overlapping=p.multiProcessorCount;
-  constexpr int tiles=C::template Body<false>::kTasks;
+  constexpr int tiles=C::kPaddedN/TN;
   for(int trial=0;trial<7;++trial) {
     Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
     span.Read(times);

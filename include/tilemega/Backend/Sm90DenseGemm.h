@@ -27,9 +27,13 @@ template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
   static constexpr int kTasks=(N+TN-1)/TN;
   static_assert(Batch>0 && Batch<=16 && TN%8==0 && TK%64==0 && K%TK==0);
   static_assert(N%TN==0 || (CpAsync && Op==ServingEpilogueOp::kSwiGLU && N%(2*U)==0));
+#else
+  static_assert(Batch>0 && Batch<=16 && N%TN==0 && TN%8==0 && TK%64==0 && K%TK==0);
+#endif
   static_assert(WarpsN*WarpsK==4 && TN%(8*WarpsN)==0 && Slots>=2 && Slots<=8);
   static_assert((RegisterStages==1 || RegisterStages==2 || RegisterStages==4) &&
                 RegisterStages<=TK/(16*WarpsK));
@@ -481,7 +485,11 @@ struct Sm90DenseGemm {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
+#if defined(TILEMEGA_SM80_PADDED_GATE)
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
+#else
+    int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
+#endif
     if constexpr(kResidual)if(tasks>kSideTiles)asm volatile("trap;");
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish,tp);
     else {

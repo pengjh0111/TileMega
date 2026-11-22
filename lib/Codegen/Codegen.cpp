@@ -2199,6 +2199,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.copy_issue_group?"#define TILEMEGA_SM80_COPY_ISSUE_GROUP "+
          std::to_string(c.copy_issue_group)+"\n":"")
      <<(c.residual_copy_issue?"#define TILEMEGA_SM80_RESIDUAL_COPY_GROUP 1\n":"")
+     <<(!c.moe && nk[2][0]%c.gemms[2].tile_n?"#define TILEMEGA_SM80_PADDED_GATE 1\n":"")
      <<(c.attention.compact_workspace?"#define TILEMEGA_SM80_COMPACT_ATTN 1\n":"")
      <<(c.expert_page_segments?"#define TILEMEGA_SM80_MOE_PAGE_SEGMENTS 1\n":"")
      <<(c.expert_gu_route_bases?"#define TILEMEGA_SM80_MOE_GU_ROUTE_BASES 1\n":"")

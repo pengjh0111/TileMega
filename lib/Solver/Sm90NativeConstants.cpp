@@ -18,6 +18,8 @@ std::string FileHash(std::string const& path) {
 void AddSourceEquivalence(json::Value& constants,std::string const& root) {
   // Probe-only instrumentation is compiled out of the production body.
   // Carry its exact token proof for targets calibrated before the probe.
+  auto padded=root+"/configs/targets/sm80_partial_gate_equivalence.json";
+  if(std::ifstream(padded))constants.Set("padded_gate_header_equivalence",json::ParseFile(padded));
   auto path=root+"/configs/targets/sm80_epilogue_probe_equivalence.json";
   if(!std::ifstream(path))return;
   auto source=json::ParseFile(path);
@@ -26,6 +28,15 @@ void AddSourceEquivalence(json::Value& constants,std::string const& root) {
   for(auto const& [name,proof]:source.AsObject("source body equivalence"))
     if(!proofs.Find(name))proofs.Set(name,proof);
   constants.Set("default_body_equivalence",std::move(proofs));
+}
+std::string UnpaddedBodyHeader(json::Value const& constants,std::string_view header,
+    std::string const& compiled) {
+  auto const* headers=constants.Find("padded_gate_header_equivalence");
+  auto const* proof=headers?headers->Find(std::string(header)):nullptr;
+  if(proof && proof->At("disabled_macro").AsString("gate tail guard")=="TILEMEGA_SM80_PADDED_GATE" &&
+     proof->At("equivalent_sha256").AsString("padded gate header")==compiled)
+    return proof->At("reference_sha256").AsString("unpadded gate header");
+  return compiled;
 }
 std::string DefaultBodyHeader(json::Value const& constants,std::string_view header,
     std::string const& compiled) {
@@ -38,8 +49,11 @@ std::string DefaultBodyHeader(json::Value const& constants,std::string_view head
 }
 bool SameBodyHeader(json::Value const& constants,std::string_view header,
     std::string const& current,std::string const& expected) {
-  auto reference=DefaultBodyHeader(constants,header,current);
-  if(current==expected || reference==expected)return true;
+  // The guarded tail has no effect on the previously calibrated full tiles.
+  // A partial-width row must still match the exact production body hashes.
+  auto unpadded=UnpaddedBodyHeader(constants,header,current);
+  auto reference=DefaultBodyHeader(constants,header,unpadded);
+  if(current==expected || unpadded==expected || reference==expected)return true;
   auto const* proof=constants.Find("residual_copy_header_equivalence");
   return header=="Backend/Sm90DenseGemm.h" && proof &&
       proof->At("disabled_macro").AsString("residual copy macro")=="TILEMEGA_SM80_RESIDUAL_COPY_GROUP" &&
@@ -184,6 +198,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
                      "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
         auto current=FileHash(root+"/include/tilemega/"+name);
         auto expected=hashes.At(name).AsString("body hash");
+        if(current==expected)continue;
+        current=UnpaddedBodyHeader(s,name,current);
         if(current==expected)continue;
         current=DefaultBodyHeader(s,name,current);
         if(current==expected)continue;

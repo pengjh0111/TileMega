@@ -203,9 +203,11 @@ struct Sm90DenseEpilogue {
         int row=i/(kOutput/2),col=2*(i%(kOutput/2));
         float scale=inverse(row);
         if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
+#if defined(TILEMEGA_SM80_PADDED_GATE)
           // Weight packing zero-pads the final tile. The activation keeps its
           // original row stride for the following down projection.
           if constexpr(N%TN!=0)if(task*kOutput+col>=kStride)continue;
+#endif
           float out[2];
           #pragma unroll
           for(int e=0;e<2;++e) {

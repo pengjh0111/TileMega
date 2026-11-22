@@ -146,7 +146,11 @@ struct Gemm {
       RegisterStages,Multicast,ResidualTiles,CpAsync>;
   static constexpr bool kMulticast=Multicast;
   static constexpr bool kCpAsync=CpAsync;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
   static constexpr int kBatch=Batch,kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
+#else
+  static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
+#endif
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kRingSlots=Slots;
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;

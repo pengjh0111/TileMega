@@ -1,0 +1,12 @@
+{
+  "Backend/Sm90DenseGemm.h": {
+    "disabled_macro": "TILEMEGA_SM80_PADDED_GATE",
+    "reference_sha256": "f4cba0524342e0fe505191aa63be90a2cc2f2b2ae5a79aa6f9582d907a482aed",
+    "equivalent_sha256": "5e7ef9f8db9fbe2e44fe30dfc6081f73da10de930607a981ee4cce4a7c0853be"
+  },
+  "Backend/Sm90DenseEpilogue.h": {
+    "disabled_macro": "TILEMEGA_SM80_PADDED_GATE",
+    "reference_sha256": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+    "equivalent_sha256": "3855b442853c9f7ae00fc18c66ce0d9fed24cff5d29a0234e63bebfd49d54490"
+  }
+}
