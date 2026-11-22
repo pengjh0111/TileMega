@@ -41,8 +41,6 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget,grid);}
   catch(std::invalid_argument const&) {return false;}
   for(auto const& g:c.gemms)if(g.mma!=Sm90DenseMma::kMmaSync)return false;
-  // D8: every qkv tile lies in one KV group of (Q + 2) D columns.
-  if(c.group_wait && ((queries+2)*head_dim)%c.gemms[0].tile_n)return false;
   // A1 (RC1): a whole-row q/k norm reads every KV group of its token, but D8
   // releases only the groups this CTA's own qkv tiles wrote, so the attention
   // would read groups another CTA has not finished writing.

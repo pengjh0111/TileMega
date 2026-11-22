@@ -705,7 +705,7 @@ analysis::Granularity LaunchGranularity(
           auto const& impl = gemms.empty() ? GemmGranularity{} :
               gemms.at(stage.gemm);
           g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m));
-          if (op.role == OpRole::kServingQkv)
+          if (op.role == OpRole::kServingQkv && !plan.native_flat_qkv)
             g.Tile(op.name, "g", one)
                 .Tile(op.name, "u", ClosedForm::Constant(impl.tile_n));
           else if (op.role == OpRole::kServingSwiGlu)

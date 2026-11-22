@@ -242,6 +242,8 @@ struct Sm90DenseCoordinates {
   void ValidateSchedule(Sm90DenseShapeTable const& nk,int batch,
       int dim,int queries,int capacity,std::int64_t budget,int grid=0) const {
     Validate(nk,batch);
+    if(group_wait && ((queries+2)*dim)%gemms[0].tile_n)
+      throw std::invalid_argument("grouped attention release requires integral QKV tiles per group");
     // Overlapping stages require disjoint preissue storage. A plan without
     // preissue can reuse the entire payload after each CTA-local stage join.
     int arena=Sm90DenseArena(budget,reuse_payload);

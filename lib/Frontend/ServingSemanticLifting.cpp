@@ -246,7 +246,8 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       } else if (plan.buffers.at(gemm.b).pack_json.find(
                      "qkv_group_interleave") != std::string::npos) {
         role = OpRole::kServingQkv;
-        // The packed rows are grouped, and a tile cannot cross a KV group.
+        // Group wait tiles one KV group at a time. Aggregate wait can use a
+        // contiguous N tile that writes columns belonging to several groups.
         std::uint32_t groups = 0;
         for (std::size_t next = i + 1; next < plan.stages.size(); ++next) {
           if (plan.stages[next].kind == PlanTaskKind::kFusedAttention &&
@@ -258,16 +259,23 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
         if (!groups || gemm.n % groups)
           throw std::invalid_argument("packed QKV has no matching grouped attention");
         const auto G = C(groups), U = C(gemm.n / groups);
-        domain = {Parallel("m", rows), Parallel("g", G),
-                  Parallel("u", U), Reduce("k", K)};
-        dst = Tensor(name(gemm.d),
-                     {Axis("m", rows), Axis("g", G), Axis("u", U)});
-        dst_map = {Id("m"), Id("g"), Id("u")};
         reads.push_back(Input(producer(gemm.a),
             space(gemm.a, {Axis("m", rows), Axis("k", K)}), {Id("m"), Id("k")}));
-        reads.push_back(Input("", Tensor(name(gemm.b),
-            {Axis("g", G), Axis("u", U), Axis("k", K)}),
-            {Id("g"), Id("u"), Id("k")}));
+        if (plan.native_flat_qkv) {
+          domain = {Parallel("m", rows), Parallel("n", N), Reduce("k", K)};
+          dst = Tensor(name(gemm.d), {Axis("m", rows), Axis("n", N)});
+          dst_map = {Id("m"), Id("n")};
+          reads.push_back(Input("", Tensor(name(gemm.b), {Axis("n", N), Axis("k", K)}),
+                                {Id("n"), Id("k")}));
+        } else {
+          domain = {Parallel("m", rows), Parallel("g", G),
+                    Parallel("u", U), Reduce("k", K)};
+          dst = Tensor(name(gemm.d), {Axis("m", rows), Axis("g", G), Axis("u", U)});
+          dst_map = {Id("m"), Id("g"), Id("u")};
+          reads.push_back(Input("", Tensor(name(gemm.b),
+              {Axis("g", G), Axis("u", U), Axis("k", K)}),
+              {Id("g"), Id("u"), Id("k")}));
+        }
       } else {
         domain = {Parallel("m", rows), Parallel("n", N), Reduce("k", K)};
         dst = Tensor(name(gemm.d), {Axis("m", rows), Axis("n", N)});
@@ -365,8 +373,9 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
         qkv_row = Id("m");
         posidx = Id("z");
       }
-      auto qkv = space(stage.operands[0],
-          {Axis("m", M), Axis("g", G), Axis("u", Wg)});
+      auto qkv = plan.native_flat_qkv
+          ? space(stage.operands[0], {Axis("m", M), Axis("n", G * Wg)})
+          : space(stage.operands[0], {Axis("m", M), Axis("g", G), Axis("u", Wg)});
       auto cache = [&](std::uint32_t id) {
         return Tensor(name(id), {Axis("b", B), Axis("g", G),
                                  Axis("pos", cap), Axis("d", D)});
@@ -387,8 +396,10 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
           : Aff({{"m", C(1), C(1)},
                  {"m", C(-plan.serving_seq), S},
                  {"z", C(-1), C(1)}}, past);
-      auto qkv_read = Input(producer(stage.operands[0]), qkv,
-                             {qkv_row, gidx, Id("u")});
+      auto qkv_read = plan.native_flat_qkv
+          ? Input(producer(stage.operands[0]), qkv,
+                  {qkv_row, Aff({{"g", Wg, C(1)}, {"u", C(1), C(1)}})})
+          : Input(producer(stage.operands[0]), qkv, {qkv_row, gidx, Id("u")});
       auto qkv_dependency = qkv_read;
       // Prefill loads current K/V for every earlier token directly from QKV.
       // The rectangular task summary cannot express a batch-local prefix;

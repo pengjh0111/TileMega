@@ -8,6 +8,7 @@
 namespace tilemega::solver {
 unsigned Sm90DenseFamily(frontend::ModelPlan const&,frontend::PlanGemm const&);
 Sm90DenseShapeTable Sm90DenseShapes(frontend::ModelPlan const&);
+bool Sm90DenseFlatQkv(frontend::ModelPlan const&,Sm90DenseCoordinates const&);
 Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const&,int batch);
 void ValidateSm90NativeBoundaryContracts(mlir::ModuleOp);
 void ValidateSm90NativeExecutionGraph(mlir::ModuleOp);

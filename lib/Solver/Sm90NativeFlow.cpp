@@ -400,7 +400,8 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
     if(!stream)for(auto* parts:{&price.middle,&price.head,&price.tail,&price.head_and_tail})
       parts->no_producer_dram_bytes=0;
     if(price.tasks!=task.count)
-      throw std::invalid_argument("native CTG count differs from the task price contract");
+      throw std::invalid_argument("native CTG count differs from the task price contract for "+
+          price.name+": "+std::to_string(task.count)+" vs "+std::to_string(price.tasks));
     auto single=Sm90NativeSingleStageProblem(price,cost,c.residency);
     FlowSpace space=std::move(single.spaces.back());
     space.name=task.name+":"+price.name;space.order=problem.spaces.size();

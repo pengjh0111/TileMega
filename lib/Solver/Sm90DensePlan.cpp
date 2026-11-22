@@ -247,6 +247,13 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
   }
   return work;
 }
+bool Sm90DenseFlatQkv(frontend::ModelPlan const& plan,Sm90DenseCoordinates const& c) {
+  int tn=c.gemms[0].tile_n;
+  return tn>0 && std::any_of(plan.stages.begin(),plan.stages.end(),[&](auto const& stage) {
+    return stage.kind==frontend::PlanTaskKind::kFusedAttention && ((stage.group+2)*stage.width)%tn;
+  });
+}
+
 frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
     Sm90DenseCoordinates const& c,mlir::MLIRContext& context) {
   auto bridge=frontend::ReadExportBridge(path);
@@ -257,6 +264,7 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
   options.dense_attention_chunks=c.attention.chunks;
   options.tp=c.tp;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+  plan.native_flat_qkv=Sm90DenseFlatQkv(plan,c);
   return frontend::TorchExportImporter{}.ImportSemantics(path,plan,context);
 }
 mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(

@@ -55,7 +55,9 @@ static Sm90NativeCtg InstantiateSm90NativeBaseCtg(frontend::ImportedSemantics co
     Sm90DenseCoordinates const& c,int batch,mlir::MLIRContext& context,Sm90NativeCtgCache& cache) {
   SolverPhase total(&cache.timing,"native_ctg_total");
   auto imported=input;
-  bool relift=false;
+  bool flat_qkv=Sm90DenseFlatQkv(imported.plan,c);
+  bool relift=imported.plan.native_flat_qkv!=flat_qkv;
+  imported.plan.native_flat_qkv=flat_qkv;
   for(auto& gemm:imported.plan.gemms) {
     if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial &&
        gemm.partial_tile_n!=unsigned(c.gemms[4].tile_n)) {

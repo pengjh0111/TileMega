@@ -205,6 +205,7 @@ struct ModelPlan {
   std::vector<PlanOutput> outputs;
   std::unordered_map<std::string, std::uint32_t> node_buffer;
   bool serving = false;
+  bool native_flat_qkv = false;
   int serving_seq = 0;
   int serving_capacity = 0;
   // Megatron tensor parallel degree this plan was built for; 1 is a whole model.
