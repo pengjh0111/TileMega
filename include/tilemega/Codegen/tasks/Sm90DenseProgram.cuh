@@ -942,7 +942,8 @@ struct Program {
 #if TILEMEGA_SM80_WIDE_PRODUCER
     // Separate rings retain the phase of each arrival count across stages.
     static_assert(Body::kPrefix==0 && Next::kPrefix==0);
-    auto& ring=rings[kWideProducerStage<Body>?0:1];
+    constexpr int ring_index=kWideProducerStage<Body> ? 0 : 1;
+    auto& ring=rings[ring_index];
     Body::Run(b,past,shared,epsilon,ring,backend::Sm90DenseNoTail{},bank,false);
 #else
     if constexpr(!Last) {
