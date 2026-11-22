@@ -46,15 +46,27 @@ def prepare(args):
         raise ValueError('ambiguous recorded build arguments')
     args.out.mkdir(parents=True, exist_ok=True)
     arms = {}
+    build_root = ROOT
+    if args.reuse_exact_control:
+        archived = Path(identity['source']['root'])
+        program = archived/'include/tilemega/Codegen/tasks/Sm90DenseProgram.cuh'
+        if program.is_file() and 'TILEMEGA_NATIVE_RELEASE_SHARED_BUDGET' in program.read_text():
+            proof = snapshot(archived, args.out/'archived-source.json')
+            if proof['source_digest'] == identity['source']['source_digest']:
+                build_root = archived
+                arms['control'] = dict(path=str(original), sha256=identity['binary_sha256'],
+                    identity_sha256=sha(sidecar(original, '.identity.json')), source_digest=proof['source_digest'])
     for label in ('control', 'trace'):
+        if label in arms:
+            continue
         library = args.out.resolve()/f'{label}.so'
         source = sidecar(library, '.source.json')
         if not sidecar(library, '.identity.json').exists():
             shutil.copyfile(sidecar(original, '.cu'), sidecar(library, '.cu'))
             shutil.copyfile(sidecar(original, '.plan.json'), sidecar(library, '.plan.json'))
-            snapshot(ROOT, source)
+            snapshot(build_root, source)
             command = [str(library) if word == output else str(sidecar(library, '.cu'))
-                       if word == inputs[0] else word.replace(identity['source']['root'], str(ROOT))
+                       if word == inputs[0] else word.replace(identity['source']['root'], str(build_root))
                        for word in recorded]
             if label == 'trace':
                 if args.release_ledger:
@@ -73,13 +85,14 @@ def prepare(args):
                 subprocess.run([sys.executable, str(ROOT/'scripts/run_sm90r1_build.py'),
                                 '--receipt', str(sidecar(library, '.build_limits.json')),
                                 '--max-gib', '48', '--timeout', '520',
-                                '--lock', '/tmp/tilemega_sm90r2_native_build.lock', '--', *command],
+                                '--lock', str(args.build_lock), '--', *command],
                                stdout=log, stderr=subprocess.STDOUT, check=True, timeout=550)
-            generate(library, ROOT, source)
+            generate(library, build_root, source)
         linked = read(sidecar(library, '.identity.json'))
         if (bool(linked['trace']) != (label == 'trace') or linked['binary_sha256'] != sha(library)
                 or linked['generated_source_sha256'] != identity['generated_source_sha256']
-                or linked['manifest_sha256'] != identity['manifest_sha256']):
+                or linked['manifest_sha256'] != identity['manifest_sha256']
+                or linked['compiler_version'] != identity['compiler_version']):
             raise ValueError('linked fused trace changed the frozen program')
         arms[label] = dict(path=str(library), sha256=linked['binary_sha256'],
                            identity_sha256=sha(sidecar(library, '.identity.json')),
@@ -293,6 +306,8 @@ def main():
     make = modes.add_parser('prepare')
     make.add_argument('--anchor', required=True, type=Path)
     make.add_argument('--release-ledger', action='store_true')
+    make.add_argument('--reuse-exact-control', action='store_true')
+    make.add_argument('--build-lock', type=Path, default=Path('/tmp/tilemega_sm90r2_native_build.lock'))
     make.add_argument('--out', required=True, type=Path)
     for name in ('analyze', 'release-bandwidth'):
         collect = modes.add_parser(name)
@@ -302,6 +317,8 @@ def main():
             collect.add_argument('--expert-trace', type=Path)
             collect.add_argument('--expected-tokens', type=Path)
     args = p.parse_args()
+    if args.mode == 'prepare' and args.reuse_exact_control and not args.release_ledger:
+        make.error('an archived control is supported for the compact release ledger')
     {'prepare': prepare, 'analyze': analyze, 'release-bandwidth': release_bandwidth}[args.mode](args)
 
 
