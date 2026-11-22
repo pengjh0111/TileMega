@@ -9407,6 +9407,68 @@
             "binary_sha256": "5117845039ca9b18cc9f3a7b4196323ca72d514231eca86902c32697383f3f11",
             "manifest_sha256": "c99b4877369579fb47263395d165bb8d25421618539fc483c6604b6e890b1631",
             "dynamic_shared": 161792
+          },
+          "production_phases": {
+            "route_startup_ns": 5120.0,
+            "combine_tail_ns": 1024.0,
+            "schema": 1,
+            "unit": "ns",
+            "same_gpu": true,
+            "overlapping_external_stages": 0,
+            "trace_job": "353668",
+            "reference_job": "353668",
+            "fused_stages": 768,
+            "window_over_reference": 1.0139454358662152,
+            "trace_artifact_id": "dcf316490cd294df0457aa5288a806b971f514724e7fafb50938675589d14459",
+            "reference_artifact_id": "72cc874e19b408d6f062ca1a53425562bafd9e8ca478472d3d250e573888c376",
+            "trace_sha256": "4b098451820e42ce4dd657cf14e4c07f596e4877c668aac98fbb0716b22e27b8",
+            "token_sha256": "92d0ae5bb0183846e9df74f46683c4bded9ac91432b392950689b50caf851f30",
+            "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+            "gpu_uuid": "GPU-24ec660e-ba29-5c03-c032-2e9a8ce2e526",
+            "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+            "ranges": {
+              "body_ns": {
+                "min": 98304,
+                "median": 106496.0,
+                "max": 114688,
+                "mean": 105781.33333333333
+              },
+              "route_startup_ns": {
+                "min": 4096,
+                "median": 5120.0,
+                "max": 5120,
+                "mean": 4752
+              },
+              "combine_tail_ns": {
+                "min": 0,
+                "median": 1024.0,
+                "max": 3072,
+                "mean": 800
+              },
+              "active_experts": {
+                "min": 13,
+                "median": 15.0,
+                "max": 16,
+                "mean": 15.084635416666666
+              }
+            },
+            "body_by_active_experts": [
+              {
+                "active_experts": 14,
+                "body_ns": 100102.91891891892,
+                "sample_count": 148
+              },
+              {
+                "active_experts": 15,
+                "body_ns": 106638.61838440111,
+                "sample_count": 359
+              },
+              {
+                "active_experts": 16,
+                "body_ns": 108335.02040816327,
+                "sample_count": 245
+              }
+            ]
           }
         },
         {
@@ -9523,7 +9585,69 @@
           "measurement_sha256": "86256bea298c89ddb53464da4460c4239ebf5386d8d738ccf59294f1e790a650",
           "gpu_uuid": "GPU-2dfd9841-593b-3b2d-17d9-1a1574dd0087",
           "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
-          "evidence": "/work/TileMega-a800-r4-q3/runs/a800/calibration/r2-supplement-service/353441/r5-qwen-b2-control"
+          "evidence": "/work/TileMega-a800-r4-q3/runs/a800/calibration/r2-supplement-service/353441/r5-qwen-b2-control",
+          "production_phases": {
+            "route_startup_ns": 5120.0,
+            "combine_tail_ns": 1024.0,
+            "schema": 1,
+            "unit": "ns",
+            "same_gpu": true,
+            "overlapping_external_stages": 0,
+            "trace_job": "353668",
+            "reference_job": "353668",
+            "fused_stages": 768,
+            "window_over_reference": 1.0170133155875873,
+            "trace_artifact_id": "db245809d2d83ee3b788879c4b9a3943bb2a1aabc4deae8a7cf7ce0d5621e3ae",
+            "reference_artifact_id": "92c80280d9e3639db72335c829bb3e8bcd68226609b3d1a2a6869aad9b97a0ae",
+            "trace_sha256": "d945dbff5be284bcc0196afd3ab48a79d5612a53a344a0814a54b67a42b3718f",
+            "token_sha256": "92d0ae5bb0183846e9df74f46683c4bded9ac91432b392950689b50caf851f30",
+            "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+            "gpu_uuid": "GPU-24ec660e-ba29-5c03-c032-2e9a8ce2e526",
+            "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+            "ranges": {
+              "body_ns": {
+                "min": 100352,
+                "median": 110592.0,
+                "max": 114688,
+                "mean": 109010.66666666667
+              },
+              "route_startup_ns": {
+                "min": 4096,
+                "median": 5120.0,
+                "max": 5120,
+                "mean": 4720
+              },
+              "combine_tail_ns": {
+                "min": 0,
+                "median": 1024.0,
+                "max": 2048,
+                "mean": 793.3333333333334
+              },
+              "active_experts": {
+                "min": 13,
+                "median": 15.0,
+                "max": 16,
+                "mean": 15.084635416666666
+              }
+            },
+            "body_by_active_experts": [
+              {
+                "active_experts": 14,
+                "body_ns": 102960.43243243243,
+                "sample_count": 148
+              },
+              {
+                "active_experts": 15,
+                "body_ns": 109975.88857938719,
+                "sample_count": 359
+              },
+              {
+                "active_experts": 16,
+                "body_ns": 111691.23265306122,
+                "sample_count": 245
+              }
+            ]
+          }
         }
       ]
     },
