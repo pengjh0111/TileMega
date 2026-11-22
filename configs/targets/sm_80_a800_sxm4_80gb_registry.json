@@ -8998,6 +8998,137 @@
             "manifest_sha256": "d236e7dda04875a3965954b127296c37390598f3f864505676f7d0b0572138dd",
             "dynamic_shared": 161792
           }
+        },
+        {
+          "shape": {
+            "batch": 16,
+            "gate_up_n": 2048,
+            "down_n": 2048,
+            "hidden": 2048,
+            "gate_up_tn": 128,
+            "gate_up_tk": 64,
+            "down_tn": 128,
+            "down_tk": 64,
+            "slots": 3,
+            "gate_up_warps_n": 4,
+            "down_warps_n": 4,
+            "experts": 64,
+            "float_routes": 0,
+            "page": 0,
+            "register_stages": 1,
+            "softmax_all": 1,
+            "segments": 0,
+            "live_rows": 0,
+            "copy_group": 0,
+            "gu_route_bases": 0,
+            "reuse_payload": 1,
+            "residency": 2,
+            "gate_up_warps_k": 1,
+            "down_warps_k": 1
+          },
+          "measurement": {
+            "status": "measured",
+            "grid": 216,
+            "batch": 16,
+            "active_experts": 56,
+            "dynamic_shared": 81920,
+            "plain_registers": 157,
+            "producer_registers": 157,
+            "consumer_registers": 158,
+            "plain_local_bytes": 120,
+            "producer_local_bytes": 120,
+            "consumer_local_bytes": 120,
+            "plain_residency": 2,
+            "producer_residency": 2,
+            "consumer_residency": 2,
+            "bitwise_equal": true,
+            "sampled_ctas_per_launch": 1,
+            "sampled_tile_stride": 32,
+            "launches": 128,
+            "plain_stage_ns": 463872.0,
+            "producer_stage_ns": 457728.0,
+            "consumer_stage_ns": 459776.0,
+            "plain_kernel_ns": 474112.004,
+            "producer_kernel_ns": 467967.987,
+            "consumer_kernel_ns": 470016.003,
+            "producer_off_kernel_ns": 465920.001,
+            "consumer_off_kernel_ns": 470016.003,
+            "gu_issue_ns_per_tile": 768.0,
+            "gu_mma_ns_per_tile": 512.0,
+            "gu_epilogue_ns_per_task": 1843.0,
+            "dn_issue_ns_per_tile": 614.4,
+            "dn_mma_ns_per_tile": 256.0,
+            "dn_epilogue_ns_per_task": 3891.0,
+            "dn_preissue_ns_per_task": 3584.0,
+            "dn_activation_ns_per_task": 1792.0,
+            "overlapping_sms": 108,
+            "phase_timing_ns": [
+              {
+                "plain": 476159.99,
+                "producer_off": 477183.998,
+                "producer": 476159.99,
+                "consumer_off": 471040.01,
+                "consumer": 472063.988
+              },
+              {
+                "plain": 475136.012,
+                "producer_off": 460799.992,
+                "producer": 463871.986,
+                "consumer_off": 465920.001,
+                "consumer": 463871.986
+              },
+              {
+                "plain": 475136.012,
+                "producer_off": 466944.009,
+                "producer": 466944.009,
+                "consumer_off": 468991.995,
+                "consumer": 471040.01
+              },
+              {
+                "plain": 474112.004,
+                "producer_off": 466944.009,
+                "producer": 471040.01,
+                "consumer_off": 472063.988,
+                "consumer": 472063.988
+              }
+            ]
+          },
+          "source_sha": "575c8637cdedb26d2edbfbdbe331ed3b824ef64a",
+          "binary_sha256": "da33a7575aa613352982cea5204edefa0a5e129b6ece0dffeb7dc91262a1eb38",
+          "source_modifiers": {
+            "TILEMEGA_FUSED_SERVICE_SHARED_MARKS": 1,
+            "TILEMEGA_FUSED_SERVICE_SPLIT_PHASES": 1,
+            "TILEMEGA_FUSED_SERVICE_TILE_STRIDE": 32,
+            "TILEMEGA_FUSED_SERVICE_STATIC_PHASES": 1
+          },
+          "body_headers": {
+            "Backend/Sm90DenseGemm.h": "f4cba0524342e0fe505191aa63be90a2cc2f2b2ae5a79aa6f9582d907a482aed",
+            "Backend/Sm80DenseService.cuh": "31049f70db45741b2b5456331d2fef1c29a1be2839b078a344b4d980e6d0d9f5",
+            "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+            "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+            "Backend/Sm90DenseEpilogue.h": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
+            "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+            "Backend/Sm90DenseMoe.cuh": "d5965a882a79f2211db05cce8e231ee265b40adf1281a834023c60b83a58381e",
+            "Backend/Sm90DenseMark.cuh": "93d31802f0037a1d8b8b55b669d82e804c1cd1c1bab2a30383f499e0eb493267",
+            "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+          },
+          "reference_target_sha256": "49dde872e2746453ddf54ef2d7a55b5acae93dfc1f558e76c442d93597597993",
+          "measurement_sha256": "570d8fbdde58cd7e4b43f4cacc9bf9b1b4590f2cf543598fb87e4cd72682f76f",
+          "gpu_uuid": "GPU-c948cb3c-ba02-53da-b958-4c66dc0c0e00",
+          "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "evidence": "/work/TileMega-a800-r4-q3/runs/a800/calibration/r2-supplement-service/353235/r5-olmoe_1b_7b-B16",
+          "payload_anchor": {
+            "anchor_sha256": "17788c238034a7475f96dfc7f2cf20de3af9dbafde0cd004ac73a66bc80d6420",
+            "binary_sha256": "fd6f134c53e291f035964d291bb47a330846006540dde5aa3b475d87a29d3df9",
+            "manifest_sha256": "84563ff39adfa3feaf2a1a9aeba8a719fa90c1516d6180f27c21b0f19ca2652c",
+            "dynamic_shared": 81920
+          },
+          "residency_anchor": {
+            "anchor_sha256": "17788c238034a7475f96dfc7f2cf20de3af9dbafde0cd004ac73a66bc80d6420",
+            "binary_sha256": "fd6f134c53e291f035964d291bb47a330846006540dde5aa3b475d87a29d3df9",
+            "manifest_sha256": "84563ff39adfa3feaf2a1a9aeba8a719fa90c1516d6180f27c21b0f19ca2652c",
+            "dynamic_shared": 81920
+          }
         }
       ]
     },
