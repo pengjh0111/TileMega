@@ -33,8 +33,8 @@ def prepare(args):
             or sha(sidecar(original, '.cu')) != identity['generated_source_sha256']
             or sha(sidecar(original, '.plan.json')) != identity['manifest_sha256']
             or identity['nvcc_arch'] != 'sm_80' or identity['trace']
-            or not plan['native_dense']['expert_fuse']):
-        raise ValueError('expected a frozen SM80 fused decode artifact')
+            or (not args.release_ledger and not plan['native_dense']['expert_fuse'])):
+        raise ValueError('expected a frozen SM80 decode artifact compatible with the trace')
     recorded = shlex.split(sidecar(original, '.build_command.txt').read_text())
     if '--split-compile' in recorded:
         recorded[recorded.index('--split-compile')+1] = '1'
@@ -57,10 +57,17 @@ def prepare(args):
                        if word == inputs[0] else word.replace(identity['source']['root'], str(ROOT))
                        for word in recorded]
             if label == 'trace':
-                command[1:1] = ['-DTILEMEGA_TRACE_STAGE=2', '-DTILEMEGA_TRACE_STEP=1',
-                                '-DTILEMEGA_SM80_FUSED_PHASE_TRACE=1',
-                                '-DTILEMEGA_SM80_FUSED_NEIGHBOR_TRACE=1',
-                                '-DTILEMEGA_SM80_FUSED_PRICES_TRACE=1']
+                if args.release_ledger:
+                    limits = read(anchor['artifact_target'])['resources']
+                    budget = min(limits['max_dynamic_smem_per_cta'],
+                                 limits['max_smem_per_sm']//plan['native_dense']['residency'])
+                    command[1:1] = ['-DTILEMEGA_TRACE_NATIVE_RELEASE=1',
+                                    f'-DTILEMEGA_NATIVE_RELEASE_SHARED_BUDGET={budget}']
+                else:
+                    command[1:1] = ['-DTILEMEGA_TRACE_STAGE=2', '-DTILEMEGA_TRACE_STEP=1',
+                                    '-DTILEMEGA_SM80_FUSED_PHASE_TRACE=1',
+                                    '-DTILEMEGA_SM80_FUSED_NEIGHBOR_TRACE=1',
+                                    '-DTILEMEGA_SM80_FUSED_PRICES_TRACE=1']
             sidecar(library, '.build_command.txt').write_text(shlex.join(command)+'\n')
             with sidecar(library, '.ptxas.log').open('w') as log:
                 subprocess.run([sys.executable, str(ROOT/'scripts/run_sm90r1_build.py'),
@@ -82,10 +89,11 @@ def prepare(args):
     write_json(args.out/'trace.plan.json', dict(
         model=anchor['model'], batch=anchor['batch'], prefill=anchor['prefill'],
         target=anchor['artifact_target'], target_sha256=anchor['target_sha256'],
-        original_sha256=anchor['decode_sha256'], grid=plan['grid'], arms=arms))
+        original_sha256=anchor['decode_sha256'], grid=plan['grid'], arms=arms,
+        trace_kind='release' if args.release_ledger else 'fused'))
 
 
-def analyze(args):
+def accepted_trace(args):
     plan = read(args.plan)
     report = read(args.run/'ledger/run.json')
     guard = read(args.run/'guard/guard_result.json')
@@ -96,7 +104,12 @@ def analyze(args):
             or report['reference_sha256'] != plan['arms']['control']['sha256']
             or not report['full_token_equivalence'] or abs(report['overhead_pct']) > 5
             or report['batch'] != plan['batch']):
-        raise ValueError('fused task attribution lacks a guarded matched trace within the 5% ceiling')
+        raise ValueError('stage attribution requires a guarded, matched trace within the 5% ceiling')
+    return plan, report, device
+
+
+def analyze(args):
+    plan, report, device = accepted_trace(args)
     linked = read(sidecar(plan['arms']['control']['path'], '.plan.json'))
     gates = {}
     for family in ('expert_gate_up', 'expert_down'):
@@ -151,18 +164,102 @@ def analyze(args):
         checkpoint=report['checkpoint'], gpu_uuid=device['nvml_uuid']))
 
 
+def release_bandwidth(args):
+    from a100_baselines import inputs
+    from sm90r4_ledger import bounds, kind, tsv
+
+    plan, report, device = accepted_trace(args)
+    if plan.get('trace_kind') != 'release':
+        raise ValueError('expected the compact native release trace')
+    ledger = args.run/'ledger'
+    meta = read(ledger/'native_release.json')
+    if (meta['observation'] != 'release_after_cta_barrier' or meta['grid'] != plan['grid']
+            or meta['performance_eligible'] or meta['uniform_overhead_subtracted']):
+        raise ValueError('invalid release trace ABI')
+    headers = {}
+    for row in tsv(ledger/'native_release_steps.tsv'):
+        worker, iteration, past, begin, end = (int(row[k]) for k in ('worker', 'iteration', 'past', 'begin', 'end'))
+        if not 0 < end-begin < 2**32 or (iteration, worker) in headers:
+            raise ValueError('invalid CTA trace clock window')
+        headers[iteration, worker] = (past, begin, end)
+    linked = read(sidecar(plan['arms']['control']['path'], '.plan.json'))
+    coords = linked['native_dense']
+    moe, fused = coords['model'] == 'moe', coords['expert_fuse']
+    stages = {int(r['stage']): kind(r, moe) for r in tsv(ledger/'native_release_stages.tsv')}
+    if sorted(stages) != list(range(meta['stages'])):
+        raise ValueError('release ledger does not cover the complete stage schedule')
+    start = 1 if coords['emb'] == 'la' else 0
+    releases = defaultdict(dict)
+    for row in tsv(ledger/'native_release_samples.tsv'):
+        worker, iteration, stage, low = (int(row[k]) for k in ('worker', 'iteration', 'stage', 'release_low32'))
+        if stage < start:
+            continue
+        _, begin, end = headers[iteration, worker]
+        stamp = end-((end-low) % 2**32)
+        if stamp < begin or worker in releases[iteration, stage]:
+            raise ValueError('release stamp is outside the CTA execution window')
+        releases[iteration, stage][worker] = stamp
+    config, _ = inputs(plan['model'])
+    config = read(config/'config.json')
+    rates, spans, weight = defaultdict(list), defaultdict(list), defaultdict(list)
+    iterations = {iteration for iteration, _ in headers}
+    for iteration in sorted(iterations):
+        workers = set(range(plan['grid']))
+        if any(set(releases[iteration, stage]) != workers for stage in range(start, len(stages))):
+            raise ValueError('stage boundary lacks some physical CTAs')
+        begin = min(headers[iteration, worker][1] for worker in workers)
+        positions = {headers[iteration, worker][0] for worker in workers}
+        if len(positions) != 1:
+            raise ValueError('CTA traces disagree about the decode position')
+        measurements = Counter()
+        for stage in range(start, len(stages)):
+            label = stages[stage]
+            if (label == 'qkv' and coords['group_wait'] and stages.get(stage+1) == 'attention'):
+                continue
+            if label == 'attention' and coords['group_wait'] and stages.get(stage-1) == 'qkv':
+                label = 'qkv_attention'
+            if label == 'expert_gate_up' and fused:
+                label = 'expert_fused'
+            boundary = min(releases[iteration, stage].values())
+            if boundary < begin:
+                raise ValueError('release boundaries moved backwards')
+            measurements[label] += boundary-begin
+            begin = boundary
+        # At 1 GB/s, the existing logical floor in us is bytes / 1000.
+        logical = {stage: value*1000 for stage,value in bounds(config, plan['batch'], moe, 1).items()}
+        logical['attention'] *= positions.pop()/575
+        if 'qkv_attention' in measurements:
+            logical['qkv_attention'] = logical['qkv']+logical['attention']
+        if fused:
+            logical['expert_fused'] = logical['expert_gate_up']+logical['expert_down']
+        for label, span in measurements.items():
+            if label in logical and span > 0:
+                spans[label].append(span)
+                weight[label].append(logical[label])
+                rates[label].append(logical[label]/span)
+    rows = [dict(stage=label, logical_bytes=statistics.median(weight[label]),
+                 stage_span_ns=statistics.median(spans[label]), effective_gbps=statistics.median(values),
+                 samples=len(values), bytes_basis='expected active experts' if label.startswith('expert_')
+                 else 'weight and position-matched KV bytes') for label,values in sorted(rates.items())]
+    if not {'o', 'lm_head'} <= set(rates) or not ({'qkv', 'qkv_attention'} & set(rates)):
+        raise ValueError('release ledger lacks native projection boundaries')
+    write_json(args.out, dict(model=plan['model'], batch=plan['batch'], gpu_uuid=device['nvml_uuid'],
+        original_sha256=plan['original_sha256'], perturbation_pct=report['overhead_pct'], rows=rows))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     modes = p.add_subparsers(dest='mode', required=True)
     make = modes.add_parser('prepare')
     make.add_argument('--anchor', required=True, type=Path)
-    collect = modes.add_parser('analyze')
-    collect.add_argument('--run', required=True, type=Path)
-    collect.add_argument('--plan', required=True, type=Path)
-    for mode in (make,collect):
-        mode.add_argument('--out', required=True, type=Path)
+    make.add_argument('--release-ledger', action='store_true')
+    make.add_argument('--out', required=True, type=Path)
+    for name in ('analyze', 'release-bandwidth'):
+        collect = modes.add_parser(name)
+        for flag in ('run', 'plan', 'out'):
+            collect.add_argument(f'--{flag}', required=True, type=Path)
     args = p.parse_args()
-    {'prepare': prepare, 'analyze': analyze}[args.mode](args)
+    {'prepare': prepare, 'analyze': analyze, 'release-bandwidth': release_bandwidth}[args.mode](args)
 
 
 if __name__ == '__main__':
