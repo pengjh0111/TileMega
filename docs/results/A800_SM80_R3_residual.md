@@ -13,7 +13,7 @@
 | R4 | 已对照 MoE padding、attention mask 和 dense live-row，并为五个 residual 几何补测 epilogue。 | 保留经过端到端验证的现有选择。 |
 | R5 | activation issue、wave tail、register stages 和 fresh KV 已进入普通成本路径。Qwen B16 的分页策略和 B2 的融合环排序均已用独立阶段证据重新核对。 | 实际跨阶段 HBM 流量仍受权限限制。作业 `352601` 在 CUPTI 可用性查询返回 `CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`。 |
 | R6 | 有界 L2 预取已做同卡对照，收益落在平局阈值内。 | 保留关闭状态。 |
-| R7 | Qwen30 B16 已采用四槽共享环，本轮 Qwen30 B2 正式采纳四槽，OLMoE B16 采纳三槽。Qwen30 B1/B8 的四槽对照均为平局。 | 继续 Qwen30 B4 对正式旧二进制的验收。 |
+| R7 | Qwen30 B2、B4、B16 正式采用四槽共享环，OLMoE B16 采用三槽。Qwen30 B1/B8 的四槽对照均为平局。 | Qwen30 各 batch 和 OLMoE B16 仍落后于最快冻结基线。 |
 | R8 | 生产路径仍使用 128 consumer 和 32 producer。 | 尚未开启新角色 ABI。更改参与范围需要新的校准和同步验证。 |
 
 **Verified** · 正式起点为 31 胜、3 平、6 负，几何平均加速比 1.098623。三个重点 dense B16 的效率为 Llama-3B 0.7207、Llama-8B 0.8079 和 Mistral 0.7982。六个落后格为 Qwen30 的五个 batch 和 OLMoE B16。原基线冻结为 180 个有效格和 20 个 N/A。 [前轮审计](A800_SM80_R3_followup.md) · [正式矩阵](A800_llm.csv) · [效率表](A800_SM80_R3_followup_efficiency.csv)
@@ -104,13 +104,15 @@
 
 **Verified** · Mistral B16 的 TN192 两槽在 353669 通过五次正式正确性。独立计时 353785 测得 T1 0.458800 s、T1024 12.071637 s 和 TPOT 11.351747 ms/token，较旧正式值 11.472326 ms/token 降低 1.051%，从平局转为胜出。带宽效率为 0.8067，正式 decode SHA-256 为 f6f96b3f6fd967402b4d7864f356fec579e38e21498eaf70134467f58b6bed53。
 
+**Verified** · Qwen30 B4 四槽通过 353639_0 保留的 teacher-forced 回执和 353683 的其余四项检查。独立计时 353801 的 T1 为 0.682314 s，T1024 为 14.766848 s，TPOT 为 13.767873 ms/token，较旧正式值 14.255721 ms/token 降低 3.422%。正式 decode SHA-256 为 962d7497ddbb1cf0599da2829050b8d69568d22b7b0632c7505cf90456519bc9。
+
 **Verified** · 登录节点重新导入原 40 格正式 CTG。新旧编译器对每格的 additive、pool、replay 和逐 stage 价格均完全一致。编译器的 native prices、flow 和 pipeline 单元测试全部通过。
 
-**Verified** · 将本轮四个正式坐标与新增实测价格合并后，再重放全部 40 格。其余 36 格的 additive、pool、replay 和逐 stage 价格逐项相同。正式 TPOT 对 replay 的绝对相对误差中位数为 5.0134%。
+**Verified** · 最终矩阵核查覆盖全部 40 格。Qwen30 B4 的价格合并仅添加一项 B4 融合几何，复用其余模型 35 格的已验证重放并重新评估 Qwen30 五格。除本轮采纳的六格，原有 additive、pool、replay 和逐 stage 价格逐项相同。正式 TPOT 对 replay 的绝对相对误差中位数为 5.0134%。本轮 Slurm 作业均已结束。
 
 **Verified** · Qwen30 B8 在 353302_1 完成同卡筛选。四槽共享 ring 与对照输出相同，TPOT 为 19.381591 对 19.407654 ms/token，差异 0.134%，保留正式对照。
 
-**Verified** · 40 格目前为 33 胜、1 平、6 负，几何平均加速比 1.100872，带宽效率的几何平均为 0.694067。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
+**Verified** · 40 格目前为 33 胜、1 平、6 负，几何平均加速比由本轮开始时的 1.098623 升至 1.101830，带宽效率的几何平均为 0.694671。平局为 OLMoE B8。冻结 baseline 的 180 个有效格和 20 个 N/A 保留原始哈希。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
 
 ## 后续对照
 
