@@ -23,7 +23,11 @@ namespace tilemega::backend {
 // CTAs; it first waits for the peer's consumer releases on peer[s / 2].
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
          ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
          int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false,int Producers=32>
+#else
+         int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false>
+#endif
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
@@ -51,7 +55,11 @@ struct Sm90DenseGemm {
       Op==ServingEpilogueOp::kResidualAllReduce;
   static constexpr bool kAllReduce=Op==ServingEpilogueOp::kResidualAllReduce;
   static_assert(!kResidual || (ResidualTiles>0 && ResidualTiles<=kSm90DenseResidualTiles));
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
   static constexpr int kThreads=Sm90DenseRoleAbi::kConsumers+Producers,kIterations=K/TK;
+#else
+  static constexpr int kThreads=160,kIterations=K/TK;
+#endif
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
   static constexpr int kOperandBytes=2*Slots*TK*(kRows+TN);
   static constexpr int kSlotBytes=2*TK*(kRows+TN);
@@ -65,7 +73,11 @@ struct Sm90DenseGemm {
       (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
        Op==ServingEpilogueOp::kResidualAllReduce);
   using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm>;
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
   static_assert(Producers==32 || (CpAsync && Producers==64));
+#else
+  static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
+#endif
   static_assert(!ServiceProbe || (CpAsync && !TILEMEGA_TRACE_STAGE));
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));
@@ -85,12 +97,18 @@ struct Sm90DenseGemm {
       cute::Copy_Atom<cute::SM75_U32x2_LDSM_N,Element>,CopyA>;
   static_assert(cute::cosize_v<LayoutB> ==TN*TK);
 
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
   __device__ static __forceinline__ int ProducerLane() {
     if constexpr(Producers==32)return threadIdx.x&31;
     else return int(threadIdx.x)-Sm90DenseRoleAbi::kConsumers;
   }
+#endif
   __device__ static __forceinline__ void CopySpan(Element* destination,Element const* source,int count) {
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
     for(int i=ProducerLane()*8;i<count;i+=Producers*8)
+#else
+    for(int i=(threadIdx.x&31)*8;i<count;i+=32*8)
+#endif
       Async::Copy16(destination+i,source+i);
   }
 
@@ -100,10 +118,18 @@ struct Sm90DenseGemm {
     static_assert(Count%8==0 && (group==0 || group==4 || group==8));
     if constexpr(group==0)CopySpan(destination,source,Count);
     else {
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       constexpr int warp_elements=Producers*8;
+#else
+      constexpr int warp_elements=32*8;
+#endif
       constexpr int grouped=Count/(warp_elements*group)*(warp_elements*group);
       #pragma unroll 1
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       for(int base=ProducerLane()*8;base<grouped;base+=warp_elements*group) {
+#else
+      for(int base=(threadIdx.x&31)*8;base<grouped;base+=warp_elements*group) {
+#endif
         #pragma unroll
         for(int i=0;i<group;++i) {
           int offset=base+i*warp_elements;
@@ -148,22 +174,35 @@ struct Sm90DenseGemm {
   __device__ static __noinline__ void ProduceCpAsync(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,Element* residual,int tasks,unsigned phase,
       bool streamed) {
-    Sm90DenseRoles::Producer<kThreads>();
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
+    Sm90DenseRoles::ProducerRange<kThreads>();
     int lane=ProducerLane();
+#else
+    Sm90DenseRoles::Producer();
+    int lane=threadIdx.x&31;
+#endif
     Sm80DenseService service;
     if constexpr(kResidual)
       for(int local=0;local<tasks;++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x);
 #if defined(TILEMEGA_SM80_PADDED_GATE)
         if constexpr(N%TN!=0) {
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
           for(int i=lane*8;i<Batch*TN;i+=Producers*8) {
+#else
+          for(int i=lane*8;i<Batch*TN;i+=32*8) {
+#endif
             int column=task*TN+i%TN;
             if(column<N)
               Async::Copy16(residual+local*Batch*TN+i,p.residual+std::size_t(i/TN)*N+column);
           }
         }else
 #endif
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
         for(int i=lane*8;i<Batch*TN;i+=Producers*8)
+#else
+        for(int i=lane*8;i<Batch*TN;i+=32*8)
+#endif
           Async::Copy16(residual+local*Batch*TN+i,p.residual+std::size_t(i/TN)*N+task*TN+i%TN);
         Async::CompleteCopies(state.side+local);
       }
@@ -199,13 +238,21 @@ struct Sm90DenseGemm {
       // first use of each slot. Consumers only read this panel, so subsequent
       // tiles of this invocation can reuse the zeros until the stage tail.
       int copy_rows=sequence<Slots?kRows:Batch;
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       for(int i=lane*8;i<copy_rows*TK;i+=Producers*8) {
+#else
+      for(int i=lane*8;i<copy_rows*TK;i+=32*8) {
+#endif
         int row=i/TK,col=i%TK;
         auto* source=row<Batch?p.activation_address+std::size_t(row)*K+tile*TK+col:p.activation_address;
         auto swizzled=LayoutA{}(row,col);
         Async::Copy16(a+slot*kRows*TK+swizzled,source,row<Batch);
       }
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       // Every producer arrives, including lanes with no copies in this tile.
+#else
+      // The barrier has 32 arrivals, including lanes with no copies in a tile.
+#endif
       Async::CompleteCopies(state.full+slot);
 #ifndef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
       if constexpr(ServiceProbe)if(lane==0)service.producer_issue+=Sm80DenseService::Now()-stamp;

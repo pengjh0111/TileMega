@@ -581,7 +581,11 @@ struct Sm90DenseAttentionBody {
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
+#if TILEMEGA_SM80_WIDE_PRODUCER
+    else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
+#else
     else {
+#endif
       Produce<Prefix>(p,state,s,tasks,phase,streamed);
       if(CpAsync || threadIdx.x==128)tail();
     }

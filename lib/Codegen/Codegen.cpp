@@ -2210,6 +2210,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<(c.residual_copy_issue?"#define TILEMEGA_SM80_RESIDUAL_COPY_GROUP 1\n":"")
      <<(padded_n?"#define TILEMEGA_SM80_PADDED_GATE 1\n":"")
      <<(c.attention.compact_workspace?"#define TILEMEGA_SM80_COMPACT_ATTN 1\n":"")
+     <<(c.wide_producer?"#define TILEMEGA_SM80_WIDE_PRODUCER 1\n":"")
      <<(c.expert_page_segments?"#define TILEMEGA_SM80_MOE_PAGE_SEGMENTS 1\n":"")
      <<(c.expert_gu_route_bases?"#define TILEMEGA_SM80_MOE_GU_ROUTE_BASES 1\n":"")
      <<(c.expert_slot_padding?"#define TILEMEGA_SM80_MOE_SLOT_PADDING 1\n":"")

@@ -6,16 +6,17 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
-Sm90DenseRegisterContract NativeDenseRegisterContract(TargetSpec const& target,int residency) {
+Sm90DenseRegisterContract NativeDenseRegisterContract(TargetSpec const& target,int residency,bool wide_producer) {
   auto arch=target.NvccArch();
   if(!((arch=="sm_90a" && target.sm_major==9) || (arch=="sm_80" && target.sm_major==8)) ||
       target.sm_minor!=0 ||
-      target.res.warp_size!=32 || (residency!=1 && residency!=2) || target.res.regs_per_sm<=0)
+      target.res.warp_size!=32 || (residency!=1 && residency!=2) || target.res.regs_per_sm<=0 ||
+      (wide_producer && arch!="sm_80"))
     throw std::invalid_argument("native register contract requires an SM80 or SM90a resource target");
   cudaOccDeviceProp properties{};
   properties.computeMajor=target.sm_major;properties.computeMinor=target.sm_minor;
   Sm90DenseRegisterContract result;
-  result.threads=backend::Sm90DenseRoleAbi::kThreads;result.residency=residency;
+  result.threads=wide_producer?192:backend::Sm90DenseRoleAbi::kThreads;result.residency=residency;
   if(cudaOccRegAllocationGranularity(&result.granularity,&properties)!=CUDA_OCC_SUCCESS ||
       cudaOccSubPartitionsPerMultiprocessor(&result.subpartitions,&properties)!=CUDA_OCC_SUCCESS ||
       cudaOccRegAllocationMaxPerThread(&result.architecture_limit,&properties)!=CUDA_OCC_SUCCESS)

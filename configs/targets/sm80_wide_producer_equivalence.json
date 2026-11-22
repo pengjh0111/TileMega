@@ -1,0 +1,18 @@
+{
+  "Backend/Sm90DenseGemm.h": {
+    "reference_sha256": "028fa3f684cb1f7894d9c30f4888f744d672a910301c1f7328e0b59a1387addb",
+    "equivalent_sha256": "722451bad52fb2c09dcc8d42554fb830e5ccfebb046c9e50cb98ee8c7edd8957"
+  },
+  "Backend/Sm90DenseMoe.cuh": {
+    "reference_sha256": "d9dce5056146cd0f019011845539e7262ae6efde95e3ba1315e1bc6f2de89ccc",
+    "equivalent_sha256": "be7367d47f07a4f4c82dbea599b840e4d0f5bf8e731df823d1ecc8e595b04177"
+  },
+  "Backend/Sm90DenseRing.cuh": {
+    "reference_sha256": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+    "equivalent_sha256": "ad3c6146731c8afce424b176d3a77ddc20728b6088de9349cf79c470b038df3e"
+  },
+  "Backend/Sm90DenseAttentionBody.cuh": {
+    "reference_sha256": "b13c0cf2607f9b8fd64775a0b93f87f7cb4ac2c6d5ef2a04a0e3fc6d235886f7",
+    "equivalent_sha256": "4a4b7f81749d4c2fe3afe81f2c432d156e8126cdcbc3e61b2705e98a0d2bfb4b"
+  }
+}

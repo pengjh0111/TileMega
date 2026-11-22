@@ -7,6 +7,7 @@ import json
 import math
 from pathlib import Path
 import statistics
+import subprocess
 
 
 def rows(path):
@@ -66,6 +67,7 @@ def main():
     p.add_argument('--widths', required=True, type=Path)
     p.add_argument('--roles', required=True, type=Path)
     p.add_argument('--target', required=True, type=Path)
+    p.add_argument('--source-commit', required=True)
     p.add_argument('--out', required=True, type=Path)
     args = p.parse_args()
     target = json.loads(args.target.read_text())
@@ -86,11 +88,16 @@ def main():
     for index,(x,y) in enumerate(data):
         weights = fit(data[:index]+data[index+1:])
         errors.append(abs(math.expm1(y-math.fsum(a*b for a,b in zip(weights,x)))))
-    headers = Path(__file__).resolve().parents[1]/'include/tilemega/Backend'
+    root = Path(__file__).resolve().parents[1]
+    commit = subprocess.check_output(['git','rev-parse',args.source_commit+'^{commit}'],
+                                     cwd=root,text=True).strip()
+    headers = ('Sm90DenseGemm.h','Sm90DenseEpilogue.h','Sm90DenseRing.cuh')
+    body = {name:hashlib.sha256(subprocess.check_output(
+        ['git','show',f'{commit}:include/tilemega/Backend/{name}'],cwd=root)).hexdigest()
+        for name in headers}
     profile = dict(schema=1,batch=batch,sms=sms,source='guarded_cold_projection_spans',
         widths_sha256=sha(args.widths),roles_sha256=sha(args.roles),
-        body_headers={name:sha(headers/name) for name in
-                      ('Sm90DenseGemm.h','Sm90DenseEpilogue.h','Sm90DenseRing.cuh')},
+        source_commit=commit,body_headers=body,
         measured_arms=len(data),resource_rejected_arms=len(observations)-len(data),
         loo_median_absolute_relative_error=statistics.median(errors),
         loo_p95_absolute_relative_error=statistics.quantiles(errors,n=20)[18],

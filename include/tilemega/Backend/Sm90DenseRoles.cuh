@@ -10,10 +10,15 @@ namespace tilemega::backend {
 struct Sm90DenseRoles:Sm90DenseRoleAbi {
   // The native 160x1x1 launch and Run's <128/else dispatch prove these facts.
   // Calling an outlined role outside its range is outside the native dense role ABI.
-  template<int Threads=kThreads>
   __device__ static __forceinline__ void Producer() {
+    __builtin_assume(threadIdx.x>=kConsumers && threadIdx.x<kThreads);
+  }
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
+  template<int Threads>
+  __device__ static __forceinline__ void ProducerRange() {
     __builtin_assume(threadIdx.x>=kConsumers && threadIdx.x<Threads);
   }
+#endif
   __device__ static __forceinline__ void Consumer() {
     __builtin_assume(threadIdx.x<kConsumers);
   }

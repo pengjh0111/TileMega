@@ -191,6 +191,7 @@
       "source": "guarded_cold_projection_spans",
       "widths_sha256": "97c1619853a7fca7841cdb173b33c22d14b61c3b5d4e4f123866ef7283b6fcd3",
       "roles_sha256": "772334a2f0e35d4f2254136c32eda5c072e67e57c96f7f77de35c7ce5e8665e6",
+      "source_commit": "13303841f9519400a9bf85a0d860dbecb12a2743",
       "body_headers": {
         "Sm90DenseGemm.h": "028fa3f684cb1f7894d9c30f4888f744d672a910301c1f7328e0b59a1387addb",
         "Sm90DenseEpilogue.h": "02d2390a48ba1951f409ac17f8926b7fb30f726140a01c3a26497b43d3b9c009",

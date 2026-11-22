@@ -103,6 +103,7 @@ struct Sm90DenseCoordinates {
   bool argmax_stage=false;
   bool live_epilogue_rows=false;
   bool reuse_payload=false;
+  bool wide_producer=false;
   int copy_issue_group=0;
   bool residual_copy_issue=false;
   bool expert_page_segments=false;
@@ -187,6 +188,8 @@ struct Sm90DenseCoordinates {
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(reuse_payload && (weight_stream || cluster!=1 || attention.dsmem))
       throw std::invalid_argument("payload reuse requires retired storage and no cross-stage preissue");
+    if(wide_producer && (!reuse_payload || tp!=1))
+      throw std::invalid_argument("two producer warps require an unsharded retired payload");
     if(attention.compact_workspace && (weight_stream || cluster!=1))
       throw std::invalid_argument("compact attention requires local storage and no cross-stage preissue");
     if(copy_issue_group!=0 && (copy_issue_group!=4 && copy_issue_group!=8))
@@ -283,7 +286,7 @@ struct Sm90DenseCoordinates {
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
-    bool const explicit_body=live_epilogue_rows || reuse_payload || copy_issue_group || residual_copy_issue ||
+    bool const explicit_body=live_epilogue_rows || reuse_payload || wide_producer || copy_issue_group || residual_copy_issue ||
         expert_page_segments || expert_gu_route_bases || expert_slot_padding ||
         expert_aligned_gate_pages>=0 || attention.compact_workspace;
     json::Value attention_json=json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
@@ -298,6 +301,7 @@ struct Sm90DenseCoordinates {
     if(explicit_body || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
     if(live_epilogue_rows)result.emplace_back("epilogue_rows","live");
     if(reuse_payload)result.emplace_back("payload","reuse");
+    if(wide_producer)result.emplace_back("producer_warps",2);
     if(copy_issue_group)result.emplace_back("copy_issue_group",copy_issue_group);
     if(residual_copy_issue)result.emplace_back("residual_copy_issue",true);
     if(expert_page_segments)result.emplace_back("expert_page_copy","segments");
@@ -341,7 +345,7 @@ struct Sm90DenseCoordinates {
     if(schema==10)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload",
-          "copy_issue_group","residual_copy_issue","expert_page_copy","expert_gu_routes",
+          "producer_warps","copy_issue_group","residual_copy_issue","expert_page_copy","expert_gu_routes",
           "expert_slot_padding","expert_aligned_gate_pages","route","combine"});
     else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
@@ -369,6 +373,11 @@ struct Sm90DenseCoordinates {
         if(payload->AsString("payload")!="reuse")
           throw std::invalid_argument("invalid native payload placement");
         result.reuse_payload=true;
+      }
+      if(value.Find("producer_warps")) {
+        if(integer(value,"producer_warps")!=2)
+          throw std::invalid_argument("invalid expanded SM80 producer warp count");
+        result.wide_producer=true;
       }
       if(value.Find("copy_issue_group")) {
         result.copy_issue_group=integer(value,"copy_issue_group");

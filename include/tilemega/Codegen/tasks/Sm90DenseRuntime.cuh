@@ -195,7 +195,7 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
   return LaunchSequence(p,first,count,mode,iteration,stream);
 #else
   using RoleLaunch=typename NativeProgram::RoleLaunch;
-  static_assert(RoleLaunch::kThreads==160 && RoleLaunch::kY==1 && RoleLaunch::kZ==1);
+  static_assert(RoleLaunch::kThreads==NativeProgram::kThreads && RoleLaunch::kY==1 && RoleLaunch::kZ==1);
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
      iteration!=p.iteration)return -1;
   if constexpr(kNativeTp>1)if(!p.tp_bound)return -1;

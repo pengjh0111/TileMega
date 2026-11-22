@@ -76,7 +76,11 @@ struct Case {
   }
   static constexpr int kSide=kResidual?Sm90DenseLayout::ResidualTiles(kPaddedN/TN,108*Residency):0;
   template<bool Probe> using Body=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,kWK,Op,U,InputNorm,
+#if TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       R,false,kSide,true,Probe,kProducers>;
+#else
+      R,false,kSide,true,Probe>;
+#endif
 };
 
 template<class C,bool Probe>
@@ -86,7 +90,11 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
          unsigned long long* arrivals=nullptr) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
+#if TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
   ring.Initialize<true,C::kProducers>();
+#else
+  ring.Initialize<true>();
+#endif
   if constexpr(Probe)if(SampleBlock(blockIdx.x)) {
     if(threadIdx.x==0)
       *reinterpret_cast<Sm80DenseService**>(shared+Sm90DenseOperandHeader::kTraceSlot)=service+blockIdx.x;

@@ -112,7 +112,8 @@ double Sm90DenseCostModel::ActivationIssueNs(Sm90DenseWorkload const& work,unsig
 
 std::optional<double> Sm90DenseCostModel::ProjectionIssueRate(Sm90DenseWorkload const& work,
     unsigned family,Sm90DenseGemm const& g,int residency,Sm90DenseCoordinates const* c) const {
-  if((family!=0 && family!=1 && family!=3) || (c && (c->weight_stream || c->residual_copy_issue)))
+  if((family!=0 && family!=1 && family!=3) ||
+     (c && (c->weight_stream || c->residual_copy_issue || c->wide_producer)))
     return std::nullopt;
   return constants_.AmpereProjectionIssueRate(work.batch,work.shapes[family][0],
       work.shapes[family][1],g.tile_n,g.TileK(),g.slots,Grid(residency),family==0);
@@ -122,7 +123,7 @@ std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
   if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast ||
-     (coordinates && coordinates->weight_stream))return std::nullopt;
+     (coordinates && (coordinates->weight_stream || coordinates->wide_producer)))return std::nullopt;
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   bool gate=family==2;
   int u=gate?(coordinates?coordinates->swiglu_u:Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)):16;

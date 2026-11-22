@@ -995,7 +995,11 @@ struct Sm90DenseMoeGemm {
     int total=TotalTasks(p);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,routing);
+#if TILEMEGA_SM80_WIDE_PRODUCER
+    else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
+#else
     else {
+#endif
       Produce<Prefix>(p,state,a,b,tasks,phase,streamed,first);
       if(CpAsync || threadIdx.x==128)tail();
     }
@@ -1434,7 +1438,11 @@ struct Sm90DenseMoeFusedGemm {
       if constexpr(LocalRouting)
         if(blockIdx.x==0)LocalRoute::Publish(routing,p.schedule,p.route_weights,p.route_index);
       Consume(p,state,a,b,scratch,tasks,phase,active,routing);
+#if TILEMEGA_SM80_WIDE_PRODUCER
+    }else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
+#else
     }else {
+#endif
       Produce(p,state,a,b,tasks,phase,active,routing);
       if(CpAsync || threadIdx.x==128)tail();
     }

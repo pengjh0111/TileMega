@@ -142,8 +142,14 @@ template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false,
          int ArSlot=-1,int Tp=1,int ResidualTiles=2,bool CpAsync=false>
 struct Gemm {
+#if TILEMEGA_SM80_WIDE_PRODUCER
+  static constexpr bool kWideProducer=CpAsync;
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
+      RegisterStages,Multicast,ResidualTiles,CpAsync,false,CpAsync?64:32>;
+#else
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
       RegisterStages,Multicast,ResidualTiles,CpAsync>;
+#endif
   static constexpr bool kMulticast=Multicast;
   static constexpr bool kCpAsync=CpAsync;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
@@ -578,6 +584,12 @@ template<class Stage> inline constexpr bool
     kFusedTraceStage<Stage,std::void_t<decltype(Stage::kFusedTraceStage)>> =Stage::kFusedTraceStage;
 #endif
 
+#if TILEMEGA_SM80_WIDE_PRODUCER
+template<class Stage,class=void> inline constexpr bool kWideProducerStage=false;
+template<class Stage> inline constexpr bool
+    kWideProducerStage<Stage,std::void_t<decltype(Stage::kWideProducer)>> =Stage::kWideProducer;
+#endif
+
 // GroupTiles > 0 (D8, qkv only): the boundary after this stage releases
 // each computed tile's KV group (GroupTiles tiles per group) instead of the
 // grid barrier, and the attention stage after it acquires only its groups.
@@ -680,7 +692,12 @@ struct Program {
   static_assert(Tp==1 || Tp==2 || Tp==4 || Tp==8,"tensor parallel degree must be 1, 2, 4 or 8");
   using GroupStages=typename Group::Stages;
   template<unsigned J> using GroupStage=std::tuple_element_t<J,GroupStages>;
+#if TILEMEGA_SM80_WIDE_PRODUCER
+  static_assert(CpAsync && ReusePayload,"wide producers require a retired SM80 payload");
+  static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=192;
+#else
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
+#endif
   static constexpr unsigned kBuffers=Buffers,kMaps=Maps,kLayers=Layers;
   static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
   static constexpr unsigned kStages=2+kPerLayer*Layers+unsigned(kPostHead),kHead=1+kPerLayer*Layers;
@@ -919,13 +936,20 @@ struct Program {
     __syncthreads();
 #endif
 #endif
-    // Every stage returns only after all 160 threads have retired its storage.
+    // The CTA joins before the next stage reuses its operand storage.
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
     auto& bank=backend::Sm90DenseOperandHeader::Bank(shared,Parity);
+#if TILEMEGA_SM80_WIDE_PRODUCER
+    // Separate rings retain the phase of each arrival count across stages.
+    static_assert(Body::kPrefix==0 && Next::kPrefix==0);
+    auto& ring=rings[kWideProducerStage<Body>?0:1];
+    Body::Run(b,past,shared,epsilon,ring,backend::Sm90DenseNoTail{},bank,false);
+#else
     if constexpr(!Last) {
       ProducerTail<Body,Next,Binding> tail{b,next_layer,past,shared,rings[Parity^1]};
       Body::Run(b,past,shared,epsilon,rings[Parity],tail.Raw(),bank,streamed);
     }else Body::Run(b,past,shared,epsilon,rings[Parity],backend::Sm90DenseNoTail{},bank,streamed);
+#endif
     if(threadIdx.x==0) {
 #if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
       // Run already joined both roles. Clear the pointer before the existing
@@ -1085,7 +1109,11 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   if(threadIdx.x==0)
     *reinterpret_cast<unsigned long long**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot)=nullptr;
 #endif
+#if TILEMEGA_SM80_WIDE_PRODUCER
+  rings[0].template Initialize<P::kCpAsync,64>();
+#else
   rings[0].template Initialize<P::kCpAsync>();
+#endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x==0) {
     auto& context=backend::Sm90DenseDiagnostic::Context(shared);

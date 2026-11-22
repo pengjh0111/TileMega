@@ -6,8 +6,9 @@ struct Sm90DenseRoleAbi {
 };
 template<int Threads,int Y=1,int Z=1>
 struct Sm90DenseRoleLaunch:Sm90DenseRoleAbi {
-  static_assert(Threads==kThreads && Y==1 && Z==1,
-      "native dense role ABI requires a 160x1x1 thread block");
+  static_assert((Threads==Sm90DenseRoleAbi::kThreads || Threads==192) && Y==1 && Z==1,
+      "native dense role ABI requires a 160x1x1 or 192x1x1 thread block");
+  static constexpr int kThreads=Threads;
   static constexpr int kY=Y,kZ=Z;
 };
 }  // namespace tilemega::backend

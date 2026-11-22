@@ -100,7 +100,8 @@ def main():
             ptxas_registers=identity['ptxas_resources'][kernels[0]]['registers'],
             requested_residency=coordinate['residency'],
             command=[str(probe), str(cubins[0]), kernels[0], str(identity['shared_memory_bytes']),
-                     '160', str(manifest['grid']), str(coordinate['cluster'])]))
+                     str(manifest.get('register_contract', {}).get('threads',160)),
+                     str(manifest['grid']), str(coordinate['cluster'])]))
     if not prepared:
         raise ValueError('no compiled native candidates to query')
     write(out / 'prepared.json', prepared)
