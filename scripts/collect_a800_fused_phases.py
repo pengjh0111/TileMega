@@ -10,6 +10,7 @@ import statistics
 
 from collect_a800_dense_service import read, sha
 from collect_a800_fused_service import SHAPE
+from prepare_a800_fused_service import BODY_HEADERS
 
 
 def guarded(run):
@@ -82,7 +83,6 @@ def artifact(binary):
 
 
 def append(target, run, control, reference, trace, body_only=False, device_proof=None):
-    profile_target = target['sm80_native_constants']['fused_expert_service']
     measured, prior = (guarded(p) for p in (run, control))
     baseline, probe = (artifact(p) for p in (reference, trace))
     recipe = read(Path(f'{trace}.diagnostic.json'))
@@ -143,9 +143,12 @@ def append(target, run, control, reference, trace, body_only=False, device_proof
     if body_only:
         if baseline['plan']['residency'] != 1:
             raise ValueError('direct fused-stage calibration requires single residency')
+        profile_target = target['sm80_native_constants'].setdefault(
+            'fused_expert_service', dict(schema=1, reference_target_sha256=baseline['target_sha256'],
+                                         profiles=[]))
         shape.update(gate_up_warps_k=int(fields[10]), down_warps_k=int(fields[12]))
         headers = {name: baseline['source']['source_files'][f'include/tilemega/{name}']
-                   for name in profile_target['profiles'][0]['body_headers']}
+                   for name in BODY_HEADERS}
         body = dict(provenance, active_experts=8, body_ns=stats['body_ns']['median'])
         if device_proof:
             comparison = read(device_proof)
@@ -165,6 +168,11 @@ def append(target, run, control, reference, trace, body_only=False, device_proof
                        source_sha=baseline['source']['head'], binary_sha256=baseline['binary_sha256'],
                        measurement=dict(grid=baseline['plan']['grid'], plain_residency=1,
                                         dynamic_shared=baseline['shared_memory_bytes']))
+        if baseline['plan']['native_dense'].get('payload') == 'reuse':
+            shape['reuse_payload'] = 1
+            profile['payload_anchor'] = dict(binary_sha256=baseline['binary_sha256'],
+                                             manifest_sha256=baseline['manifest_sha256'],
+                                             dynamic_shared=baseline['shared_memory_bytes'])
         moe = 'Backend/Sm90DenseMoe.cuh'
         for other in profile_target['profiles']:
             proof = other.get('moe_header_equivalence')
@@ -174,6 +182,7 @@ def append(target, run, control, reference, trace, body_only=False, device_proof
         if profile not in profile_target['profiles']:
             profile_target['profiles'].append(profile)
         return
+    profile_target = target['sm80_native_constants']['fused_expert_service']
     profile, = (p for p in profile_target['profiles']
                 if all(p['shape'].get(key, 0) == value for key, value in shape.items())
                 and p['measurement']['dynamic_shared'] == baseline['shared_memory_bytes']

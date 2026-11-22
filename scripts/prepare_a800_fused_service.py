@@ -10,6 +10,10 @@ from collect_a800_dense_service import sha
 from prepare_a800_dense_service import ROOT, HEADERS
 
 
+BODY_HEADERS = (*HEADERS, 'Backend/Sm90DenseMoe.cuh', 'Backend/Sm90DenseMark.cuh',
+                'Backend/Sm80MoePageOffsets.h')
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--anchor', type=Path, required=True)
@@ -136,8 +140,6 @@ def main():
                *(f'-D{k}={v}' for k, v in variants.items()), str(source), '-o', str(binary)]
     with (out/'build.log').open('w') as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=300)
-    headers = (*HEADERS, 'Backend/Sm90DenseMoe.cuh', 'Backend/Sm90DenseMark.cuh',
-               'Backend/Sm80MoePageOffsets.h')
     (out/'probe.identity.json').write_text(json.dumps(dict(
         contract='sm80-fused-expert-service-v1', architecture='sm_80', roles=[32,128],
         production_residency=residency, production_grid=build_identity['plan']['grid'],
@@ -145,7 +147,7 @@ def main():
         source_file_sha256=sha(source), anchor_sha256=sha(a.anchor), body_parameters=params,
         production_payload=build_identity['plan']['native_dense'].get('payload', 'split'),
         source_modifiers=variants, cases=[case], binary_sha256=sha(binary), command=command,
-        body_headers={name: sha(ROOT/'include/tilemega'/name) for name in headers}), indent=2)+'\n')
+        body_headers={name: sha(ROOT/'include/tilemega'/name) for name in BODY_HEADERS}), indent=2)+'\n')
 
 
 if __name__ == '__main__':
