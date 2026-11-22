@@ -1,5 +1,9 @@
 # TileMega single-GPU A800 experiment
 
+## R3 follow-up formal results
+
+**Verified, November 22.** 9 additional single-card SM80 artifacts passed correctness and independent timing. The 40-cell geometric mean reached 1.098623, with 31 wins, 3 ties and 6 losses at the 0.50% threshold. [Follow-up report](A800_SM80_R3_followup.md) · [Current absolute times](A800_execution_times.md)
+
 ## R3 formal results
 
 **Verified, November 22.** Six SM80 artifacts entered the 40-cell table. Each passed five independent correctness processes and a separate one-process timing. The speedup geometric mean against the fastest frozen baseline moved from 1.070658 to 1.078081. The report records the exact timing, adoption decisions and calibration evidence for each round. [R3 report and matrix](A800_SM80_R3.md)
