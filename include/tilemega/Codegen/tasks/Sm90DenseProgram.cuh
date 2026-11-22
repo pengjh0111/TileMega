@@ -844,15 +844,58 @@ struct Program {
     }
 #endif
 #if TILEMEGA_TRACE_STAGE
-    StageTrace* record=trace.stages && trace.slots?
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+    static_assert(kCpAsync && kPerLayer==5 && !kPostHead &&
+        TILEMEGA_TRACE_STAGE==2 && TILEMEGA_SM80_FUSED_PHASE_TRACE);
+    // QKV, attention, O, router, fused expert. Keep every CTA at the
+    // fused boundary and its two neighbors to test interval isolation.
+    unsigned layer_stage=g%kPerLayer;
+    bool marks=g>0 && layer_stage==0;
+    bool trace_stage=g>0 && (marks || layer_stage==1 || layer_stage==4);
+#endif
+    StageTrace* record=
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+        trace_stage &&
+#endif
+        trace.stages && trace.slots?
         trace.stages+(iteration%trace.slots)*kStages*gridDim.x+g*gridDim.x+blockIdx.x:nullptr;
     if(threadIdx.x==0 && record) {
       unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+      record->iteration=iteration;record->past=past;record->begin=Now();
+      record->tasks=Body::kTasks/gridDim.x+(blockIdx.x<Body::kTasks%gridDim.x);
+      record->smid=sm;record->stage=g;
+      if(marks) {
+#if TILEMEGA_SM80_FUSED_PRICES_TRACE
+        record->mark[4]=0;record->mark[5]=0;
+        record->mark[backend::Sm90DenseMarks::kRouteReady]=0;
+        record->mark[backend::Sm90DenseMarks::kActiveExperts]=0;
+#else
+        // Only the live markers are visited by a fused body in phase mode.
+        for(int i=0;i<6;++i)record->mark[i]=0;
+        for(int i=backend::Sm90DenseMarks::kRouteReady;i<backend::Sm90DenseMarks::kCount;++i)
+          record->mark[i]=0;
+#endif
+      }
+#else
       *record={iteration,static_cast<unsigned long long>(past),Now(),0,0,
           Body::kTasks/gridDim.x+(blockIdx.x<Body::kTasks%gridDim.x),sm,g};
+#endif
     }
 #endif
 #if TILEMEGA_TRACE_STAGE == 2
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+    if(marks && record) {
+      if(threadIdx.x==0)
+        *reinterpret_cast<unsigned long long**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot)=
+            record->mark;
+#if !TILEMEGA_SM80_FUSED_PRICES_TRACE
+      __syncthreads();
+#endif
+      // The price-only markers first read the pointer after the existing
+      // fused-body route publication rendezvous.
+    }
+#else
     // The body stamps through this slot, so it is published (and the marks
     // cleared, since Sm90DenseMarkFirst keeps the first nonzero value) before
     // any thread enters Run.
@@ -863,6 +906,7 @@ struct Program {
     }
     __syncthreads();
 #endif
+#endif
     // Every stage returns only after all 160 threads have retired its storage.
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
     auto& bank=backend::Sm90DenseOperandHeader::Bank(shared,Parity);
@@ -871,6 +915,12 @@ struct Program {
       Body::Run(b,past,shared,epsilon,rings[Parity],tail.Raw(),bank,streamed);
     }else Body::Run(b,past,shared,epsilon,rings[Parity],backend::Sm90DenseNoTail{},bank,streamed);
     if(threadIdx.x==0) {
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+      // Run already joined both roles. Clear the pointer before the existing
+      // boundary join so unobserved bodies cannot write into this record.
+      if(marks)
+        *reinterpret_cast<unsigned long long**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot)=nullptr;
+#endif
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
       if(probe)trace.stages[boundary_index].arrive=Now();
 #endif
@@ -932,7 +982,7 @@ struct Program {
       backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
           backend::Sm90DenseDiagnostic::Clock();
 #endif
-#if TILEMEGA_TRACE_STAGE
+#if TILEMEGA_TRACE_STAGE && !TILEMEGA_SM80_FUSED_PRICES_TRACE
     if(threadIdx.x==0 && record)record->release=Now();
 #endif
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
@@ -1019,6 +1069,10 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
                 "TMA native dense programs require sm_90a");
   extern __shared__ __align__(1024) char shared[];
   auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
+#if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
+  if(threadIdx.x==0)
+    *reinterpret_cast<unsigned long long**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot)=nullptr;
+#endif
   rings[0].template Initialize<P::kCpAsync>();
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x==0) {

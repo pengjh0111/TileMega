@@ -41,6 +41,9 @@ struct Sm90DenseMarks {
 // Overwritten by every task that reaches it: the mark reports the last one.
 __device__ __forceinline__ void Sm90DenseMark(int index) {
 #if TILEMEGA_TRACE_STAGE == 2
+#if TILEMEGA_SM80_FUSED_PRICES_TRACE
+  if(index!=4 && index!=5 && index!=Sm90DenseMarks::kRouteReady)return;
+#endif
   auto* marks=Sm90DenseMarks::Base();
   if(marks)marks[index]=Sm90DenseMarks::Now();
 #else
@@ -51,7 +54,7 @@ __device__ __forceinline__ void Sm90DenseMark(int index) {
 // Kept from the first task that reaches it; zero means "not reached", which the
 // analysis treats as absent (a stage whose geometry has no such task).
 __device__ __forceinline__ void Sm90DenseMarkFirst(int index) {
-#if TILEMEGA_TRACE_STAGE == 2
+#if TILEMEGA_TRACE_STAGE == 2 && !TILEMEGA_SM80_FUSED_PRICES_TRACE
   auto* marks=Sm90DenseMarks::Base();
   if(marks && !marks[index])marks[index]=Sm90DenseMarks::Now();
 #else
