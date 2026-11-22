@@ -13,7 +13,7 @@
 | R4 | 已对照 MoE padding、attention mask 和 dense live-row，并为五个 residual 几何补测 epilogue。 | 保留经过端到端验证的现有选择。 |
 | R5 | activation issue、wave tail、register stages 和 fresh KV 已进入普通成本路径。40 格重放误差中位数为 5.398%。Qwen B16 两个分页策略的排序已补价。 | 实际跨阶段 HBM 流量仍受权限限制。作业 `352601` 在 CUPTI 可用性查询返回 `CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`。 |
 | R6 | 有界 L2 预取已做同卡对照，收益落在平局阈值内。 | 保留关闭状态。 |
-| R7 | Qwen30 B16 已采用四槽共享环，本轮 OLMoE B16 正式采纳三槽。Qwen30 B1/B8 的四槽对照均为平局。 | 完成 Qwen30 B2/B4 四槽的正式验收。 |
+| R7 | Qwen30 B16 已采用四槽共享环，本轮 Qwen30 B2 正式采纳四槽，OLMoE B16 采纳三槽。Qwen30 B1/B8 的四槽对照均为平局。 | 继续 Qwen30 B4 对正式旧二进制的验收。 |
 | R8 | 生产路径仍使用 128 consumer 和 32 producer。 | 尚未开启新角色 ABI。更改参与范围需要新的校准和同步验证。 |
 
 **Verified** · 正式起点为 31 胜、3 平、6 负，几何平均加速比 1.098623。三个重点 dense B16 的效率为 Llama-3B 0.7207、Llama-8B 0.8079 和 Mistral 0.7982。六个落后格为 Qwen30 的五个 batch 和 OLMoE B16。原基线冻结为 180 个有效格和 20 个 N/A。 [前轮审计](A800_SM80_R3_followup.md) · [正式矩阵](A800_llm.csv) · [效率表](A800_SM80_R3_followup_efficiency.csv)
@@ -98,11 +98,15 @@
 
 **Verified** · Llama-8B B16 的 TN160 三槽在 353418 通过五次独立正确性。独立计时 353467 给出 T1 0.461126 s、T1024 12.566684 s 和 TPOT 11.833390 ms/token，较旧值 11.908982 ms/token 降低 0.635%，带宽效率升至 0.8130。这一格超过最快冻结 baseline 与平局的分界。正式 decode SHA-256 为 7db5f354d4404492704a7541203e3233ae618b76ddf93556c03f07ef8fc9b9b4。
 
+**Verified** · Qwen30 B2 四槽方案在 353367 和 353477 共通过五次正式正确性。独立计时 353552 测得 T1 0.408795 s、T1024 10.705574 s 和 TPOT 10.065277 ms/token，较旧正式值 10.308939 ms/token 降低 2.364%。正式 decode SHA-256 为 79842224ce5287400ac0de6f292135aacb9bb77a936c243e30cbd43b6f2a5fe5。
+
 **Verified** · 登录节点重新导入原 40 格正式 CTG。新旧编译器对每格的 additive、pool、replay 和逐 stage 价格均完全一致。编译器的 native prices、flow 和 pipeline 单元测试全部通过。
+
+**Verified** · 将本轮四个正式坐标与新增实测价格合并后，再重放全部 40 格。其余 36 格的 additive、pool、replay 和逐 stage 价格逐项相同。正式 TPOT 对 replay 的绝对相对误差中位数为 5.0134%。
 
 **Verified** · Qwen30 B8 在 353302_1 完成同卡筛选。四槽共享 ring 与对照输出相同，TPOT 为 19.381591 对 19.407654 ms/token，差异 0.134%，保留正式对照。
 
-**Verified** · 40 格目前为 32 胜、2 平、6 负，几何平均加速比 1.099923，带宽效率的几何平均为 0.693469。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
+**Verified** · 40 格目前为 32 胜、2 平、6 负，几何平均加速比 1.100581，带宽效率的几何平均为 0.693883。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
 
 ## 后续对照
 
@@ -120,4 +124,10 @@
 
 **Verified** · 353511 在两个 B16 工作负载上测试了更窄的 gate tile。Llama-3B 的 TN80 将两个 CTA 同时活跃的 SM 由 63 增至 97，两、三、四槽的未插桩 span 均为 63.488 µs，与 TN96 三槽 U16 相同。TN96 的 U8 形状的扰动为 6.56%，该样本作废。Mistral 的 TN224 和 TN192 两槽分别为 151.552 和 146.432 µs，扰动 1.35% 和 2.10%，两形状各自输出逐位一致。TN192 的完整请求对照沿用当前权重、prefill 与两个独立进程。
 
-**Verified** · Qwen30 B1 的实验坐标以单 wave attention 为前提。所有消费者结束 K/V 读取后才把 FP32 merge 输入写入已退休的 K/V 空间。Attention 预算由 88,064 B 降至 79,872 B。融合专家三槽仍超过双驻留的 arena，试验坐标改用相同 Gu/Dn tile 和 K 分组的两槽。链接通过，生成 216 CTA 的 SM80 程序，共享内存 79,872 B。作业 353527 验证完整正确性，353528 依赖该回执。该坐标只用于诊断。
+**Verified** · Qwen30 B1 的实验坐标以单 wave attention 为前提。所有消费者结束 K/V 读取后才把 FP32 merge 输入写入已退休的 K/V 空间。Attention 预算由 88,064 B 降至 79,872 B。融合专家三槽仍超过双驻留的 arena，试验坐标改用相同 Gu/Dn tile 和 K 分组的两槽。链接通过，生成 216 CTA 的 SM80 程序，共享内存 79,872 B。作业 353527 完整正确性通过。353528 的输出匹配冻结参考，TPOT 由 6.959833 升至 7.301983 ms/token，三次计时均变慢，保留正式坐标。
+
+**Verified** · 353550 的 Mistral B16 两槽 TN192 在完整请求上由 11.446006 降至 11.379829 ms/token，下降 0.578%。三次计时对均改善，冻结输出一致，进入对应的末 tile 价格补测。
+
+**Verified** · Qwen30 B4 的普通 solver 作业 353455 中，三槽为 13.858008 ms/token、四槽为 13.824782 ms/token，差异 0.240%。原四槽筛选与普通 solver 的四槽 CUDA 源哈希一致。重新构建的三槽对照比正式旧二进制多出 `TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES`，坐标相同，生成代码只有该定义变化。353574 在一张卡上比较正式旧二进制与实测 solver 选中的四槽二进制，每臂绑定自己的校准目标。仅当正式旧产物对照满足全部验收门槛时才继续正式发布。
+
+**Verified** · Qwen30 B2 的 353450 保留两臂原始输出，插桩扰动分别是 9.17% 和 9.14%，均超出 5% 上限。353581 只记录 48 个融合阶段及其直接前后阶段，覆盖全体 CTA 和同样的 16 个 decode 位置，去掉其它阶段的 trace 写入与同步。PID 监控、冻结权重和严格 guard 维持原协议。
