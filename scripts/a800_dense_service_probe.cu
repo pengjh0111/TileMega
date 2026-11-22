@@ -60,7 +60,7 @@ struct Case {
   static constexpr char const* Epilogue() {
     return kGate?"swiglu":kResidual?"residual":"store";
   }
-  static constexpr int kSide=kResidual?Sm90DenseLayout::ResidualTiles(N/TN,108*Residency):0;
+  static constexpr int kSide=kResidual?Sm90DenseLayout::ResidualTiles(kPaddedN/TN,108*Residency):0;
   template<bool Probe> using Body=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,kWK,Op,U,InputNorm,
       R,false,kSide,true,Probe>;
 };
@@ -138,6 +138,17 @@ static int OverlappingSms(std::vector<BodySpan> const& spans,int active) {
   return int(sms.size());
 }
 
+#ifdef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
+static Tick StageSpan(std::vector<BodySpan> const& spans,int active) {
+  Tick begin=spans[0].begin,end=spans[0].end;
+  for(int block=1;block<active;++block) {
+    begin=std::min(begin,spans[block].begin);
+    end=std::max(end,spans[block].end);
+  }
+  return end-begin;
+}
+#endif
+
 template<class C>
 __global__ void ZeroPaddedWeights(Element* weight) {
   using Layout=typename C::template Body<false>::LayoutB;
@@ -154,15 +165,25 @@ int Profile(cudaDeviceProp const& p) {
   constexpr int shared=std::max(C::template Body<false>::kSharedBytes,TILEMEGA_DENSE_SERVICE_RESERVE_SHARED);
   constexpr int output_elements=M*N/(C::kGate?2:1);
   auto plain=Run<C,false>;
+#ifndef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
   auto traced=Run<C,true>;
+#endif
   if(shared>p.sharedMemPerBlockOptin) {
     std::printf("{\"status\":\"resource_rejected\",\"dynamic_shared\":%d}\n",shared);
     return 0;
   }
   Check(cudaFuncSetAttribute(plain,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  Check(cudaFuncSetAttribute(traced,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  int plain_capacity,traced_capacity;
+  int plain_capacity;
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&plain_capacity,plain,160,shared));
+#ifdef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
+  if(plain_capacity<Residency) {
+    std::printf("{\"status\":\"resource_rejected\",\"requested\":%d,\"plain_residency\":%d,"
+                "\"dynamic_shared\":%d}\n",Residency,plain_capacity,shared);
+    return 0;
+  }
+#else
+  Check(cudaFuncSetAttribute(traced,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  int traced_capacity;
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&traced_capacity,traced,160,shared));
   cudaFuncAttributes plain_attr,traced_attr;
   Check(cudaFuncGetAttributes(&plain_attr,plain));Check(cudaFuncGetAttributes(&traced_attr,traced));
@@ -172,37 +193,76 @@ int Profile(cudaDeviceProp const& p) {
                 Residency,plain_capacity,traced_capacity,shared);
     return 0;
   }
+#endif
   int grid=p.multiProcessorCount*Residency;
   Device<Element> a(M*K),b(C::kPaddedN*K),residual(C::kResidual?M*N:1);
-  Device<Element> out(output_elements),trace_out(output_elements);
+  Device<Element> out(output_elements);
+#ifndef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
+  Device<Element> trace_out(output_elements);
+#endif
   Device<Sm80DenseService> service(grid);
   Device<BodySpan> span(grid);
   Fill<<<128,256>>>(a.address,M*K);Fill<<<256,256>>>(b.address,C::kPaddedN*K);
   if constexpr(N!=C::kPaddedN)ZeroPaddedWeights<C><<<K/TK,128>>>(b.address);
   if constexpr(C::kResidual)Fill<<<128,256>>>(residual.address,M*N);
   Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
+  std::vector<Element> reference(output_elements);
+  out.Read(reference);
+#ifndef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
   Run<C,true><<<grid,160,shared>>>(a.address,b.address,residual.address,trace_out.address,service.address,span.address);
   Check(cudaDeviceSynchronize());
-  std::vector<Element> reference(output_elements),actual(output_elements);
-  out.Read(reference);trace_out.Read(actual);
+  std::vector<Element> actual(output_elements);
+  trace_out.Read(actual);
   if(std::memcmp(reference.data(),actual.data(),reference.size()*sizeof(Element)))
     throw std::runtime_error("instrumented production operator changed the output");
+#endif
   if constexpr(N!=C::kPaddedN) {
     using Padded=typename C::Padded;
-    constexpr int padded_cols=C::kPaddedN/2;
+    constexpr int columns=N/(C::kGate?2:1),padded_cols=C::kPaddedN/(C::kGate?2:1);
     auto padded=Run<Padded,false>;
     Check(cudaFuncSetAttribute(padded,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-    Device<Element> padded_output(M*padded_cols);
-    padded<<<grid,160,shared>>>(a.address,b.address,residual.address,padded_output.address,
+    Device<Element> padded_output(M*padded_cols),padded_residual(C::kResidual?M*C::kPaddedN:1);
+    if constexpr(C::kResidual) {
+      Check(cudaMemset(padded_residual.address,0,M*C::kPaddedN*sizeof(Element)));
+      Check(cudaMemcpy2D(padded_residual.address,C::kPaddedN*sizeof(Element),
+                         residual.address,N*sizeof(Element),N*sizeof(Element),M,cudaMemcpyDeviceToDevice));
+    }
+    padded<<<grid,160,shared>>>(a.address,b.address,padded_residual.address,padded_output.address,
                                service.address,span.address);
     std::vector<Element> padded_rows(M*padded_cols);
     padded_output.Read(padded_rows);
     for(int row=0;row<M;++row)
-      if(std::memcmp(reference.data()+row*(N/2),padded_rows.data()+row*padded_cols,
-                     (N/2)*sizeof(Element)))
-        throw std::runtime_error("clipped gate output changed valid SwiGLU columns");
+      if(std::memcmp(reference.data()+row*columns,padded_rows.data()+row*padded_cols,
+                     columns*sizeof(Element)))
+        throw std::runtime_error("padded tile changed valid output columns");
   }
   std::vector<BodySpan> times(grid);
+#ifdef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
+  std::vector<Tick> spans;
+  constexpr int tiles=C::kPaddedN/TN;
+  int active=std::min(grid,tiles),min_overlapping=p.multiProcessorCount;
+  int evict_elements=3*p.l2CacheSize/int(sizeof(Element));
+  Device<Element> evict(evict_elements);
+  for(int trial=0;trial<7;++trial) {
+    Fill<<<p.multiProcessorCount*4,256>>>(evict.address,evict_elements);
+    Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,
+                                    service.address,span.address);
+    span.Read(times);
+    spans.push_back(StageSpan(times,active));
+    min_overlapping=std::min(min_overlapping,OverlappingSms(times,active));
+  }
+  double elapsed=Median(spans);
+  if(elapsed<=0)throw std::runtime_error("invalid SM80 stage timer");
+  std::printf("{\"status\":\"measured\",\"n\":%d,\"k\":%d,\"batch\":%d,\"tn\":%d,\"tk\":%d,"
+              "\"slots\":%d,\"grid\":%d,\"requested_residency\":%d,\"plain_residency\":%d,"
+              "\"dynamic_shared\":%d,\"active_ctas\":%d,\"overlapping_sms\":%d,"
+              "\"logical_weight_bytes\":%lld,\"l2_eviction_bytes\":%d,\"stage_span_ns\":%.3f,"
+              "\"effective_gbps\":%.3f,"
+              "\"padded_n\":%d,\"clipped_output_bitwise_equal\":%s}\n",
+              N,K,M,TN,TK,C::kSlots,grid,Residency,plain_capacity,shared,active,min_overlapping,
+              2ll*N*K,evict_elements*int(sizeof(Element)),elapsed,2.0*N*K/elapsed,
+              C::kPaddedN,N==C::kPaddedN?"null":"true");
+#else
   std::vector<Sm80DenseService> rows(grid);
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
@@ -278,6 +338,7 @@ int Profile(cudaDeviceProp const& p) {
   if constexpr(TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE>1)
     std::printf(",\"sample_stride\":%d",TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE);
   std::printf("}\n");
+#endif
   return 0;
 }
 

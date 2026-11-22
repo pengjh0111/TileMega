@@ -25,6 +25,9 @@ def main():
     parser.add_argument('--copy', type=int, choices=(0, 4, 8), default=0)
     parser.add_argument('--residual-copy', action='store_true')
     parser.add_argument('--reserve-program-shared', action='store_true')
+    parser.add_argument('--residency', type=int, choices=(1, 2))
+    parser.add_argument('--width-scan', action='store_true',
+                        help='measure stage span by active CTA boundaries with cold weights')
     parser.add_argument('--sample-stride', type=int, choices=(1, 8, 16, 32), default=1,
                         help='instrument every Nth CTA in the diagnostic arm')
     parser.add_argument('--epilogue-clock', action='store_true',
@@ -33,6 +36,8 @@ def main():
     parser.add_argument('--ring', action='append', default=[], metavar='FAMILY:SLOTS[:TILE_K[:TILE_N[:WARPS_N]]]',
                         help='compile an alternative ring depth and optional K and N tiles and N warp count')
     args = parser.parse_args()
+    if args.width_scan and (args.epilogue_clock or args.sample_stride != 1):
+        parser.error('--width-scan does not sample role or epilogue clocks')
     if args.epilogue_clock and any(family not in ('o', 'down') for family in args.families):
         parser.error('clock-based epilogue timing requires residual families')
     if args.residual_copy and (not args.copy or not any(f in ('o', 'down') for f in args.families)):
@@ -62,8 +67,9 @@ def main():
     reserve = (json.loads(Path(str(decode)+'.identity.json').read_text())['shared_memory_bytes']
                if args.reserve_program_shared else 0)
     gems = coords['gemms']
-    batch, grid, residency = anchor['batch'], manifest['grid'], coords['residency']
-    if grid != 108 * residency or len(set(args.families)) != len(args.families):
+    batch, residency = anchor['batch'], args.residency or coords['residency']
+    grid = 108 * residency
+    if manifest['grid'] != 108 * coords['residency'] or len(set(args.families)) != len(args.families):
         raise ValueError('expected unique A800-SXM4-80GB service cases')
     # Generated body aliases carry the actual padded N, K and epilogue.
     # An export input shape can differ after QKV fusion and weight packing.
@@ -93,11 +99,9 @@ def main():
             tk = incumbent_tk if tile_k is None else tile_k
             wn = incumbent_wn if warps_n is None else warps_n
             wk = 4//wn
-            if n % tn and (family != 'gate_up' or coords.get('payload') != 'reuse'
-                           or batch != 16 or residency != 2 or (n+tn-1)//tn > grid
-                           or n % (2*packed_u) or (tn, tk, slots, wn) !=
-                           (incumbent_tn, incumbent_tk, incumbent_slots, incumbent_wn)):
-                raise ValueError('partial N probe requires the linked one-wave gate')
+            tasks = (n+tn-1)//tn
+            if tn > n or n % tn and (n % 32 or tasks > 3*grid):
+                raise ValueError('N tile exceeds the native padded payload domain')
             partial_n |= bool(n % tn)
             if tn % (8 * wn):
                 raise ValueError(f'{family} has unaligned N tile {tn}')
@@ -108,7 +112,9 @@ def main():
                     continue
                 live = args.live and batch < 16 and (family == 'gate_up' or wk > 1)
                 copy = args.copy if family == 'gate_up' or (args.residual_copy and family in ('o', 'down')) else 0
-                side = max(2, (n//tn + grid-1)//grid) if epilogue == 'residual' else 0
+                side = max(2, (tasks + grid-1)//grid) if epilogue == 'residual' else 0
+                if side > 3:
+                    raise ValueError('residual stage exceeds three tasks per CTA')
                 name = f'{suffix}-{family}-u{u}-rows{int(live)}-copy{copy}'
                 if family in rings:
                     name += f'-slots{slots}'
@@ -141,6 +147,7 @@ def main():
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
+               *(['-DTILEMEGA_DENSE_SERVICE_WIDTH_SCAN=1'] if args.width_scan else []),
                *(['-DTILEMEGA_SM80_PADDED_GATE=1'] if partial_n else []),
                *([f'-DTILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE={args.sample_stride}'] if args.sample_stride>1 else []),
                str(ROOT/'scripts/a800_dense_service_probe.cu'), '-o', str(binary)]
@@ -150,7 +157,8 @@ def main():
     if 'sm_80' not in listing:
         raise ValueError('probe has no linked SM80 image')
     (out/'probe.identity.json').write_text(json.dumps(dict(
-        contract='sm80-dense-gemm-service-v1', source_sha=subprocess.check_output(
+        contract='sm80-dense-width-scan-v1' if args.width_scan else 'sm80-dense-gemm-service-v1',
+        source_sha=subprocess.check_output(
             ['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         anchor_sha256=sha(args.anchor), source_file_sha256=sha(ROOT/'scripts/a800_dense_service_probe.cu'),
         command=command, architecture='sm_80', roles=[32,128],
