@@ -33,6 +33,7 @@ struct Sm90DenseGemm {
   // D10c: the CTA pair of a cluster shares each A slot by TMA multicast.
   bool multicast=false;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
+  int TaskCount(int n) const {return (n+tile_n-1)/tile_n;}
   int ResidualTiles(bool residual,int n,int grid) const {
     return !residual?0:grid>0?backend::Sm90DenseLayout::ResidualTiles(n/tile_n,grid):2;
   }
@@ -44,8 +45,9 @@ struct Sm90DenseGemm {
   bool FullyResident(int k) const {return slots==k/TileK();}
   // D6 preissue: the first task's slots, weights only (prompt §6).
   int StreamBytes(int k) const {return std::min(slots,k/TileK())*slot_bytes;}
-  void Validate(int n,int k) const {
-    if(n<=0 || k<=0 || tile_n<8 || tile_n>n || tile_n%8 || n%tile_n || warps_n<1 ||
+  void Validate(int n,int k,bool allow_n_tail=false) const {
+    if(n<=0 || k<=0 || tile_n<8 || tile_n>n || tile_n%8 ||
+       (!allow_n_tail && n%tile_n) || warps_n<1 ||
        (warps_n!=1 && warps_n!=2 && warps_n!=4) || warps_n*warps_k!=4 ||
        tile_n%(8*warps_n) || slot_bytes<=0 || slot_bytes%(2ll*tile_n) ||
        TileK()%64 || k%TileK() || slots<2 || slots>8 ||
@@ -204,7 +206,11 @@ struct Sm90DenseCoordinates {
        std::any_of(gemms.begin(),gemms.end(),[&](Sm90DenseGemm const& g) {
          return g.multicast && cluster<2;}) || gemms[5].multicast || gemms[6].multicast || gemms[7].multicast)
       throw std::invalid_argument("illegal sm90 dense cluster coordinate");
-    for(unsigned i:Active())gemms[i].Validate(nk[i][0],nk[i][1]);
+    for(unsigned i:Active()) {
+      bool allow_n_tail=i==2 && reuse_payload && batch==16 && residency==2 && tp==1 &&
+          nk[i][0]%(2*swiglu_u)==0;
+      gemms[i].Validate(nk[i][0],nk[i][1],allow_n_tail);
+    }
     // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
     if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
       throw std::invalid_argument("sm90 dense gate tile splits a gate/up pair");
@@ -223,6 +229,8 @@ struct Sm90DenseCoordinates {
   void ValidateSchedule(Sm90DenseShapeTable const& nk,int batch,
       int dim,int queries,int capacity,std::int64_t budget,int grid=0) const {
     Validate(nk,batch);
+    if(!moe && nk[2][0]%gemms[2].tile_n && gemms[2].TaskCount(nk[2][0])>grid)
+      throw std::invalid_argument("padded native gate must fit in one task wave");
     // Overlapping stages require disjoint preissue storage. A plan without
     // preissue can reuse the entire payload after each CTA-local stage join.
     int arena=Sm90DenseArena(budget,reuse_payload);

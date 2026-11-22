@@ -57,12 +57,12 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   int b = work.batch;
   // Shapes exactly as Sm90DenseCostModel.cpp:34-40 derives them, including
   // MR6's n_active = E (1 - (1 - k/E)^B) and the per-family row count.
-  double n = work.shapes[family][0], k = work.shapes[family][1];
+  int n = work.shapes[family][0], k = work.shapes[family][1];
   double active = family >= 6
       ? Sm90NativeExpectedActiveExperts(work.experts,work.top_k,b) : 1.0;
   double rows = family == 6 ? b * double(work.top_k) / active
                             : family == 7 ? (b <= 8 ? 8 : 16) : b;
-  double tasks = n / g.tile_n * active;
+  double tasks = g.TaskCount(n) * active;
 
   Sm90NativeStagePrice price;
   price.name = "gemm" + std::to_string(family);

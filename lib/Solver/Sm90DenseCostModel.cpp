@@ -273,8 +273,8 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   // MR6: n_active = E (1 - (1 - k/E)^B) from the workload.
   double active=family>=6?work.experts*(1-std::pow(1-double(work.top_k)/work.experts,b)):1;
   double rows=family==6?b*double(work.top_k)/active:family==7?(b<=8?8:16):b;
-  double tasks=n/g.tile_n*active,per_cta=std::ceil(tasks/grid);
-  double w_tot=2.0*n*k*active,a_tot=tasks*rows*k*2.0;
+  double tasks=g.TaskCount(n)*active,per_cta=std::ceil(tasks/grid);
+  double w_tot=2.0*g.tile_n*k*tasks,a_tot=tasks*rows*k*2.0;
   double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*rows*k*2.0;
   // D10c: each CTA of a multicast pair issues half the A slots, and L2
   // serves every A slot once per pair.

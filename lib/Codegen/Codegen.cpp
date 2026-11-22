@@ -2439,8 +2439,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         throw std::invalid_argument("native all-reduce epilogue in an unsharded plan");
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="residual_ar"?"kResidualAllReduce":op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
-      weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
-      tasks=integerField(g,"n")/cfg.tile_n;
+      weight=name(integerField(g,"b"));tasks=cfg.TaskCount(int(n));
+      if(n%cfg.tile_n && (!cp_async || tasks>grid))
+        throw std::invalid_argument("padded native gate requires one SM80 task wave");
+      bytes=2ull*tasks*cfg.tile_n*k;
       bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
       head<<(cp_async?"AmpereGemm<":"Gemm<")<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
           <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
