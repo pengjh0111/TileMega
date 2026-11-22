@@ -2389,7 +2389,12 @@
         "216:96:64:2:2": 158.741330406,
         "216:96:64:4:1": 88.1037880462,
         "216:96:64:4:2": 88.0894968825,
-        "216:96:64:4:4": 88.1153538009
+        "216:96:64:4:4": 88.1153538009,
+        "216:160:64:2:1": 255.073982587,
+        "216:160:64:2:2": 247.647434778,
+        "216:160:64:4:1": 118.872406996,
+        "216:160:64:4:2": 118.916430628,
+        "216:160:64:4:4": 118.89262445
       },
       "method": "fresh process median, per K16 and split-K warp group, one CTA per SM",
       "p99_ns": {
@@ -2805,7 +2810,12 @@
         "216:96:64:2:2": 161.893747441,
         "216:96:64:4:1": 88.4619195948,
         "216:96:64:4:2": 88.4475703392,
-        "216:96:64:4:4": 88.4735253967
+        "216:96:64:4:4": 88.4735253967,
+        "216:160:64:2:1": 258.398605517,
+        "216:160:64:2:2": 257.355738031,
+        "216:160:64:4:1": 121.832006893,
+        "216:160:64:4:2": 121.838863017,
+        "216:160:64:4:4": 121.837556309
       },
       "processes": 5,
       "supplements": [
@@ -3287,6 +3297,26 @@
           ],
           "processes_per_series": 1,
           "evidence": "/work/TileMega-a800/runs/a800/optimization/r3-mandate/r1/probes/allocation-351481",
+          "dual_shared": 79872
+        },
+        {
+          "parent_profile_sha256": "49127f3e25d5a484cc7a6858e78675a15f6875feaa8f6fd0587025ffed84f5fc",
+          "method": "isolated SM80 MMA per K16 and split-K warp group",
+          "plan_sha256": "05c0ff3e50dc2e02d5297e5b9d74a3d940aeab07b9411e4ed06871ff68daa6f8",
+          "guard_result_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "device_receipt_sha256": "90957e280e5e72d867dbbaf3bbfd5d4dd4f1b79f8cd0836925723d9664243f66",
+          "admission_sha256": "350f0ee2f7145f00ec2b112a022e76f7822035f83aa4ef4974e39fcac985607a",
+          "gpu_uuid": "GPU-b9cfa5bf-a8cf-3cb4-cfc1-d204c0b518c2",
+          "source_commit": "e461b2a63fc2f49634dc2082c3a89cb7682aec62",
+          "shape_keys": [
+            "216:160:64:2:1",
+            "216:160:64:2:2",
+            "216:160:64:4:1",
+            "216:160:64:4:2",
+            "216:160:64:4:4"
+          ],
+          "processes_per_series": 1,
+          "evidence": "/work/TileMega-a800/runs/a800/optimization/r5-residual/gate160-mma/build/allocation-353347",
           "dual_shared": 79872
         }
       ]
@@ -7872,6 +7902,69 @@
               "clipped_output_bitwise_equal": true,
               "sample_stride": 16,
               "case": "llama3_2_3b-b16-gate_up-u16-rows0-copy0"
+            }
+          },
+          "rejected": {},
+          "additional_observations": {}
+        },
+        {
+          "schema": 1,
+          "base_target_sha256": "49dde872e2746453ddf54ef2d7a55b5acae93dfc1f558e76c442d93597597993",
+          "source_sha": "af54404b6b7c12abcb9cd5a3f2b2ace2823587e2",
+          "body_headers": {
+            "Backend/Sm90DenseGemm.h": "5e7ef9f8db9fbe2e44fe30dfc6081f73da10de930607a981ee4cce4a7c0853be",
+            "Backend/Sm80DenseService.cuh": "31049f70db45741b2b5456331d2fef1c29a1be2839b078a344b4d980e6d0d9f5",
+            "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+            "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+            "Backend/Sm90DenseEpilogue.h": "3855b442853c9f7ae00fc18c66ce0d9fed24cff5d29a0234e63bebfd49d54490",
+            "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3"
+          },
+          "binary_sha256": "6ef62cacb3670d3febd07b86e42ed4abd232809164a6deaa6ca238168983654f",
+          "gpu_uuid": "GPU-0a291715-7b13-68ef-02cc-469c575dd782",
+          "guard_result_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
+          "evidence": "/work/TileMega-a800-r5-ntail-service/runs/a800/calibration/r2-supplement-service/353320/r5-gate160-exact",
+          "measurements": {
+            "swiglu:216:28672:4096:16:160:64:3:4:1:1:16:0:1:0:0": {
+              "status": "measured",
+              "epilogue": "swiglu",
+              "input_norm": true,
+              "weight_layout": "contiguous",
+              "u": 16,
+              "live_rows": false,
+              "copy_issue_group": 0,
+              "residual_tiles": 0,
+              "batch": 16,
+              "n": 28672,
+              "k": 4096,
+              "tn": 160,
+              "tk": 64,
+              "slots": 3,
+              "register_stages": 1,
+              "warps_n": 4,
+              "warps_k": 1,
+              "grid": 216,
+              "requested_residency": 2,
+              "plain_residency": 2,
+              "traced_residency": 2,
+              "dynamic_shared": 79872,
+              "overlapping_sms": 72,
+              "static_shared": 0,
+              "registers": 83,
+              "traced_registers": 86,
+              "local_bytes": 48,
+              "traced_local_bytes": 48,
+              "untraced_span_ns": 147456.0,
+              "traced_span_ns": 148480.0,
+              "producer_wait_ns_per_tile": 1312.0,
+              "producer_issue_ns_per_tile": 624.0,
+              "consumer_wait_ns_per_tile": 1472.0,
+              "consumer_mma_ns_per_tile": 496.0,
+              "consumer_epilogue_ns_per_task": 3072.0,
+              "output_bitwise_equal": true,
+              "padded_n": 28800,
+              "clipped_output_bitwise_equal": true,
+              "sample_stride": 16,
+              "case": "llama3_1_8b-b16-gate_up-u16-rows0-copy0"
             }
           },
           "rejected": {},
