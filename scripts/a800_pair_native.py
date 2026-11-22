@@ -16,6 +16,15 @@ from a800_native import artifact
 from tilemega.bench.scheduler import write_json
 
 
+def timed_requests(result):
+    runs = {(row['N'], row['run']): float(row['wall_seconds'])
+            for row in result['generation_runs'] if not row['warmup']}
+    if (set(runs) != {(length, repeat) for length in (1, 1024) for repeat in (1, 2, 3)}
+            or any(not math.isfinite(value) or value <= 0 for value in runs.values())):
+        raise ValueError('expected three timed requests at each frozen decode length')
+    return [[runs[length, repeat] for repeat in (1, 2, 3)] for length in (1, 1024)]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('plan', 'run'))
@@ -84,17 +93,31 @@ def main():
                   ('ttft_seconds', 'e2e_seconds', 'tpot_seconds', 'output_tokens_per_second')}
         if any(not math.isfinite(value) or value <= 0 for value in metric.values()):
             raise ValueError('paired comparison has invalid request metrics')
+        short, long = timed_requests(result)
+        individual = [(end - start)/1023 for start, end in zip(short, long)]
+        measured = (statistics.median(long)-statistics.median(short))/1023
+        if min(individual) <= 0 or not math.isclose(measured, metric['tpot_seconds'], rel_tol=1e-7):
+            raise ValueError('timing receipt differs from the frozen TPOT protocol')
         rounds.append(dict(arm=label, round=round_index, gpu_uuid=receipt['device_uuid'],
             tokens_sha256=receipt['tokens_sha256'], checkpoint_sha256=result['checkpoint']['checkpoint_sha256'],
+            config_sha256=result['model_config_sha256'], prompt_sha256=result['prompt_ids_sha256'],
+            n1_seconds=short, n1024_seconds=long, tpot_by_repeat_seconds=individual,
             measurement_sha256=sha(result_path), **metric))
         write_json(out/'rounds.json', rounds)
     if any(len({r[field] for r in rounds}) != 1
-           for field in ('gpu_uuid', 'tokens_sha256', 'checkpoint_sha256')):
+           for field in ('gpu_uuid', 'tokens_sha256', 'checkpoint_sha256',
+                         'config_sha256', 'prompt_sha256')):
         raise ValueError('paired comparison changed GPU, output tokens, or weights')
     medians = {label: {name: statistics.median(r[name] for r in rounds if r['arm'] == label)
                        for name in metric} for label in libraries}
+    control, trial = rounds
+    paired_tpot = [old/new for old,new in zip(control['tpot_by_repeat_seconds'],
+                                             trial['tpot_by_repeat_seconds'])]
     write_json(out/'result.json', dict(protocol_version='a800-single-v2',kind='paired_tuning',
         formal_timing=False, rounds=len(rounds), medians=medians,
+        paired_tpot_ratios=paired_tpot,
+        clears_tpot_screen=all(ratio>1 for ratio in paired_tpot)
+            and trial['tpot_seconds'] < .995 * control['tpot_seconds'],
         paired_e2e_ratios=[group['control']['e2e_seconds']/group['trial']['e2e_seconds']
                            for group in ({r['arm']: r for r in rounds[i:i+2]} for i in range(0, len(rounds), 2))]))
     print(json.dumps(medians), flush=True)
