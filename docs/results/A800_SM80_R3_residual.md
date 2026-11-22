@@ -94,4 +94,10 @@
 
 **Verified** · OLMoE B16 通过了五次新正确性进程，独立计时作业 353323 随后给出 T1 0.531104 s、T1024 9.763991 s 和 TPOT 9.025305 ms/token，较正式旧值 9.185485 ms/token 降低 1.744%。新 decode SHA-256 为 2cb07632d481ed86a2122b7778224c65d0d44284b226d2960c22734bb7faad5a。冻结 baseline 逐字节一致。
 
-**Verified** · 40 格目前为 31 胜、3 平、6 负，几何平均加速比 1.099106，带宽效率的几何平均为 0.692953。其余 39 格正式产物和 TPOT 沿用上一份矩阵。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
+**Verified** · Llama-3B B16 的 TN96 三槽正式二进制通过作业 353322 的五次独立正确性验收，作业 353361 的独立 T1、T1024 和 TPOT 分别为 0.178642 s、6.333778 s 和 6.016750 ms/token。较上一份正式矩阵 6.158939 ms/token 降低 2.308%，带宽效率升为 0.7377。新二进制 SHA-256 为 5c97af41e1c6d6c51501195cd2c932bd3cd78b4382e2ddd4f89043d1f6452b5c。
+
+**Verified** · 登录节点重新导入原 40 格正式 CTG。新旧编译器对每格的 additive、pool、replay 和逐 stage 价格均完全一致。编译器的 native prices、flow 和 pipeline 单元测试全部通过。
+
+**Verified** · Qwen30 B8 在 353302_1 完成同卡筛选。四槽共享 ring 与对照输出相同，TPOT 为 19.381591 对 19.407654 ms/token，差异 0.134%，保留正式对照。
+
+**Verified** · 40 格目前为 31 胜、3 平、6 负，几何平均加速比 1.099748，带宽效率的几何平均为 0.693358。 [40 格正式 TPOT](A800_llm.csv) · [绝对执行时间](A800_execution_times.md) · [带宽效率](A800_SM80_R3_residual_efficiency.csv)
