@@ -159,11 +159,13 @@ def append(target, run, control, reference, trace, body_only=False, device_proof
                     or any('Sm90DenseAttentionBody' not in name
                            for name in comparison['changed_functions'] + comparison['changed_instruction_functions'])):
                 raise ValueError('rebuilt production fused stage or caller is different')
+            compiled = {name: comparison['compiled_headers'][f'include/tilemega/{name}']
+                        for name in headers}
             body['device_equivalence'] = dict(
                 scope='fused stage and native caller', comparison_sha256=sha(device_proof),
                 rebuilt_sha256=comparison['rebuilt_sha256'], instructions=comparison['instruction_functions'],
-                compiled_body_headers={name: comparison['compiled_headers'][f'include/tilemega/{name}']
-                                       for name in headers})
+                compiled_body_headers=compiled, measured_body_headers=headers)
+            headers = compiled
         profile = dict(shape=shape, body_headers=headers, production_body=body,
                        source_sha=baseline['source']['head'], binary_sha256=baseline['binary_sha256'],
                        measurement=dict(grid=baseline['plan']['grid'], plain_residency=1,
