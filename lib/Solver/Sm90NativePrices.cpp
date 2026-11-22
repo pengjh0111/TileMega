@@ -94,6 +94,9 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   // flight from the previous stage; weight_stream is exactly that case (D6).
   parts.no_producer_dram_bytes = weight_stream ? weights : 0.0;
   parts.dram_rate_cap = RateCap(c, double(g.slots) * g.slot_bytes);
+  if(!weight_stream)
+    if(auto rate=cost.ProjectionIssueRate(work,family,g,residency,coordinates))
+      parts.dram_rate_cap=std::min(parts.dram_rate_cap,*rate);
 
   // :58 epilogue, :54 the MoE per-task fixed cost, :61 the TP all-reduce.
   static constexpr char const* kEpilogue[] = {"qkv", "residual", "gate_up", "residual",

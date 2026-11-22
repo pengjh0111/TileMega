@@ -110,6 +110,14 @@ double Sm90DenseCostModel::ActivationIssueNs(Sm90DenseWorkload const& work,unsig
   return 2*elements/constants_.cp_async_gbps;
 }
 
+std::optional<double> Sm90DenseCostModel::ProjectionIssueRate(Sm90DenseWorkload const& work,
+    unsigned family,Sm90DenseGemm const& g,int residency,Sm90DenseCoordinates const* c) const {
+  if((family!=0 && family!=1 && family!=3) || (c && (c->weight_stream || c->residual_copy_issue)))
+    return std::nullopt;
+  return constants_.AmpereProjectionIssueRate(work.batch,work.shapes[family][0],
+      work.shapes[family][1],g.tile_n,g.TileK(),g.slots,Grid(residency),family==0);
+}
+
 std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
@@ -285,6 +293,8 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double waves=Waves(tasks,grid,2.0*g.tile_n*k);
+  auto issue_rate=ProjectionIssueRate(work,family,g,residency,coordinates);
+  if(issue_rate)waves=std::max(w_tot/c.dram_gbps,w_cta/(*issue_rate));
   double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
   auto service=GemmService(work,family,g,residency,coordinates);
   double producer=ActivationIssueNs(work,family,g,per_cta,true);
@@ -315,6 +325,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     if(target_.arch_tag=="sm_80")fields.emplace_back("mma",arithmetic);
     if(service)fields.emplace_back("producer_issue",producer);
     else if(producer>0)fields.emplace_back("activation_issue_lower_bound",producer);
+    if(issue_rate)fields.emplace_back("projection_issue_gbps",*issue_rate);
     if(target_.arch_tag=="sm_80") {
       fields.emplace_back("last_wave_ctas",tasks-(per_cta-1)*grid);
       fields.emplace_back("max_tasks_per_cta",per_cta);

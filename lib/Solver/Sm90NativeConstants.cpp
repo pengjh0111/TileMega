@@ -113,6 +113,21 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.route_la_=s.At("route_la_ns");c.round_=s.At("round_ns");
   if(!ampere) {c.clusters_=s.At("clusters");c.dsmem_=s.At("dsmem_merge_ns");}
   else if(auto const* mma=s.Find("mma_mainloop"))c.ampere_mma_=mma->At("median_ns");
+  if(auto const* projection=s.Find("projection_issue_profile")) {
+    auto const& coefficients=projection->At("coefficients").AsArray("projection issue coefficients");
+    if(!ampere || projection->At("schema").AsNumber("projection issue schema")!=1 ||
+       coefficients.size()!=c.ampere_projection_coefficients_.size() ||
+       projection->At("sms").AsNumber("projection SM count")!=
+           target.At("resources").At("num_sms").AsNumber("SM count"))
+      throw std::invalid_argument("projection issue profile differs from the SM80 target");
+    c.ampere_projection_sms_=int(projection->At("sms").AsNumber("projection SM count"));
+    c.ampere_projection_batch_=int(Positive(projection->At("batch"),"projection issue batch"));
+    for(std::size_t i=0;i<coefficients.size();++i) {
+      double value=coefficients[i].AsNumber("projection issue coefficient");
+      if(!std::isfinite(value))throw std::invalid_argument("nonfinite projection issue coefficient");
+      c.ampere_projection_coefficients_[i]=value;
+    }
+  }
   if(auto const* service=s.Find("dense_gate_service")) {
     auto schema=service->At("schema").AsNumber("dense gate service schema");
     if(!ampere || (schema!=1 && schema!=2))
@@ -477,6 +492,19 @@ std::optional<double> Sm90NativeConstants::AmpereMmaK16(int grid,int tn,int tk,i
   auto const* value=ampere_mma_.Find(key);
   if(!value)return std::nullopt;
   return Positive(*value,"Ampere MMA K16 slice");
+}
+std::optional<double> Sm90NativeConstants::AmpereProjectionIssueRate(int batch,int n,int k,
+    int tn,int tk,int slots,int grid,bool input_norm) const {
+  if(batch!=ampere_projection_batch_)return std::nullopt;
+  int tasks=(n+tn-1)/tn,waves=(tasks+grid-1)/grid;
+  double dual_ctas=std::max(0.,double(std::min(tasks,grid))/ampere_projection_sms_-1);
+  std::array<double,9> features={1,std::log2(tn/64.),std::log2(tk/64.),double(slots-2),
+      std::log2(k/4096.),double(input_norm),std::log2(double(waves)),dual_ctas,
+      double(tasks-(waves-1)*grid)/grid};
+  double log_rate=0;
+  for(std::size_t i=0;i<features.size();++i)
+    log_rate+=features[i]*ampere_projection_coefficients_[i];
+  return std::exp(log_rate);
 }
 std::string Sm80DenseServiceShape::Key() const {
   std::string key=epilogue;

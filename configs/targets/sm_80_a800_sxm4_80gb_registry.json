@@ -184,6 +184,45 @@
     "warp_size": 32
   },
   "sm80_native_constants": {
+    "projection_issue_profile": {
+      "schema": 1,
+      "batch": 16,
+      "sms": 108,
+      "source": "guarded_cold_projection_spans",
+      "widths_sha256": "97c1619853a7fca7841cdb173b33c22d14b61c3b5d4e4f123866ef7283b6fcd3",
+      "roles_sha256": "772334a2f0e35d4f2254136c32eda5c072e67e57c96f7f77de35c7ce5e8665e6",
+      "body_headers": {
+        "Sm90DenseGemm.h": "028fa3f684cb1f7894d9c30f4888f744d672a910301c1f7328e0b59a1387addb",
+        "Sm90DenseEpilogue.h": "02d2390a48ba1951f409ac17f8926b7fb30f726140a01c3a26497b43d3b9c009",
+        "Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3"
+      },
+      "measured_arms": 136,
+      "resource_rejected_arms": 8,
+      "loo_median_absolute_relative_error": 0.04017488755469748,
+      "loo_p95_absolute_relative_error": 0.14104963780549412,
+      "feature_order": [
+        "bias",
+        "log2_tn_over_64",
+        "log2_tk_over_64",
+        "slots_minus_2",
+        "log2_k_over_4096",
+        "input_norm",
+        "log2_waves",
+        "dual_cta_pressure",
+        "last_wave_fraction"
+      ],
+      "coefficients": [
+        2.4337047663762483,
+        0.5198289964563177,
+        0.21964891192794742,
+        0.1683253023961564,
+        0.04888124498535842,
+        -0.14404286471434685,
+        0.07053749811771991,
+        -0.38619969780780183,
+        -0.07347517514373691
+      ]
+    },
     "activation_cp_async_gbps": 12.88,
     "activation_cp_async_source": "measured two-slot swizzled SM80 activation ring",
     "argmax_la_ns": {

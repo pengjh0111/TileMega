@@ -78,6 +78,8 @@ class Sm90NativeConstants {
   std::optional<double> AmpereMmaK16(int grid,int tn,int tk,int wn,int stages) const;
   std::optional<Sm80DenseService> AmpereDenseService(Sm80DenseServiceShape const&) const;
   std::optional<double> AmpereResidualEpilogue(Sm80DenseServiceShape const&) const;
+  std::optional<double> AmpereProjectionIssueRate(int batch,int n,int k,int tn,int tk,
+      int slots,int grid,bool input_norm) const;
   std::optional<Sm80FusedExpertService> AmpereFusedService(Sm80FusedExpertShape const&) const;
   std::optional<double> AmpereFusedBody(Sm80FusedExpertShape const&) const;
   std::vector<Sm80FusedExpertShape> const& AmpereFusedShapes() const {return ampere_fused_shapes_;}
@@ -117,6 +119,8 @@ class Sm90NativeConstants {
   std::map<std::array<int,22>,double> ampere_fused_body_;
   std::vector<Sm80FusedExpertShape> ampere_fused_shapes_;
   std::vector<Sm80DenseServiceShape> ampere_dense_shapes_;
+  int ampere_projection_batch_=0,ampere_projection_sms_=0;
+  std::array<double,9> ampere_projection_coefficients_{};
   double cta_dram_gbps_=0;
   json::Value const& AttentionShape(int dim,int queries,int norm) const;
 };
