@@ -32,6 +32,28 @@ def cases(domain, sms):
     return groups
 
 
+def census(args):
+    missing = {}
+    for cell, rows in read(args.domain).items():
+        for row in rows:
+            if row['measured']:
+                continue
+            key = row['mma_key']
+            record = missing.setdefault(key, dict(family_options=0, cells=set(), families=set()))
+            record['family_options'] += row['family_options']
+            record['cells'].add(cell)
+            record['families'].add(row['family'])
+    with args.out.open('x', newline='') as stream:
+        fields = ('mma_key', 'family_options', 'cells', 'families')
+        writer = csv.DictWriter(stream, fields, lineterminator='\n')
+        writer.writeheader()
+        for key in sorted(missing, key=lambda value: tuple(map(int, value.split(':')))):
+            row = missing[key]
+            writer.writerow(dict(mma_key=key, family_options=row['family_options'],
+                                 cells=len(row['cells']), families=' '.join(sorted(row['families']))))
+    print(f'{len(missing)} missing MMA calibration keys', flush=True)
+
+
 def build(args):
     if os.environ.get('SLURM_JOB_ID'):
         raise ValueError('compile mainloop probes on the login node')
@@ -44,14 +66,23 @@ def build(args):
     source = ROOT/'scripts/sm90r2_mainloop_calibration.cu'
     args.out.mkdir(parents=True, exist_ok=True)
     outputs = []
-    for (residency, stages), shapes in sorted(cases(read(args.domain), sms).items(), reverse=True):
-        scope = args.out/f'r{residency}-s{stages}'
+    chunks = []
+    for (residency, stages), available in sorted(cases(read(args.domain), sms).items(), reverse=True):
+        shapes = sorted(available)
+        block = args.cases_per_binary or len(shapes)
+        for offset in range(0, len(shapes), block):
+            label = f'r{residency}-s{stages}'
+            if args.cases_per_binary:
+                label += f'-{offset//block}'
+            chunks.append((residency, label, shapes[offset:offset+block]))
+    for residency, label, shapes in chunks:
+        scope = args.out/label
         scope.mkdir(exist_ok=True)
         binary = scope/'mainloop'
         entries = scope/'cases.inc'
         entries.write_text(''.join(
             f'  Case<{tn},{tk},{wn},{r}>(p,frequency,times,errors);\n'
-            for tn, tk, wn, r in sorted(shapes)))
+            for tn, tk, wn, r in shapes))
         options = ['-std=c++17', '-O3', '-arch=sm_80', '-DTILEMEGA_ARCH_ID=800',
                    f'-DTILEMEGA_A800_MMA_CASE_FILE="{entries}"',
                    '--expt-relaxed-constexpr', '--expt-extended-lambda', '-Xptxas=-v',
@@ -207,6 +238,10 @@ def main():
     for flag in ('domain','target','out'):
         b.add_argument(f'--{flag}', required=True, type=Path)
     b.add_argument('--dual-shared', required=True, type=int)
+    b.add_argument('--cases-per-binary', type=int)
+    listing = sub.add_parser('census')
+    listing.add_argument('--domain', required=True, type=Path)
+    listing.add_argument('--out', required=True, type=Path)
     for mode in ('run','sample','collect'):
         stage = sub.add_parser(mode)
         stage.add_argument('--out', type=Path, required=True)
@@ -216,7 +251,11 @@ def main():
             stage.add_argument('--output-target', type=Path, required=True)
     args = parser.parse_args()
     if args.mode == 'build':
+        if args.cases_per_binary is not None and args.cases_per_binary < 1:
+            parser.error('--cases-per-binary must be positive')
         build(args)
+    elif args.mode == 'census':
+        census(args)
     else:
         plan, target = frozen(args.plan, args.plan_sha256)
         {'run':run, 'sample':sample, 'collect':collect}[args.mode](args, plan, target)
