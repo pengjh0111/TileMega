@@ -43,6 +43,12 @@ def validate(manifest, defines):
     live_rows = c.get('epilogue_rows') == 'live'
     issue_group = c.get('copy_issue_group')
     page_segments = c.get('expert_page_copy') == 'segments'
+    wide = c.get('producer_warps') == 2
+    compact_attention = c['attention'].get('compact_workspace') is True
+    residual_group = c.get('residual_copy_issue') is True
+    route_bases = c.get('expert_gu_routes') == 'bases'
+    slot_padding = c.get('expert_slot_padding') is True
+    gate_pages = c.get('expert_aligned_gate_pages')
     if 'expert_page_copy' in c and (not page_segments or c['model'] != 'moe'):
         raise ValueError('invalid SM80 expert page copy')
     if ('copy_issue_group' in c and
@@ -50,7 +56,15 @@ def validate(manifest, defines):
         raise ValueError('invalid native weight copy issue group')
     if ('payload' in c and not reuse) or ('epilogue_rows' in c and not live_rows):
         raise ValueError('unknown native payload or epilogue coordinate')
-    if (c['schema'] == 10) != bool(reuse or live_rows or issue_group or page_segments) or (c['schema'] == 10 and not ampere):
+    if ('producer_warps' in c and (not wide or not reuse or c.get('tp', 1) != 1)
+            or 'residual_copy_issue' in c and (not residual_group or not issue_group)
+            or 'expert_gu_routes' in c and (not route_bases or not c['expert_fuse'])
+            or 'expert_slot_padding' in c and (not slot_padding or c['model'] != 'moe')
+            or 'expert_aligned_gate_pages' in c and (type(gate_pages) is not bool or not c['expert_fuse'])):
+        raise ValueError('invalid native producer or expert copy coordinate')
+    explicit = (reuse or live_rows or issue_group or page_segments or wide or compact_attention
+                or residual_group or route_bases or slot_padding or gate_pages is not None)
+    if (c['schema'] == 10) != bool(explicit) or (c['schema'] == 10 and not ampere):
         raise ValueError('explicit native payload and epilogue modes require SM80 schema 10')
     if reuse and c.get('weight_stream'):
         raise ValueError('reused native payload cannot carry a preissued stage')
@@ -63,6 +77,17 @@ def validate(manifest, defines):
         raise ValueError('native copy issue group differs from generated macros')
     if page_segments != (defines.get('TILEMEGA_SM80_MOE_PAGE_SEGMENTS') == '1'):
         raise ValueError('native expert page copy differs from generated macros')
+    flags = dict(TILEMEGA_SM80_WIDE_PRODUCER=wide,
+                 TILEMEGA_SM80_RESIDUAL_COPY_GROUP=residual_group,
+                 TILEMEGA_SM80_MOE_GU_ROUTE_BASES=route_bases,
+                 TILEMEGA_SM80_MOE_SLOT_PADDING=slot_padding,
+                 TILEMEGA_SM80_COMPACT_ATTN=compact_attention)
+    if gate_pages is not None:
+        flags['TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES'] = gate_pages
+    if any((defines.get(macro) == '1') != enabled for macro, enabled in flags.items()):
+        raise ValueError('native producer or copy implementation differs from generated macros')
+    if any(g['n'] % g['tile_n'] for g in manifest['gemms']) != (defines.get('TILEMEGA_SM80_PADDED_GATE') == '1'):
+        raise ValueError('native padded tile geometry differs from generated macros')
     if (c['attention'].get('merge') not in ('la', 'dsmem', 'stage') or
             (c['attention'].get('merge') == 'stage' and c['schema'] < 8)):
         raise ValueError('native independent attention merge coordinate is invalid')
@@ -349,7 +374,7 @@ def dispatch(manifest, defines, source):
             reduces = tp > 1 and family in TP_OPS
             if ampere:
                 grid = manifest['grid']
-                tasks = gemm['n'] // gemm['tile_n']
+                tasks = (gemm['n'] + gemm['tile_n'] - 1) // gemm['tile_n']
                 residual = max(2, (tasks + grid - 1) // grid) if family in TP_OPS else 0
                 if len(args) != 18 or args[15] == 'kAbsent' or int(args[17]) != residual:
                     raise ValueError('SM80 native GEMM copy operands or residual capacity are invalid')

@@ -4,7 +4,7 @@ import re
 import json
 import unittest
 
-from tilemega.build.feature_contract import build_defines, implementations, validate_gemm_dispatch
+from tilemega.build.feature_contract import build_defines, implementations, validate, validate_gemm_dispatch
 
 ARENA = 113 * 1024
 SHAPES = [('qkv', 4096, 1024, 'kStore', 'true'), ('o', 1024, 2048, 'kResidual', 'false'),
@@ -109,6 +109,20 @@ class NativeContractTests(unittest.TestCase):
         info = implementations(self.plan, {})
         self.assertEqual(info['attention']['partition'], 'actual_past')
         self.assertEqual(info['gemms'][0]['task_body'], 'Sm90DenseGemm')
+
+    def test_ampere_projection_tail_and_producer_count_match_macros(self):
+        c = copy.deepcopy(self.coordinates)
+        c.update(schema=10, tp=1, payload='reuse', producer_warps=2, expert_fuse=False)
+        c['gemms']['qkv'] = gemm(96, 2, 128, 2)
+        plan = self.manifest(c)
+        plan['target_spec'] = dict(arch_tag='sm_80')
+        macros = dict(TILEMEGA_STATIC_DENSE_NATIVE='1', TILEMEGA_ARCH_ID='800',
+                      TILEMEGA_SWIGLU_U='8', TILEMEGA_SM80_PADDED_GATE='1',
+                      TILEMEGA_SM80_WIDE_PRODUCER='1')
+        validate(plan, macros)
+        for macro in ('TILEMEGA_SM80_PADDED_GATE', 'TILEMEGA_SM80_WIDE_PRODUCER'):
+            with self.subTest(macro=macro), self.assertRaises(ValueError):
+                validate(plan, dict(macros, **{macro: '0'}))
 
     def test_manifest_cannot_claim_uncompiled_geometry_or_structure(self):
         source = self.source(self.coordinates)
