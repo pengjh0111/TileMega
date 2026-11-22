@@ -304,28 +304,34 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
     if(compatible)c.ampere_attention_fresh_=fresh->At("measurements");
   }
   if(auto const* workspace=s.Find("compact_attention_service")) {
-    if(!ampere || workspace->At("schema").AsNumber("compact attention schema")!=1)
+    double schema=workspace->At("schema").AsNumber("compact attention schema");
+    if(!ampere || (schema!=1 && schema!=2))
       throw std::invalid_argument("invalid SM80 compact attention service");
-    auto const& hashes=workspace->At("body_headers");
-    bool compatible=true;
-    for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm80AttentionScratch.h",
-                   "Codegen/executor/ComputeGroup.cuh"})
-      compatible &= SameAttentionProbeHeader(s,*workspace,name,FileHash(root+"/include/tilemega/"+name),
-          hashes.At(name).AsString("body hash"));
-    if(compatible) {
-      auto const& row=workspace->At("measurement");
-      int sms=int(target.At("resources").At("num_sms").AsNumber("target SM count"));
-      int shared=backend::Sm80AttentionScratch::Layout(128,4,1,64,2,false,true).end;
+    auto profiles=schema==1?json::Array{*workspace}:workspace->At("profiles").AsArray("compact attention profiles");
+    int sms=int(target.At("resources").At("num_sms").AsNumber("target SM count"));
+    for(auto const& profile:profiles) {
+      auto const& hashes=profile.At("body_headers");
+      bool compatible=true;
+      for(auto name:{"Backend/Sm90DenseAttentionBody.cuh","Backend/Sm80AttentionScratch.h",
+                     "Codegen/executor/ComputeGroup.cuh"})
+        compatible &= SameAttentionProbeHeader(s,profile,name,FileHash(root+"/include/tilemega/"+name),
+            hashes.At(name).AsString("body hash"));
+      if(!compatible)continue;
+      auto const& row=profile.At("measurement");
+      auto const* calibrated_queries=row.Find("queries");
+      double queries=calibrated_queries?calibrated_queries->AsNumber("compact queries"):4;
+      if(queries!=3 && queries!=4)throw std::invalid_argument("unsupported compact attention geometry");
+      int shared=backend::Sm80AttentionScratch::Layout(128,int(queries),1,64,2,false,true).end;
       if(row.At("grid").AsNumber("compact grid")!=2*sms ||
          row.At("residency").AsNumber("compact residency")!=2 ||
          row.At("overlapping_sms").AsNumber("compact overlap")!=sms ||
          row.At("consumer_threads").AsNumber("compact consumers")!=128 ||
          row.At("dynamic_shared").AsNumber("compact shared memory")!=shared)
         throw std::invalid_argument("incompatible compact attention residency");
-      // The probe measures one consumer rendezvous with two working CTAs
-      // per SM. Batch changes the number of attention tasks, not this body.
-      auto shape=std::array<int,4>{2*sms,128,4,0};
-      c.ampere_compact_attention_.emplace(shape,Positive(row.At("barrier_ns"),"compact attention barrier"));
+      // Batch changes the task count, not this measured CTA rendezvous.
+      auto shape=std::array<int,4>{2*sms,128,int(queries),0};
+      if(!c.ampere_compact_attention_.emplace(shape,Positive(row.At("barrier_ns"),"compact attention barrier")).second)
+        throw std::invalid_argument("duplicate compact attention geometry");
     }
   }
   return c;

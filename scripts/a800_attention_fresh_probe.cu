@@ -80,8 +80,9 @@ __global__ __launch_bounds__(160,2) void CompactBarrier(BarrierSpan* spans) {
   }
 }
 
+template<int Queries>
 void CompactWorkspaceBarrier() {
-  constexpr int grid=216,shared=backend::Sm80AttentionScratch::Layout(128,4,1,64,2,false,true).end;
+  constexpr int grid=216,shared=backend::Sm80AttentionScratch::Layout(128,Queries,1,64,2,false,true).end;
   int residency=0;
   Check(cudaFuncSetAttribute(CompactBarrier,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&residency,CompactBarrier,160,shared));
@@ -107,8 +108,8 @@ void CompactWorkspaceBarrier() {
   std::sort(samples.begin(),samples.end());
   std::printf("{\"status\":\"measured\",\"grid\":%d,\"dynamic_shared\":%d,\"residency\":%d,"
               "\"overlapping_sms\":108,\"consumer_threads\":128,\"iterations\":1024,"
-              "\"samples\":%zu,\"barrier_ns\":%.3f}\n",
-              grid,shared,residency,samples.size(),samples[samples.size()/2]);
+              "\"samples\":%zu,\"barrier_ns\":%.3f,\"queries\":%d}\n",
+              grid,shared,residency,samples.size(),samples[samples.size()/2],Queries);
 }
 
 template<int D,int Q,int Norm>
@@ -150,7 +151,8 @@ int main(int argc,char** argv) {
 #define CASE(D,Q,N) if(!std::strcmp(argv[1],"d" #D "-q" #Q "-norm" #N)) Case<D,Q,N>(); else
     CASE(128,1,2) CASE(128,2,1) CASE(128,3,0)
     CASE(128,4,0) CASE(128,8,1) CASE(64,4,0)
-    if(!std::strcmp(argv[1],"compact-workspace-barrier"))CompactWorkspaceBarrier();
+    if(!std::strcmp(argv[1],"compact-workspace-barrier"))CompactWorkspaceBarrier<4>();
+    else if(!std::strcmp(argv[1],"compact-workspace-barrier-q3"))CompactWorkspaceBarrier<3>();
     else throw std::invalid_argument("unknown attention shape");
 #undef CASE
     Check(cudaDeviceReset());std::this_thread::sleep_for(std::chrono::seconds(2));
