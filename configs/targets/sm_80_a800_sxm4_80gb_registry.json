@@ -10405,6 +10405,109 @@
           "gpu_uuid": "GPU-bace305b-0af9-b12f-bbf8-87ee3d2064a9",
           "guard_sha256": "2962128367137e711696a376d9a3bc71500cfe70a7f7e1dd9cd9156aeaf19651",
           "evidence": "/work/TileMega-a800-r9-final/runs/a800/calibration/r2-supplement-service/355190/r9-olmoe-b2-route"
+        },
+        {
+          "shape": {
+            "batch": 1,
+            "gate_up_n": 1536,
+            "down_n": 2048,
+            "hidden": 2048,
+            "gate_up_tn": 128,
+            "gate_up_tk": 64,
+            "down_tn": 32,
+            "down_tk": 256,
+            "slots": 3,
+            "gate_up_warps_n": 2,
+            "down_warps_n": 2,
+            "experts": 128,
+            "float_routes": 1,
+            "page": 64,
+            "register_stages": 1,
+            "softmax_all": 0,
+            "segments": 1,
+            "live_rows": 0,
+            "copy_group": 0,
+            "gu_route_bases": 0,
+            "gate_up_warps_k": 2,
+            "down_warps_k": 2,
+            "reuse_payload": 1
+          },
+          "body_headers": {
+            "Backend/Sm90DenseGemm.h": "722451bad52fb2c09dcc8d42554fb830e5ccfebb046c9e50cb98ee8c7edd8957",
+            "Backend/Sm80DenseService.cuh": "8e268a4b57ac82fdab8239e2346fdc33d043921e0aaf96b6b892b09d91f7e9e8",
+            "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+            "Backend/Sm90DenseRing.cuh": "ad3c6146731c8afce424b176d3a77ddc20728b6088de9349cf79c470b038df3e",
+            "Backend/Sm90DenseEpilogue.h": "02d2390a48ba1951f409ac17f8926b7fb30f726140a01c3a26497b43d3b9c009",
+            "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+            "Backend/Sm90DenseMoe.cuh": "be7367d47f07a4f4c82dbea599b840e4d0f5bf8e731df823d1ecc8e595b04177",
+            "Backend/Sm90DenseMark.cuh": "715849b8d926cbec9e8ba9ff5ef1d391d7ba90099875f0151fb42f95e8872dcd",
+            "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+          },
+          "production_body": {
+            "schema": 1,
+            "unit": "ns",
+            "fused_stages": 768,
+            "window_over_reference": 1.0281500152614635,
+            "same_gpu": true,
+            "trace_job": "355224",
+            "reference_job": "355224",
+            "checkpoint_sha256": "2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9",
+            "reference_artifact_id": "be960873085e4fa09f3cba61badfde7a4b52d7bb33227b4bef7fe190d373f3f7",
+            "trace_artifact_id": "5bd1b2e48f36197b7076689a333d8796377674c04ad706302c216f59ec5c1c81",
+            "trace_sha256": "34889734154e8c0354bd159df79e0a16c85ded881c780443ee7cd65166942029",
+            "token_sha256": "130236fe80a6eb12ce31bfc0b24b1ff9b789f8afd6f6607c96b863a6a3ea482f",
+            "overlapping_external_stages": 0,
+            "ranges": {
+              "body_ns": {
+                "min": 61440,
+                "median": 63488.0,
+                "max": 68608,
+                "mean": 64105.333333333336
+              }
+            },
+            "active_experts": 8,
+            "body_ns": 63488.0,
+            "device_equivalence": {
+              "scope": "fused stage and native caller",
+              "comparison_sha256": "2b6c49d5173a80093f0ca365a21bdbe4b0742b64f44f5689a40ae3a567aaf350",
+              "rebuilt_sha256": "8d36bb25f1476c7b797321f104c45a8423c73a17a21ad4ad20b90d6bc3a50ffd",
+              "instructions": 23,
+              "compiled_body_headers": {
+                "Backend/Sm90DenseGemm.h": "722451bad52fb2c09dcc8d42554fb830e5ccfebb046c9e50cb98ee8c7edd8957",
+                "Backend/Sm80DenseService.cuh": "8e268a4b57ac82fdab8239e2346fdc33d043921e0aaf96b6b892b09d91f7e9e8",
+                "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+                "Backend/Sm90DenseRing.cuh": "ad3c6146731c8afce424b176d3a77ddc20728b6088de9349cf79c470b038df3e",
+                "Backend/Sm90DenseEpilogue.h": "02d2390a48ba1951f409ac17f8926b7fb30f726140a01c3a26497b43d3b9c009",
+                "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+                "Backend/Sm90DenseMoe.cuh": "be7367d47f07a4f4c82dbea599b840e4d0f5bf8e731df823d1ecc8e595b04177",
+                "Backend/Sm90DenseMark.cuh": "715849b8d926cbec9e8ba9ff5ef1d391d7ba90099875f0151fb42f95e8872dcd",
+                "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+              },
+              "measured_body_headers": {
+                "Backend/Sm90DenseGemm.h": "028fa3f684cb1f7894d9c30f4888f744d672a910301c1f7328e0b59a1387addb",
+                "Backend/Sm80DenseService.cuh": "8e268a4b57ac82fdab8239e2346fdc33d043921e0aaf96b6b892b09d91f7e9e8",
+                "Backend/Sm90DenseLayout.h": "db52d66222bc2eb42045f482c5c59fc6a71e460aa45a34dbc714fdfe87999e55",
+                "Backend/Sm90DenseRing.cuh": "f66e20a0a7d33851e8a122b9a7cd6aafbbdaf8cfbf422ba6f8e5c817835bf0e3",
+                "Backend/Sm90DenseEpilogue.h": "02d2390a48ba1951f409ac17f8926b7fb30f726140a01c3a26497b43d3b9c009",
+                "Codegen/executor/Async.cuh": "a2a26c533cebdd3585d9fd77ad3e5ea1fb4e23dad25413828e0bae8e756b64b3",
+                "Backend/Sm90DenseMoe.cuh": "983db253e1e291ea8fdc144b2992b26ccd4e343580acd5b60a0de58a22523a06",
+                "Backend/Sm90DenseMark.cuh": "93d31802f0037a1d8b8b55b669d82e804c1cd1c1bab2a30383f499e0eb493267",
+                "Backend/Sm80MoePageOffsets.h": "1264baa66c6b7592dac3618a1624b02c407a14b4d0b7e661dfce6b67c4983328"
+              }
+            }
+          },
+          "source_sha": "26b772036daf9e9f4da88d0f57ba8b18d2a92e68",
+          "binary_sha256": "c7e2aca0841c232d12f998d0c4774a6b67f8681be0fea50c284ecf2af57d7d09",
+          "measurement": {
+            "grid": 108,
+            "plain_residency": 1,
+            "dynamic_shared": 138848
+          },
+          "payload_anchor": {
+            "binary_sha256": "c7e2aca0841c232d12f998d0c4774a6b67f8681be0fea50c284ecf2af57d7d09",
+            "manifest_sha256": "7bdabbc9f4cd402ad79864c8474efd71590c76b3e342a1949a6406edc7ba1a98",
+            "dynamic_shared": 138848
+          }
         }
       ]
     },
