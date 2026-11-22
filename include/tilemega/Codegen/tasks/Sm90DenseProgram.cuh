@@ -810,14 +810,30 @@ struct Program {
   using ReleaseRecord=release_trace::Record<kStages>;
   static constexpr int kReleaseOffset=release_trace::Align16(kArenaSharedBytes);
   static_assert(backend::Sm90DenseOperandHeader::kEnd<=kReleaseOffset);
-  static constexpr int kSharedBytes=kReleaseOffset+sizeof(ReleaseRecord);
+  static constexpr bool kReleaseInShared=
+      kReleaseOffset+sizeof(ReleaseRecord)<=TILEMEGA_NATIVE_RELEASE_SHARED_BUDGET;
+  static constexpr int kSharedBytes=kReleaseInShared?kReleaseOffset+sizeof(ReleaseRecord):kArenaSharedBytes;
   static_assert(kSharedBytes<=TILEMEGA_NATIVE_RELEASE_SHARED_BUDGET,
       "native release trace exceeds the selected target/residency shared-memory budget");
 
+  __device__ static __forceinline__ std::uint32_t* ReleaseDestination(
+      release_trace::Binding const& binding,unsigned long long iteration) {
+    return binding.words+
+        ((iteration%binding.slots)*gridDim.x+blockIdx.x)*(sizeof(ReleaseRecord)/4);
+  }
+  __device__ static __forceinline__ volatile std::uint32_t* ReleaseMemory(char* shared) {
+    if constexpr(kReleaseInShared)return reinterpret_cast<volatile std::uint32_t*>(shared+kReleaseOffset);
+    return *reinterpret_cast<std::uint32_t**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot);
+  }
   __device__ static __forceinline__ void BeginRelease(char* shared,int past,
+                                                     release_trace::Binding const& binding,
                                                      unsigned long long iteration) {
-    auto* header=reinterpret_cast<volatile release_trace::Header*>(shared+kReleaseOffset);
     if(threadIdx.x==0) {
+      // Fully occupied arenas write directly to the CTA's record without changing residency.
+      if constexpr(!kReleaseInShared)
+        *reinterpret_cast<std::uint32_t**>(shared+backend::Sm90DenseOperandHeader::kTraceSlot)=
+            ReleaseDestination(binding,iteration);
+      auto* header=reinterpret_cast<volatile release_trace::Header*>(ReleaseMemory(shared));
       header->iteration=iteration;header->past=past;header->valid=0;
       unsigned long long begin;
       asm volatile("mov.u64 %0, %%globaltimer;":"=l"(begin)::"memory");
@@ -826,20 +842,21 @@ struct Program {
   }
   __device__ static __noinline__ void FlushRelease(char* shared,
       release_trace::Binding const& binding,unsigned long long iteration) {
-    auto* header=reinterpret_cast<volatile release_trace::Header*>(shared+kReleaseOffset);
     if(threadIdx.x==0) {
+      auto* header=reinterpret_cast<volatile release_trace::Header*>(ReleaseMemory(shared));
       unsigned long long end;
       asm volatile("mov.u64 %0, %%globaltimer;":"=l"(end)::"memory");
       header->end=end;header->valid=1;
     }
-    // The last release is published by thread zero after the existing V3 join.
-    __syncthreads();
-    auto* source=reinterpret_cast<volatile std::uint32_t*>(shared+kReleaseOffset);
-    auto* destination=binding.words+
-        ((iteration%binding.slots)*gridDim.x+blockIdx.x)*(sizeof(ReleaseRecord)/4);
-    for(unsigned word=threadIdx.x;word<sizeof(release_trace::Header)/4+kStages;word+=blockDim.x)
-      destination[word]=source[word];
-    __syncthreads();
+    if constexpr(kReleaseInShared) {
+      // The last release is published by thread zero after the existing V3 join.
+      __syncthreads();
+      auto const* source=ReleaseMemory(shared);
+      auto* destination=ReleaseDestination(binding,iteration);
+      for(unsigned word=threadIdx.x;word<sizeof(release_trace::Header)/4+kStages;word+=blockDim.x)
+        destination[word]=source[word];
+      __syncthreads();
+    }
   }
 #else
   static constexpr int kSharedBytes=kArenaSharedBytes;
@@ -1006,8 +1023,7 @@ struct Program {
     if(threadIdx.x==0) {
       unsigned low;
       asm volatile("mov.u32 %0, %%globaltimer_lo;":"=r"(low)::"memory");
-      reinterpret_cast<volatile std::uint32_t*>(
-          shared+kReleaseOffset+sizeof(release_trace::Header))[g]=low;
+      ReleaseMemory(shared)[sizeof(release_trace::Header)/4+g]=low;
     }
 #endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
@@ -1142,7 +1158,7 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   for(unsigned step=0;step<steps;++step) {
     int past=pasts[first+step];
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
-    P::BeginRelease(shared,past,iteration+step);
+    P::BeginRelease(shared,past,release_binding,iteration+step);
 #endif
     P::Step(b,past,shared,epsilon,events,iteration+step,trace,first+step);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
