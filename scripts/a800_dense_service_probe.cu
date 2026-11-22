@@ -41,6 +41,8 @@ struct Case {
   static constexpr int kWN=WN,kWK=4/WN,kU=U;
   static constexpr bool kNorm=InputNorm,kGate=Op==ServingEpilogueOp::kSwiGLU;
   static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
+  static constexpr int kPaddedN=(N+TN-1)/TN*TN;
+  using Padded=Case<Batch,kPaddedN,K,TN,TK,Slots,R,Residency,WN,Op,U,InputNorm>;
   static constexpr int CopyGroup() {
 #ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
     if(kResidual)return TILEMEGA_SM80_COPY_ISSUE_GROUP;
@@ -126,6 +128,16 @@ static int OverlappingSms(std::vector<BodySpan> const& spans,int active) {
 }
 
 template<class C>
+__global__ void ZeroPaddedWeights(Element* weight) {
+  using Layout=typename C::template Body<false>::LayoutB;
+  constexpr int TN=C::kTN,TK=C::kTK,valid=C::kTN-(C::kPaddedN-C::kN);
+  constexpr int kTiles=C::kK/TK,last=C::kPaddedN/TN-1;
+  auto* tile=weight+(last*kTiles+blockIdx.x)*TN*TK;
+  for(int i=valid*TK+threadIdx.x;i<TN*TK;i+=blockDim.x)
+    tile[Layout{}(i/TK,i%TK)]=Element(0.0f);
+}
+
+template<class C>
 int Profile(cudaDeviceProp const& p) {
   constexpr int M=C::kBatch,N=C::kN,K=C::kK,TN=C::kTN,TK=C::kTK,Residency=C::kResidency;
   constexpr int shared=std::max(C::template Body<false>::kSharedBytes,TILEMEGA_DENSE_SERVICE_RESERVE_SHARED);
@@ -150,10 +162,12 @@ int Profile(cudaDeviceProp const& p) {
     return 0;
   }
   int grid=p.multiProcessorCount*Residency;
-  Device<Element> a(M*K),b(N*K),residual(C::kResidual?M*N:1),out(output_elements),trace_out(output_elements);
+  Device<Element> a(M*K),b(C::kPaddedN*K),residual(C::kResidual?M*N:1);
+  Device<Element> out(output_elements),trace_out(output_elements);
   Device<Sm80DenseService> service(grid);
   Device<BodySpan> span(grid);
-  Fill<<<128,256>>>(a.address,M*K);Fill<<<256,256>>>(b.address,N*K);
+  Fill<<<128,256>>>(a.address,M*K);Fill<<<256,256>>>(b.address,C::kPaddedN*K);
+  if constexpr(N!=C::kPaddedN)ZeroPaddedWeights<C><<<K/TK,128>>>(b.address);
   if constexpr(C::kResidual)Fill<<<128,256>>>(residual.address,M*N);
   Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
   Run<C,true><<<grid,160,shared>>>(a.address,b.address,residual.address,trace_out.address,service.address,span.address);
@@ -162,6 +176,21 @@ int Profile(cudaDeviceProp const& p) {
   out.Read(reference);trace_out.Read(actual);
   if(std::memcmp(reference.data(),actual.data(),reference.size()*sizeof(Element)))
     throw std::runtime_error("instrumented production operator changed the output");
+  if constexpr(N!=C::kPaddedN) {
+    using Padded=typename C::Padded;
+    constexpr int padded_cols=C::kPaddedN/2;
+    auto padded=Run<Padded,false>;
+    Check(cudaFuncSetAttribute(padded,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+    Device<Element> padded_output(M*padded_cols);
+    padded<<<grid,160,shared>>>(a.address,b.address,residual.address,padded_output.address,
+                               service.address,span.address);
+    std::vector<Element> padded_rows(M*padded_cols);
+    padded_output.Read(padded_rows);
+    for(int row=0;row<M;++row)
+      if(std::memcmp(reference.data()+row*(N/2),padded_rows.data()+row*padded_cols,
+                     (N/2)*sizeof(Element)))
+        throw std::runtime_error("clipped gate output changed valid SwiGLU columns");
+  }
   std::vector<BodySpan> times(grid);
   std::vector<Sm80DenseService> rows(grid);
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
@@ -170,7 +199,7 @@ int Profile(cudaDeviceProp const& p) {
 #endif
   std::vector<Tick> plain_ns,traced_ns;
   int min_overlapping=p.multiProcessorCount;
-  constexpr int tiles=N/TN;
+  constexpr int tiles=C::template Body<false>::kTasks;
   for(int trial=0;trial<7;++trial) {
     Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
     span.Read(times);
@@ -180,7 +209,7 @@ int Profile(cudaDeviceProp const& p) {
     span.Read(times);service.Read(rows);
     traced_ns.push_back(Longest(times));
     for(int block=0;block<grid;++block) {
-      int tasks=(N/TN)/grid+(block<(N/TN)%grid);
+      int tasks=tiles/grid+(block<tiles%grid);
       if(!tasks)continue;
       double steps=tasks*(K/TK);
       auto const& row=rows[block];
@@ -233,6 +262,8 @@ int Profile(cudaDeviceProp const& p) {
               "\"consumer_residual_compute_ns_per_task\":%.3f,\"epilogue_only\":true",
       Median(epilogue_cycles),Median(sm_ghz),Median(residual_compute_ns));
 #endif
+  if constexpr(N!=C::kPaddedN)
+    std::printf(",\"padded_n\":%d,\"clipped_output_bitwise_equal\":true",C::kPaddedN);
   std::printf("}\n");
   return 0;
 }

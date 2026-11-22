@@ -90,7 +90,12 @@ def main():
             tk = incumbent_tk if tile_k is None else tile_k
             wn = incumbent_wn if warps_n is None else warps_n
             wk = 4//wn
-            if n % tn or tn % (8 * wn):
+            if n % tn and (family != 'gate_up' or coords.get('payload') != 'reuse'
+                           or batch != 16 or residency != 2 or (n+tn-1)//tn > grid
+                           or n % (2*packed_u) or (tn, tk, slots, wn) !=
+                           (incumbent_tn, incumbent_tk, incumbent_slots, incumbent_wn)):
+                raise ValueError('partial N probe requires the linked one-wave gate')
+            if tn % (8 * wn):
                 raise ValueError(f'{family} has unaligned N tile {tn}')
             if k % tk or tk % 64 or tk < 16 * wk * g['register_stages']:
                 raise ValueError(f'{family} has unaligned K tile {tk}')

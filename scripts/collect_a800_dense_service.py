@@ -86,6 +86,10 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
         elif any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics[:2]):
             raise ValueError(f'invalid mainloop service result for {case}')
         if typed:
+            if row['n'] % row['tn'] and (row['epilogue'] != 'swiglu'
+                    or row.get('padded_n') != (row['n']+row['tn']-1)//row['tn']*row['tn']
+                    or not row.get('clipped_output_bitwise_equal')):
+                raise ValueError(f'{case} lacks a matching clipped-output reference')
             if row['dynamic_shared'] < artifact.get('reserved_program_shared', 0):
                 raise ValueError(f'{case} did not reserve the frozen program arena')
             # Count overlap between CTAs with work in every plain launch.
