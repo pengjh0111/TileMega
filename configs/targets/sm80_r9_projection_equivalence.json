@@ -1,0 +1,11 @@
+{
+  "model": "llama3_1_8b",
+  "batch": 16,
+  "residency": 1,
+  "independent_processes": 5,
+  "cases": [
+    {"family": "qkv", "tn": 72, "tk": 128, "slots": 2, "warps_n": 1},
+    {"family": "o", "tn": 40, "tk": 128, "slots": 2, "warps_n": 1},
+    {"family": "down", "tn": 24, "tk": 128, "slots": 2, "warps_n": 1}
+  ]
+}
