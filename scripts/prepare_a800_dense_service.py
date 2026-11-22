@@ -13,7 +13,8 @@ HEADERS = ('Backend/Sm90DenseGemm.h', 'Backend/Sm80DenseService.cuh',
            'Backend/Sm90DenseLayout.h', 'Backend/Sm90DenseRing.cuh',
            'Backend/Sm90DenseEpilogue.h', 'Codegen/executor/Async.cuh')
 EPILOGUE = {'qkv': ('store', 'kStore'), 'o': ('residual', 'kResidual'),
-            'gate_up': ('swiglu', 'kSwiGLU'), 'down': ('residual', 'kResidual')}
+            'gate_up': ('swiglu', 'kSwiGLU'), 'down': ('residual', 'kResidual'),
+            'lm_head': ('argmax_partial', 'kArgmaxPartial')}
 
 
 def production_shape(generated, family, batch, geometry):
@@ -55,6 +56,8 @@ def main():
     args = parser.parse_args()
     if args.width_scan and (args.epilogue_clock or args.sample_stride != 1):
         parser.error('--width-scan does not sample role or epilogue clocks')
+    if 'lm_head' in args.families and not args.width_scan:
+        parser.error('vocabulary head uses the stage-span probe')
     if args.epilogue_clock and any(family not in ('o', 'down') for family in args.families):
         parser.error('clock-based epilogue timing requires residual families')
     if args.residual_copy and (not args.copy or not any(f in ('o', 'down') for f in args.families)):
@@ -110,6 +113,8 @@ def main():
             tasks = (n+tn-1)//tn
             if tn > n or n % tn and (n % 32 or tasks > 3*grid):
                 raise ValueError('N tile exceeds the native padded payload domain')
+            if family == 'lm_head' and tasks < grid:
+                raise ValueError('every CTA must own a vocabulary tile')
             partial_n |= bool(n % tn)
             if tn % (8 * wn):
                 raise ValueError(f'{family} has unaligned N tile {tn}')

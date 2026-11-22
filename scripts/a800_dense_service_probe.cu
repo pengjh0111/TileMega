@@ -49,6 +49,7 @@ struct Case {
   static constexpr int kWN=WN,kWK=4/WN,kU=U;
   static constexpr bool kNorm=InputNorm,kGate=Op==ServingEpilogueOp::kSwiGLU;
   static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
+  static constexpr bool kHead=Op==ServingEpilogueOp::kArgmaxPartial;
   static constexpr int kPaddedN=(N+TN-1)/TN*TN;
   using Padded=Case<Batch,kPaddedN,K,TN,TK,Slots,R,Residency,WN,Op,U,InputNorm>;
   static constexpr int CopyGroup() {
@@ -68,7 +69,7 @@ struct Case {
 template<class C,bool Probe>
 __global__ __launch_bounds__(160,C::kResidency)
 void Run(Element const* a,Element const* b,Element const* residual,Element* output,
-         Sm80DenseService* service,BodySpan* span) {
+         Sm80DenseService* service,BodySpan* span,int* indices=nullptr) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
   ring.Initialize<true>();
@@ -79,6 +80,7 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
   }
   Sm90DenseOperands args{};
   args.activation_address=a;args.weight=b;args.residual=residual;args.output=output;args.epsilon=1e-6f;
+  args.argmax_index=indices;
   BodySpan observed{};
   if(threadIdx.x==0) {
     asm volatile("mov.u32 %0, %%smid;" : "=r"(observed.sm));
@@ -90,7 +92,10 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
   if constexpr(Probe) {
     if(SampleBlock(blockIdx.x))C::template Body<true>::Run(args,shared,&ring);
     else C::template Body<false>::Run(args,shared,&ring);
-  }else C::template Body<false>::Run(args,shared,&ring);
+  }else if constexpr(C::kHead)
+    C::template Body<false>::Run(args,shared,&ring,Sm90DenseNoTail{},false,
+        Sm90DenseHeadPartialFinish<C::kBatch>{});
+  else C::template Body<false>::Run(args,shared,&ring);
   if(threadIdx.x==0) {
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
     observed.end_cycles=Sm80DenseService::Cycles();
@@ -195,8 +200,11 @@ int Profile(cudaDeviceProp const& p) {
   }
 #endif
   int grid=p.multiProcessorCount*Residency;
+  if constexpr(C::kHead)if(C::kPaddedN/TN<grid)
+    throw std::runtime_error("the head probe needs one tile per CTA");
   Device<Element> a(M*K),b(C::kPaddedN*K),residual(C::kResidual?M*N:1);
-  Device<Element> out(output_elements);
+  Device<Element> out(C::kHead?2*M*grid:output_elements);
+  Device<int> indices(C::kHead?M*grid:1);
 #ifndef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
   Device<Element> trace_out(output_elements);
 #endif
@@ -205,8 +213,9 @@ int Profile(cudaDeviceProp const& p) {
   Fill<<<128,256>>>(a.address,M*K);Fill<<<256,256>>>(b.address,C::kPaddedN*K);
   if constexpr(N!=C::kPaddedN)ZeroPaddedWeights<C><<<K/TK,128>>>(b.address);
   if constexpr(C::kResidual)Fill<<<128,256>>>(residual.address,M*N);
-  Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address);
-  std::vector<Element> reference(output_elements);
+  Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,service.address,span.address,
+                                  indices.address);
+  std::vector<Element> reference(C::kHead?2*M*grid:output_elements);
   out.Read(reference);
 #ifndef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
   Run<C,true><<<grid,160,shared>>>(a.address,b.address,residual.address,trace_out.address,service.address,span.address);
@@ -216,7 +225,7 @@ int Profile(cudaDeviceProp const& p) {
   if(std::memcmp(reference.data(),actual.data(),reference.size()*sizeof(Element)))
     throw std::runtime_error("instrumented production operator changed the output");
 #endif
-  if constexpr(N!=C::kPaddedN) {
+  if constexpr(N!=C::kPaddedN && !C::kHead) {
     using Padded=typename C::Padded;
     constexpr int columns=N/(C::kGate?2:1),padded_cols=C::kPaddedN/(C::kGate?2:1);
     auto padded=Run<Padded,false>;
@@ -228,7 +237,7 @@ int Profile(cudaDeviceProp const& p) {
                          residual.address,N*sizeof(Element),N*sizeof(Element),M,cudaMemcpyDeviceToDevice));
     }
     padded<<<grid,160,shared>>>(a.address,b.address,padded_residual.address,padded_output.address,
-                               service.address,span.address);
+                               service.address,span.address,nullptr);
     std::vector<Element> padded_rows(M*padded_cols);
     padded_output.Read(padded_rows);
     for(int row=0;row<M;++row)
@@ -246,7 +255,7 @@ int Profile(cudaDeviceProp const& p) {
   for(int trial=0;trial<7;++trial) {
     Fill<<<p.multiProcessorCount*4,256>>>(evict.address,evict_elements);
     Run<C,false><<<grid,160,shared>>>(a.address,b.address,residual.address,out.address,
-                                    service.address,span.address);
+                                    service.address,span.address,indices.address);
     span.Read(times);
     spans.push_back(StageSpan(times,active));
     min_overlapping=std::min(min_overlapping,OverlappingSms(times,active));
@@ -261,7 +270,7 @@ int Profile(cudaDeviceProp const& p) {
               "\"padded_n\":%d,\"clipped_output_bitwise_equal\":%s}\n",
               N,K,M,TN,TK,C::kSlots,grid,Residency,plain_capacity,shared,active,min_overlapping,
               2ll*N*K,evict_elements*int(sizeof(Element)),elapsed,2.0*N*K/elapsed,
-              C::kPaddedN,N==C::kPaddedN?"null":"true");
+              C::kPaddedN,N==C::kPaddedN || C::kHead?"null":"true");
 #else
   std::vector<Sm80DenseService> rows(grid);
   std::vector<double> producer_wait,producer_issue,consumer_wait,consumer_mma,epilogue;
