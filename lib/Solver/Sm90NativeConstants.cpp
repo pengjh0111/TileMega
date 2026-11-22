@@ -307,7 +307,9 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
          row.At("consumer_threads").AsNumber("compact consumers")!=128 ||
          row.At("dynamic_shared").AsNumber("compact shared memory")!=shared)
         throw std::invalid_argument("incompatible compact attention residency");
-      auto shape=std::array<int,5>{2*sms,16,128,4,0};
+      // The probe measures one consumer rendezvous with two working CTAs
+      // per SM. Batch changes the number of attention tasks, not this body.
+      auto shape=std::array<int,4>{2*sms,128,4,0};
       c.ampere_compact_attention_.emplace(shape,Positive(row.At("barrier_ns"),"compact attention barrier"));
     }
   }
@@ -486,8 +488,8 @@ std::optional<double> Sm90NativeConstants::AttentionFresh(int dim,int queries,in
   return Positive(row->At("fresh_ns"),"attention new-row service");
 }
 std::optional<double> Sm90NativeConstants::CompactAttentionBarrier(
-    int grid,int batch,int dim,int queries,int norm) const {
-  auto found=ampere_compact_attention_.find({grid,batch,dim,queries,norm});
+    int grid,int dim,int queries,int norm) const {
+  auto found=ampere_compact_attention_.find({grid,dim,queries,norm});
   if(found==ampere_compact_attention_.end())return std::nullopt;
   return found->second;
 }

@@ -33,7 +33,7 @@ bool RequiredFusedService(Sm90DenseCoordinates const& c) {
 bool HasCompactAttentionService(Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,int grid) {
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   return cost.Constants().AttentionFresh(work.head_dim,work.queries,norm) &&
-      cost.Constants().CompactAttentionBarrier(grid,work.batch,work.head_dim,work.queries,norm);
+      cost.Constants().CompactAttentionBarrier(grid,work.head_dim,work.queries,norm);
 }
 
 double Replay(Sm90NativeFlowResult const& flow, Sm90DenseCoordinates const& c) {

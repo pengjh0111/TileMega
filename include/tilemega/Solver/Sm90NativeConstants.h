@@ -86,7 +86,7 @@ class Sm90NativeConstants {
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,int norm) const;
   std::optional<double> AttentionFresh(int dim,int queries,int norm) const;
-  std::optional<double> CompactAttentionBarrier(int grid,int batch,int dim,int queries,int norm) const;
+  std::optional<double> CompactAttentionBarrier(int grid,int dim,int queries,int norm) const;
   double AttentionPrepare(int dim,int queries,int norm) const;
   bool HasAttentionMerge(int dim,int queries,int norm,int chunks) const;
   double AttentionMerge(int dim,int queries,int norm,int chunks) const;
@@ -110,7 +110,7 @@ class Sm90NativeConstants {
   json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_,round_,clusters_,dsmem_,forward_,task_expert_,tp_,ampere_mma_;
   json::Value ampere_gate_service_,ampere_dense_service_,ampere_residual_epilogue_;
   json::Value ampere_attention_fresh_;
-  std::map<std::array<int,5>,double> ampere_compact_attention_;
+  std::map<std::array<int,4>,double> ampere_compact_attention_;
   std::map<std::array<int,22>,Sm80FusedExpertService> ampere_fused_service_;
   std::map<std::array<int,22>,double> ampere_fused_body_;
   std::vector<Sm80FusedExpertShape> ampere_fused_shapes_;

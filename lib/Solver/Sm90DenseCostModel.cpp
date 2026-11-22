@@ -408,7 +408,7 @@ double Sm90DenseCostModel::FreshAttentionNs(Sm90DenseWorkload const& work,
     // The append writes a K/V row to history and to the new-row scratch.
     return 8.*work.head_dim/constants_.sm_gbps;
   }
-  auto barrier=constants_.CompactAttentionBarrier(grid,work.batch,work.head_dim,work.queries,norm);
+  auto barrier=constants_.CompactAttentionBarrier(grid,work.head_dim,work.queries,norm);
   if(!fresh || !barrier)throw Sm90NativeMissing("no complete compact attention service for this grid");
   return *fresh+*barrier;
 }

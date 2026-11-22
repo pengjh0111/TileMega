@@ -184,7 +184,7 @@ std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(
       int arena=Sm90DenseArena(budget,reuse_payload);
       if(a.SharedBytes(head_dim,queries)>budget && reuse_payload && constants &&
          constants->AttentionFresh(head_dim,queries,norm) &&
-         constants->CompactAttentionBarrier(Grid(residency),batch,head_dim,queries,norm))
+         constants->CompactAttentionBarrier(Grid(residency),head_dim,queries,norm))
         a.compact_workspace=true;
       int limit=a.SharedBytes(head_dim,queries)-1024<=arena?arena+1024:budget;
       for(a.slots=std::max(2,std::min(4,blocks));a.slots>2 && a.SharedBytes(head_dim,queries)>limit;)
