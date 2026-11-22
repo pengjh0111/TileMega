@@ -13,7 +13,7 @@ DECISIONS = 'sm80_native_decisions'
 DEVICE = ('name', 'memory_mib', 'capability', 'mig', 'driver')
 SUPPLEMENTS = ('dense_gemm_service', 'fused_expert_service', 'attention_fresh_service',
                'compact_attention_service', 'fused_trace_header_equivalence',
-               'residual_copy_header_equivalence')
+               'residual_copy_header_equivalence', 'default_body_equivalence')
 MERGED = ('mma_mainloop', 'dense_gate_service', 'registry', *SUPPLEMENTS)
 
 
@@ -60,6 +60,19 @@ def append_supplements(constants, section, path):
             continue
         existing = constants[name]
         if existing == supplement:
+            continue
+        if name == 'default_body_equivalence':
+            for header, proof in supplement.items():
+                if existing.setdefault(header, deepcopy(proof)) != proof:
+                    raise ValueError(f'conflicting default body proof for {header} in {path}')
+            continue
+        if name == 'compact_attention_service':
+            profiles = {}
+            for profile in service_profiles(existing) + service_profiles(supplement):
+                queries = profile['measurement'].get('queries', 4)
+                if profiles.setdefault(queries, profile) != profile:
+                    raise ValueError(f'conflicting compact attention Q{queries} service in {path}')
+            constants[name] = dict(schema=2, profiles=list(map(deepcopy, profiles.values())))
             continue
         if ('profiles' not in supplement or 'profiles' not in existing
                 or {k:v for k,v in supplement.items() if k != 'profiles'}
