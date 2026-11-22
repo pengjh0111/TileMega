@@ -38,6 +38,8 @@ def main():
     shared.add_argument('--decode', type=Path)
     shared.add_argument('--prefill', type=Path)
     parser.add_argument('--target', type=Path, required=True)
+    parser.add_argument('--trial-target', type=Path,
+                        help='an updated calibration for the same physical hardware class')
     parser.add_argument('--budget-s', type=int, default=810)
     parser.add_argument('--process-timeout-s', type=int, default=125)
     args = parser.parse_args()
@@ -52,8 +54,16 @@ def main():
         parser.error('only OLMoE uses the decode library for prompt processing')
     stage = f'tune-{phase}'
     options = ['--model', args.model, '--batch', str(args.batch),
-               '--target', str(args.target), f'--{shared_phase}', str(shared_library),
+               f'--{shared_phase}', str(shared_library),
                '--stage', stage, '--timeout-s', str(args.process_timeout_s)]
+    targets = {'control': args.target, 'trial': args.trial_target or args.target}
+    if args.trial_target:
+        control, trial = (json.loads(target.read_text()) for target in targets.values())
+        fields = ('name', 'memory_mib', 'capability', 'mig', 'driver')
+        if (control['arch_tag'] != trial['arch_tag'] or control['resources'] != trial['resources']
+                or any(control['device_provenance'][key] != trial['device_provenance'][key]
+                       for key in fields)):
+            parser.error('a paired trial must preserve the calibrated device class')
     libraries = {'control': artifact(args.control)[1]['binary_sha256'],
                  'trial': artifact(args.trial)[1]['binary_sha256']}
     if libraries['control'] == libraries['trial']:
@@ -67,7 +77,8 @@ def main():
         for label in libraries:
             library = getattr(args, label)
             subprocess.run([*runner, 'plan', *options, '--round', '0', f'--{phase}',
-                            str(library), '--budget-s', str(args.budget_s), *preparations[label]], check=True)
+                            str(library), '--target', str(targets[label]), '--budget-s',
+                            str(args.budget_s), *preparations[label]], check=True)
         return 0
 
     job = int(os.environ['SLURM_JOB_ID'])
@@ -79,13 +90,15 @@ def main():
     order = ('control', 'trial')
     write_json(out/'planned.json', dict(protocol_version='a800-single-v2', kind='paired_tuning',
         model=args.model, batch=args.batch, order=order,
-        phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library), target_sha256=sha(args.target)))
+        phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library),
+        target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()}))
     rounds = []
     for position, label in enumerate(order):
         round_index = job * 6 + position
         remaining = int(deadline - time.monotonic())
         subprocess.run([*runner, 'run', *options, '--round', str(round_index),
-                        f'--{phase}', str(getattr(args, label)), '--budget-s', str(remaining),
+                        f'--{phase}', str(getattr(args, label)), '--target', str(targets[label]),
+                        '--budget-s', str(remaining),
                         *preparations[label]],
                        check=True, timeout=remaining)
         receipts = (RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/{stage}-{round_index}.json')
