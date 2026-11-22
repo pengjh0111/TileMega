@@ -8,5 +8,10 @@
     "disabled_macro": "TILEMEGA_SM80_PADDED_GATE",
     "reference_sha256": "90f9f68f908aa6d21b077b1f2822c1e43b128635e7f82d861d052d9ec738099b",
     "equivalent_sha256": "02d2390a48ba1951f409ac17f8926b7fb30f726140a01c3a26497b43d3b9c009"
+  },
+  "Backend/Sm90DenseMoe.cuh": {
+    "disabled_macro": "TILEMEGA_SM80_PADDED_GATE",
+    "reference_sha256": "d5965a882a79f2211db05cce8e231ee265b40adf1281a834023c60b83a58381e",
+    "equivalent_sha256": "983db253e1e291ea8fdc144b2992b26ccd4e343580acd5b60a0de58a22523a06"
   }
 }

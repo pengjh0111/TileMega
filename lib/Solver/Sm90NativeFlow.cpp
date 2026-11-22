@@ -160,7 +160,7 @@ std::vector<Sm90NativeStageNode> Sm90NativeStages(Sm90DenseWorkload const& work,
     // per-expert count; everything else is the V3 barrier.
     if (c.moe && c.expert_fuse && f == 7) {
       node.sync = Sm90SyncKind::kCounted;
-      node.kappa = std::max(1, int(work.shapes[6][0] / c.gemms[6].tile_n));
+      node.kappa = std::max(1,c.gemms[6].TaskCount(work.shapes[6][0]));
       node.price.hop_ns=0;
     }
     nodes.push_back(std::move(node));
@@ -391,7 +391,7 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
       page=c.gemms[f].slot_bytes;pages=stage_stream?c.gemms[f].slots:0;
       if(c.moe && f==6)price.hop_ns=0;
       if(c.moe && f==7 && c.expert_fuse) {
-        node.sync=Sm90SyncKind::kCounted;node.kappa=work.shapes[6][0]/c.gemms[6].tile_n;
+        node.sync=Sm90SyncKind::kCounted;node.kappa=c.gemms[6].TaskCount(work.shapes[6][0]);
         price.hop_ns=0;
       }
     }else throw std::invalid_argument("native CTG has an unpriced task role");

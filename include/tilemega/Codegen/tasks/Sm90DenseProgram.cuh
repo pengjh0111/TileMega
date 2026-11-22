@@ -461,7 +461,11 @@ struct MoeFused {
 template<int Batch,int N,int TN,int TopK,unsigned Partial,unsigned Residual>
 struct MoeCombine {
   static constexpr bool kUsesOperandRecord=true;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+  static constexpr int kTasks=(N+TN-1)/TN,kSharedBytes=1024,kRingSlots=0,kMaxPreissue=0;
+#else
   static constexpr int kTasks=N/TN,kSharedBytes=1024,kRingSlots=0,kMaxPreissue=0;
+#endif
   static constexpr backend::Sm90DenseLayout kLayout{};
   template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
   template<class B>

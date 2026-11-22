@@ -2188,7 +2188,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   std::ostringstream out,types;
   bool padded_n=false;
   for(unsigned f:c.Active())
-    padded_n|=f<5 && nk[f][0]%c.gemms[f].tile_n;
+    padded_n|=nk[f][0]%c.gemms[f].tile_n!=0;
   out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
      <<"// Generated from native CTG/tmexec coordinates.\n"
      <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID "<<(cp_async?800:900)<<"\n"
@@ -2351,9 +2351,13 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("native unfused expert storage exceeds its arena");
         bool float_routes=routes!="kAbsent" &&
             stringField(dictionaryEntry(buffers[std::stoll(routes)],"buffers"),"dtype")=="f32";
-        weight=name(integerField(g,"b"));bytes=2ull*n*k*(e.family==5?1:experts);
-        tasks=n/cfg.tile_n*(e.family==5?1:experts);
         int page=e.family>=6?shared_expert_page:0;
+        int tile_count=cfg.TaskCount(n);
+        if(n%cfg.tile_n && (!cp_async || e.family==5 || c.weight_stream))
+          throw std::invalid_argument("padded expert tiles require a shared SM80 payload");
+        weight=name(integerField(g,"b"));
+        bytes=2ull*(page?n:tile_count*cfg.tile_n)*k*(e.family==5?1:experts);
+        tasks=tile_count*(e.family==5?1:experts);
         // Paged experts stream whole slots only.
         if(page)e.stream=std::min(cfg.slots,int(k/cfg.TileK()))*cfg.slot_bytes*(e.family==6?0:1);
         // MR7's per-slot counters: the router clears them, and only a fused
@@ -2552,7 +2556,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       combine.ids=c.expert_fuse?std::vector<std::string>{e.ids[4],e.ids[2]}:
           std::vector<std::string>{e.ids[2],e.ids[1]};
       emitted.push_back(std::move(combine));
-      info.push_back("  {\"kMoeCombine\",\"\",0ull,"+std::to_string(nk[7][0]/c.gemms[7].tile_n)+
+      info.push_back("  {\"kMoeCombine\",\"\",0ull,"+std::to_string(c.gemms[7].TaskCount(nk[7][0]))+
           ",0,0,0,0},\n");
     }
     if(e.family==5 && route_stage) {

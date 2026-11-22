@@ -42,7 +42,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
         experts=d.n;
         if(c.GlobalRoute())d.implementation+=std::string("/route-")+c.RouteName();
       }
-      if(d.epilogue=="moe_gate_up")gu_tiles=d.n/c.gemms[6].tile_n;
+      if(d.epilogue=="moe_gate_up")gu_tiles=c.gemms[6].TaskCount(d.n);
       if(d.epilogue=="moe_down" && c.combine_stage)d.implementation+="/combine-stage";
     }else if(d.kind=="kFusedAttention") {
       d.groups=integer(s,"extent");
@@ -253,6 +253,7 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
   frontend::ServingOptions options;
   options.interleave_u=c.swiglu_u;options.native_rms=true;options.native_shared_scratch=true;
   options.argmax_tile_n=c.gemms[4].tile_n;
+  if(c.moe)options.native_expert_down_tile_n=c.gemms[7].tile_n;
   options.dense_attention_chunks=c.attention.chunks;
   options.tp=c.tp;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);

@@ -22,7 +22,7 @@ double FusedLocalRing(Sm90DenseWorkload const& work,Sm90DenseCoordinates const& 
     std::vector<double> empty;
   };
   auto const& gu=c.gemms[6];auto const& dn=c.gemms[7];
-  int gu_tasks=work.shapes[6][0]/gu.tile_n,dn_tasks=work.shapes[7][0]/dn.tile_n;
+  int gu_tasks=gu.TaskCount(work.shapes[6][0]),dn_tasks=dn.TaskCount(work.shapes[7][0]);
   int gu_tiles=work.shapes[6][1]/gu.TileK(),dn_tiles=work.shapes[7][1]/dn.TileK();
   int slots=gu.slots,ahead=std::min(slots,dn_tiles);
   std::vector<Worker> workers(grid,Worker{0,0,0,std::vector<double>(slots)});
@@ -217,7 +217,7 @@ std::optional<Sm80FusedPipelinePrice> Sm90DenseCostModel::FusedPipeline(
   static thread_local std::map<decltype(key),Sm80FusedPipelinePrice> cache;
   if(auto found=cache.find(key);found!=cache.end())return found->second;
 
-  int gu_width=work.shapes[6][0]/gu.tile_n,dn_width=work.shapes[7][0]/dn.tile_n;
+  int gu_width=gu.TaskCount(work.shapes[6][0]),dn_width=dn.TaskCount(work.shapes[7][0]);
   double gu_bytes=2.*gu.tile_n*work.shapes[6][1],dn_bytes=2.*dn.tile_n*work.shapes[7][1];
   auto evaluate=[&](int active) {
     double local=FusedLocalRing(work,c,*service,grid,active);

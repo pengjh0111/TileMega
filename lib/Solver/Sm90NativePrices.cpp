@@ -69,7 +69,7 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   price.category = "gemm";
   if(family>=6)price.approximation=kSm90NativeMoeDomainApproximation;
   price.tasks = family>=6?Sm90NativeExpectedExpertTasks(work.experts,work.top_k,b,
-      work.shapes[family][0]/g.tile_n):int(std::llround(tasks));
+      g.TaskCount(work.shapes[family][0])):int(std::llround(tasks));
   
   price.hop_ns = c.Barrier(grid);
 

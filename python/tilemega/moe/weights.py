@@ -37,10 +37,10 @@ def _parts(recipe):
         tn,tk = tile
         # Native expert candidates also use TK >= 256. The shared tile-page
         # packer accepts 16/32 or complete 64-column swizzle blocks.
-        if tn <= 0 or tn % 8 or tk <= 0 or (tk not in (16,32) and tk % 64) or n % tn or \
+        if tn <= 0 or tn % 8 or tk <= 0 or (tk not in (16,32) and tk % 64) or \
                 (part == 'gate_up' and tn % (2*unit)):
-            raise ValueError('expert page tiles must divide output rows and own complete gate pairs')
-        # tile_pack zero-pads the K tail; codegen uses that padded expert stride.
+            raise ValueError('expert page tiles must own complete gate pairs')
+        # tile_pack zero-pads the N and K tails used by the expert stride.
     if not prefix or not prefix.endswith('.'):
         raise ValueError('expert prefix must end at the original experts namespace')
     return prefix,part,experts,hidden,intermediate,unit,norm,tile

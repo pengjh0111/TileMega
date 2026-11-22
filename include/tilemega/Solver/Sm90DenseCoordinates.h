@@ -128,7 +128,7 @@ struct Sm90DenseCoordinates {
   int tp=1;
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
   static constexpr bool PaddedFamily(unsigned family,int n,int tp,bool reuse_payload) {
-    return family<5 && reuse_payload && tp==1 && n%32==0;
+    return family!=5 && reuse_payload && tp==1 && n%32==0;
   }
 
   // MR7: the fused stage's storage; a slot holds either task type, so each
@@ -191,8 +191,8 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("SM80 weight copy issue group must be 4 or 8");
     if(copy_issue_group && weight_stream)
       throw std::invalid_argument("explicit weight copy issue groups require a nonstreamed plan");
-    if(residual_copy_issue && (moe || !copy_issue_group || tp!=1))
-      throw std::invalid_argument("grouped residual copies require a TP1 dense copy group");
+    if(residual_copy_issue && (!copy_issue_group || tp!=1))
+      throw std::invalid_argument("grouped residual copies require a TP1 copy group");
     if(expert_page_segments && (!moe || gemms[6].tile_n%32 || gemms[7].tile_n%32))
       throw std::invalid_argument("SM80 page segments require 32-row expert tiles");
     if(expert_gu_route_bases &&
@@ -217,6 +217,8 @@ struct Sm90DenseCoordinates {
     // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
     if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
       throw std::invalid_argument("sm90 dense gate tile splits a gate/up pair");
+    if(moe && nk[5][0]==128 && nk[7][0]%gemms[7].tile_n && gemms[7].tile_n%32)
+      throw std::invalid_argument("padded page64 expert tiles must be 32-row aligned");
     // MR7: the fused stage is MoE only and runs one ring for both task types.
     if(expert_fuse && (!moe || gemms[7].slots!=CommonExpertSlots() ||
                        gemms[7].register_stages!=CommonExpertRegisterStages()))

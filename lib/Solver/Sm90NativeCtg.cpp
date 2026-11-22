@@ -194,9 +194,9 @@ Sm90NativeCtg InstantiateSm90NativeCtg(frontend::ImportedSemantics const& input,
     throw std::invalid_argument("native MoE unfused schedule publication is not implemented");
   auto work=Sm90DenseWorkloadFromPlan(input.plan,batch);
   auto gu_domain=Sm90NativeMoeDomain(work.experts,work.top_k,batch,
-      work.shapes[6][0]/c.gemms[6].tile_n);
+      c.gemms[6].TaskCount(work.shapes[6][0]));
   auto dn_domain=Sm90NativeMoeDomain(work.experts,work.top_k,batch,
-      work.shapes[7][0]/c.gemms[7].tile_n);
+      c.gemms[7].TaskCount(work.shapes[7][0]));
   Sm90NativeCtg result;result.binding=base.binding;
   result.approximation=json::Object{{"kind",kSm90NativeMoeDomainApproximation},
       {"gate_up",gu_domain.ToJson()},{"down",dn_domain.ToJson()},

@@ -1223,9 +1223,12 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       auto partial=layer_scratch(prefix,"moe.partial",topk*hidden,"f32");
       auto schedule=shared_constant("moe.schedule",1+2*experts+16*experts,"i32");
       auto h=shared_constant("moe.h",experts*16*inter,"bf16");
-      // u64 arrival counters: the router's and one per M6 output tile (TN >= 128).
+      // One u64 arrival counter per output tile, including the last partial tile.
       auto router_counter=shared_constant("moe.router_counter",2,"i32");
-      auto tile_counters=shared_constant("moe.tile_counters",2*(hidden/128),"i32");
+      int down_tile=serving.native_expert_down_tile_n;
+      if(down_tile<=0)throw std::invalid_argument("native expert down tile must be positive");
+      auto tile_counters=shared_constant("moe.tile_counters",
+          2*std::max(hidden/128,(hidden+down_tile-1)/down_tile),"i32");
       // MR7: one u32 per active expert slot, cleared by the router's last
       // arriver and waited on by a fused program's down tasks. Shared across
       // layers like the schedule record: M4's grid barrier orders the clear

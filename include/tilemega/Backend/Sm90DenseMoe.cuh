@@ -344,6 +344,9 @@ struct Sm90DenseMoeCombine {
             int g=tid+128*(first+m);
             ok[m]=first+m<kPer && g<kGroups;
             row[m]=g/(TN/4);col[m]=j*TN+4*(g%(TN/4));
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+            if constexpr(N%TN!=0)ok[m]=ok[m] && col[m]<N;
+#endif
             if(ok[m]) {
               #pragma unroll
               for(int k=0;k<TopK;++k)
@@ -392,8 +395,15 @@ struct Sm90DenseMoeGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+  static constexpr int kTiles=Core::kTasks,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
+#else
   static constexpr int kTiles=N/TN,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
+#endif
   static constexpr bool kDynamic=Mode!=Sm90DenseMoeMode::kRouter;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+  static_assert(kDynamic || N%TN==0);
+#endif
   static_assert(!GlobalSchedule || kDynamic);
   using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
   using LocalRoute=Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
@@ -418,12 +428,24 @@ struct Sm90DenseMoeGemm {
   __device__ static __forceinline__ Element const* Tiles(Element const* weight,int const* schedule,int t) {
     if constexpr(!kDynamic)return weight+std::size_t(t)*kIterations*TN*TK;
     else if constexpr(Page)return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+    else return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*kTiles*TN*K+
+#else
     else return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K+
+#endif
         std::size_t(t%kTiles)*kIterations*TN*TK;
   }
   // Select the first page and half-page phase once per expert task.
   template<class Use>
   __device__ static __forceinline__ void WithWeightTile(Element const* expert,int task,Use use) {
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+    if constexpr(CpAsync && Page==64 && N%TN!=0) {
+      if(task%kTiles==kTiles-1) {
+        use(std::integral_constant<int,-2>{},expert);
+        return;
+      }
+    }
+#endif
 #if defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
     if constexpr(CpAsync && Page==64) {
       int output_tile=task%kTiles;
@@ -456,6 +478,18 @@ struct Sm90DenseMoeGemm {
   template<int Phase=-1>
   __device__ static __forceinline__ void CopyWeights(Element* destination,Element const* tiles,int t,
       int tile,std::uint64_t* barrier) {
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+    if constexpr(Phase==-2) {
+      // The decode geometry shares prefill's unpadded 64x64 weight pages.
+      constexpr int first=(kTiles-1)*TN;
+      for(int i=(threadIdx.x&31)*8;i<TN*TK;i+=32*8) {
+        int panel=i/(TN*64),row=first+(i/64)%TN;
+        bool valid=row<N;
+        int offset=(row/64*(K/64)+tile*(TK/64)+panel)*4096+(row%64)*64+i%64;
+        Async::Copy16(destination+i,valid?tiles+offset:tiles,valid);
+      }
+    }else
+#endif
 #if defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
     if constexpr(CpAsync && Page==64 && Phase>=0) {
       using Pages=Sm80MoePageSegments<TN,K,TK,Phase>;
@@ -630,7 +664,11 @@ struct Sm90DenseMoeGemm {
   __device__ static __forceinline__ Element const* TaskTiles(Element const* weight,int expert,int t) {
     if constexpr(!kDynamic)return weight+std::size_t(t)*kIterations*TN*TK;
     else if constexpr(Page)return weight+std::size_t(expert)*N*K;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+    else return weight+std::size_t(expert)*kTiles*TN*K+std::size_t(t%kTiles)*kIterations*TN*TK;
+#else
     else return weight+std::size_t(expert)*N*K+std::size_t(t%kTiles)*kIterations*TN*TK;
+#endif
   }
 
   // first: this CTA's first record, loaded beside n_active (MR1). The next
@@ -770,6 +808,9 @@ struct Sm90DenseMoeGemm {
       auto* h=static_cast<Element*>(p.output)+std::size_t(group)*Schedule::kMaxRows*(N/2)+j*(TN/2);
       for(int i=tid;i<count*(TN/2);i+=128) {
         int row=i/(TN/2),col=i%(TN/2),gate=2*U*(col/U)+col%U;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+        if constexpr(N%TN!=0)if(j*(TN/2)+col>=N/2)continue;
+#endif
         float scale=Inverse(norms,row,p.epsilon);
         h[row*(N/2)+col]=ServingEpilogueValue<ServingEpilogueOp::kSwiGLU>::Apply(
             Value(tile,row,gate)*scale,Value(tile,row,gate+U)*scale);
@@ -783,6 +824,9 @@ struct Sm90DenseMoeGemm {
         // E2: count, the row and its weight all come from shared memory, so
         // the count -> row -> weight dependent global chain (RC4) is gone.
         int row=i/TN,col=i%TN,route=routing->rows[group][row];
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+        if constexpr(N%TN!=0)if(j*TN+col>=N)continue;
+#endif
         float weight=routing->weight[route];
         partial[std::size_t(route)*N+j*TN+col]=weight*Value(tile,row,col);
       }
@@ -816,6 +860,9 @@ struct Sm90DenseMoeGemm {
             int g=tid+128*(first+m);
             ok[m]=first+m<kPer && g<kGroups;
             row[m]=g/(TN/4);col[m]=j*TN+4*(g%(TN/4));
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+            if constexpr(N%TN!=0)ok[m]=ok[m] && col[m]<N;
+#endif
             if(ok[m]) {
               #pragma unroll
               for(int k=0;k<TopK;++k)
@@ -985,7 +1032,11 @@ struct Sm90DenseMoeFusedGemm {
       Sm90DenseMoeMode::kGateUp,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,false,CpAsync>;
   using Dn=Sm90DenseMoeGemm<Batch,NDown,kIntermediate,TNDn,TKDn,Slots,WNDn,WKDn,
       Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,StageCombine,CpAsync>;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+  static constexpr int kTilesGu=Gu::kTiles,kTilesDn=Dn::kTiles;
+#else
   static constexpr int kTilesGu=NGateUp/TNGu,kTilesDn=NDown/TNDn;
+#endif
   static constexpr int kIterGu=Hidden/TKGu,kIterDn=kIntermediate/TKDn;
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
   static constexpr int kThreads=160;
@@ -1061,7 +1112,11 @@ struct Sm90DenseMoeFusedGemm {
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
       constexpr bool kAlignedPages=CpAsync && Page==64 && TNGu%64==0;
       using Pages=Sm80MoePageOffsets<TNGu,Hidden,TKGu>;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+      if constexpr(kAlignedPages && decltype(page_phase)::value==-1)tile_base+=Pages::Task(task.tile);
+#else
       if constexpr(kAlignedPages && decltype(page_phase)::value<0)tile_base+=Pages::Task(task.tile);
+#endif
 #endif
       int token=record.route/TopK;
 #if defined(TILEMEGA_SM80_MOE_PACKED_GU_ROUTES)
@@ -1080,7 +1135,11 @@ struct Sm90DenseMoeFusedGemm {
         stamp=Profile::template Begin<Sm90DenseMarks::kGuIssue>(tile);
         if constexpr(CpAsync) {
 #if defined(TILEMEGA_SM80_MOE_ALIGNED_GATE_PAGES)
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+          if constexpr(kAlignedPages && decltype(page_phase)::value==-1) {
+#else
           if constexpr(kAlignedPages && decltype(page_phase)::value<0) {
+#endif
             // Task and K-tile offsets select whole aligned pages. Their
             // panel order is the same as the generic partial-page traversal.
             auto* dst=b+slot*kWeightSlot;

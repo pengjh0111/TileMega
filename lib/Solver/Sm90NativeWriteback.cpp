@@ -123,11 +123,11 @@ void Contracts(mlir::ModuleOp module,dialect::GraphOp graph,bool write) {
     auto contract=q.contract;
     if(q.role==Role::kMoERouting && c.route==Sm90DenseCoordinates::Route::kLastArriver)
       contract.required=p.n/c.gemms[5].tile_n;
-    if(q.role==Role::kMoECombine && !c.combine_stage)contract.extent=q.n/c.gemms[7].tile_n;
+    if(q.role==Role::kMoECombine && !c.combine_stage)contract.extent=c.gemms[7].TaskCount(q.n);
     if(q.role==Role::kServingFusedAttention && c.group_wait)
       contract.required=p.n/c.gemms[0].tile_n/q.groups;
     if(p.epilogue=="moe_gate_up" && q.epilogue=="moe_down" && q.role!=Role::kMoECombine && c.expert_fuse) {
-      contract.sync="counted";contract.required=p.n/c.gemms[6].tile_n;
+      contract.sync="counted";contract.required=c.gemms[6].TaskCount(p.n);
       contract.extent=c.moe?Integer(graph,"tmexec.experts"):0;
     }
     if(p.role==Role::kMoERouting && !c.GlobalRoute()) {

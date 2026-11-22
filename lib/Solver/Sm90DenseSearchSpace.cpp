@@ -104,10 +104,14 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     // {96, 192} / {128, 256} to Qwen3's 128 experts of width 768, and A3 gives
     // OLMoE's 64 experts of width 1024 TN in {64, 128, 256}. Validate below
     // drops any tile the shape does not divide.
-    if(target.arch_tag=="sm_80")
-      for(int tn:{8,16,32,64,96,128,192,256}) {
+    if(target.arch_tag=="sm_80") {
+      if(allow_n_tail) {
+        int align=family==6 || experts==128?32:8;
+        for(int tn=align;tn<=n;tn+=align)tiles.push_back(tn);
+      }else for(int tn:{8,16,32,64,96,128,192,256}) {
         if(n%tn==0 && (family!=5 || n/tn<grid))tiles.push_back(tn);
       }
+    }
     else if(family==5)tiles={8};
     else if(experts==64)tiles={64,128,256};
     else if(family==6)tiles=batch==1?std::vector<int>{96}:std::vector<int>{96,192};

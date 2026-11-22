@@ -246,6 +246,7 @@ struct ServingOptions {
   int kv_block = 256;
   int query_rows = 64;
   int argmax_tile_n = 32;
+  int native_expert_down_tile_n = 128;
   bool deferred_norm = true;
   bool dn_vector_sums = false;
   // Native dense decode accumulates InputNorm statistics in its GEMM
