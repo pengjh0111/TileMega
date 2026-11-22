@@ -188,7 +188,10 @@ def release_bandwidth(args):
     linked = read(sidecar(plan['arms']['control']['path'], '.plan.json'))
     coords = linked['native_dense']
     moe, fused = coords['model'] == 'moe', coords['expert_fuse']
-    stages = {int(r['stage']): kind(r, moe) for r in tsv(ledger/'native_release_stages.tsv')}
+    reducers = dict(kAttentionMerge='attention', kArgmaxReduce='lm_head', kMoeRoute='router',
+                    kMoeCombine='expert_fused' if fused else 'expert_down')
+    stages = {int(r['stage']): reducers.get(r['kind_name'], kind(r, moe))
+              for r in tsv(ledger/'native_release_stages.tsv')}
     if sorted(stages) != list(range(meta['stages'])):
         raise ValueError('release ledger does not cover the complete stage schedule')
     start = 1 if coords['emb'] == 'la' else 0
@@ -235,7 +238,7 @@ def release_bandwidth(args):
             label = stages[stage]
             if (label == 'qkv' and coords['group_wait'] and stages.get(stage+1) == 'attention'):
                 continue
-            if label == 'attention' and coords['group_wait'] and stages.get(stage-1) == 'qkv':
+            if label == 'attention' and coords['group_wait']:
                 label = 'qkv_attention'
             if label == 'expert_gate_up' and fused:
                 label = 'expert_fused'
@@ -246,6 +249,7 @@ def release_bandwidth(args):
             begin = boundary
         # At 1 GB/s, the existing logical floor in us is bytes / 1000.
         logical = {stage: value*1000 for stage,value in bounds(config, plan['batch'], moe, 1).items()}
+        logical['embedding'] = 2 * config['hidden_size'] * plan['batch']
         past = positions.pop()
         logical['attention'] *= past/575
         if 'qkv_attention' in measurements:
