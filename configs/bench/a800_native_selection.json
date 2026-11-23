@@ -160,7 +160,7 @@
     "target_sha256": "fcd427c7bd0aec62a7ab89f7950176b5babc4152d38c5f7ba0dc3903e032a51e"
   },
   "mistral_7b_v0_3/B4": {
-    "decode_sha256": "2a681ef62452749cd70b8a7c379cd25f9a97b4cb1788b571dac1b3701a784d45",
+    "decode_sha256": "5d50c7f57e64a27eb4b974eda6f59cf4135c3fc5cb2c8fedde57c0b09c05e5b6",
     "prefill_sha256": "b6cd0b6cf6890483d6173da16a3d38f2c7fdbe315c0acac38c96cad3999d5154",
     "target_sha256": "fcd427c7bd0aec62a7ab89f7950176b5babc4152d38c5f7ba0dc3903e032a51e"
   },
