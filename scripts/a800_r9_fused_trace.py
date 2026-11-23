@@ -13,7 +13,7 @@ import sys
 
 from a100_baselines import ROOT, sha
 from tilemega.bench.scheduler import write_json
-from tilemega.build.identity import generate, snapshot
+from tilemega.build.identity import digest, generate, snapshot
 
 
 def read(path):
@@ -88,14 +88,22 @@ def prepare(args):
                                 '--lock', str(args.build_lock), '--', *command],
                                stdout=log, stderr=subprocess.STDOUT, check=True, timeout=550)
             generate(library, build_root, source)
-        linked = read(sidecar(library, '.identity.json'))
+        identity_file = sidecar(library, '.identity.json')
+        linked = read(identity_file)
         if (bool(linked['trace']) != (label == 'trace') or linked['binary_sha256'] != sha(library)
                 or linked['generated_source_sha256'] != identity['generated_source_sha256']
                 or linked['manifest_sha256'] != identity['manifest_sha256']
                 or linked['compiler_version'] != identity['compiler_version']):
             raise ValueError('linked fused trace changed the frozen program')
+        if label == 'trace':
+            payload = {key: value for key, value in linked.items() if key != 'artifact_id'}
+            if linked['artifact_id'] != digest(payload) or payload.get('performance_eligible', False) is not False:
+                raise ValueError('instrumented release artifact must stay diagnostic-only')
+            if 'performance_eligible' not in payload:
+                payload['performance_eligible'] = False
+                write_json(identity_file, dict(payload, artifact_id=digest(payload)))
         arms[label] = dict(path=str(library), sha256=linked['binary_sha256'],
-                           identity_sha256=sha(sidecar(library, '.identity.json')),
+                           identity_sha256=sha(identity_file),
                            source_digest=linked['source']['source_digest'])
     if arms['control']['source_digest'] != arms['trace']['source_digest']:
         raise ValueError('fused trace arms must build from the same source')
