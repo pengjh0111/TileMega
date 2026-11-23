@@ -190,7 +190,7 @@
     "target_sha256": "03a33c6a8d297abd433fbbd985e1505982fa35d1697c36d04fca33a36a26a5e8"
   },
   "olmoe_1b_7b/B8": {
-    "decode_sha256": "d7fbd6700aa43f10db9e5aa765823e9c154a6625dac91e0c2113d6c091f154e6",
+    "decode_sha256": "19bf79d7e6d6503feab84036b7d4fa0e1700c0abd6263c742a8f0e530f2d805b",
     "prefill_sha256": "prompt",
     "target_sha256": "b72f623ce106025f2908f5a99ccfc5c64b9948c38c9d2cfe7375d6013c8bf973"
   },
