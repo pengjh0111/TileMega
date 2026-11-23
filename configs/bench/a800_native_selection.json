@@ -195,7 +195,7 @@
     "target_sha256": "b72f623ce106025f2908f5a99ccfc5c64b9948c38c9d2cfe7375d6013c8bf973"
   },
   "olmoe_1b_7b/B16": {
-    "decode_sha256": "eaafe0026f819b59d15903bb60ea38f3ea810c3c98b34f4aed9a21c31688247c",
+    "decode_sha256": "68bc35b08710b82bf3fce4a5dccec1625033c057cde15bc1740b9b46341087fd",
     "prefill_sha256": "prompt",
     "target_sha256": "bef16bf438d86a767f20181303589b12e68aa4a5553029b020b8f915baa2f690"
   }
