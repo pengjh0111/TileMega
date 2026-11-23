@@ -751,7 +751,10 @@ struct Program {
   using GroupStages=typename Group::Stages;
   template<unsigned J> using GroupStage=std::tuple_element_t<J,GroupStages>;
 #if TILEMEGA_SM80_MULTISTAGE
-  static_assert(CpAsync && !TILEMEGA_SM80_WIDE_PRODUCER);
+#if TILEMEGA_SM80_WIDE_PRODUCER
+#error "SM80 cooperative copies have no dedicated producers"
+#endif
+  static_assert(CpAsync);
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=128;
 #elif TILEMEGA_SM80_WIDE_PRODUCER
   static_assert(CpAsync && ReusePayload,"wide producers require a retired SM80 payload");
