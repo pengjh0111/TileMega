@@ -86,7 +86,9 @@ def handle_cell(plan, job, state, account_code, timing, stages):
                     evidence_sha256=sha(timing/'result.json'))
         sample = samples.get(name)
         if name in result.get('rejected', {}) or sample is None:
-            rows.append(dict(base, status='rejected'))
+            detail = result.get('rejected', {}).get(name)
+            reason = json.dumps(detail, sort_keys=True) if detail is not None else 'missing guarded timing receipt'
+            rows.append(dict(base, status='rejected', reason=reason))
             continue
         if any(sample[field] != control[field] for field in INVARIANTS):
             raise ValueError('trial changed a frozen input, GPU, or output token sequence')
