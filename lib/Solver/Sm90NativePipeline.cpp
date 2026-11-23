@@ -243,6 +243,8 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(c.persist_l2_eighths)key += "/persist_"+std::to_string(c.persist_l2_eighths);
   if(c.expert_page_segments)key += "/page_segments";
   if(c.expert_gu_route_bases)key += "/gu_route_bases";
+  if(c.expert_slot_padding)key += "/slot_padding";
+  if(c.wide_producer)key += "/wide_producer";
   if(c.reuse_payload)key += "/payload_reuse";
   key += "/ch" + std::to_string(c.attention.chunks);
   if(c.attention.compact_workspace)key += "/compact";
@@ -578,6 +580,14 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   auto seeded=SearchSm90Dense(space,work,cost,additive);
   for(auto const& candidate:seeded.ranked)project(candidate.coordinates);
   for(auto const& candidate:seeded.per_structure_optima)project(candidate.coordinates);
+  result.additive_body_candidates=seeded.body_candidates;
+  if(ampere && !options.pinned_theta) {
+    for(auto const& candidate:seeded.body_options) {
+      if(options.audit_candidate)
+        options.audit_candidate(candidate.coordinates,candidate.origin,false);
+      project(candidate.coordinates);
+    }
+  }
   // Score a finite implementation frontier before the large tile domain.
   // Keep one seed per implementation, residency and arena for this pass.
   auto base_seeds=starts;

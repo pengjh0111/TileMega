@@ -54,6 +54,7 @@ struct Sm90NativePipelineCandidate {
 };
 
 struct Sm90NativePipelineResult {
+  std::size_t additive_body_candidates=0;
   std::vector<Sm90NativePipelineCandidate> evaluated;  // E, in discovery order
   std::vector<Sm90NativePipelineCandidate> shortlist;  // Q_short
   std::vector<Sm90NativePipelineCandidate> finalists;  // S after replay

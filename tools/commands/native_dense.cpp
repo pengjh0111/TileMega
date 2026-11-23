@@ -507,6 +507,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     }
     pipeline_record=json::Object{{"objective",o.operator_sum?"operator-sum":"completion"},
         {"analysis",o.analysis},{"analysis_calls",analysis_calls},
+        {"additive_body_candidates",double(pipelined.additive_body_candidates)},
         {"analysis_verification_ms",analysis_verification_ms},
         {"bitwise_flow_verified_against_reuse",o.analysis!="reuse"},
         {"evaluated",rows(pipelined.evaluated)},{"shortlist",rows(pipelined.shortlist)},

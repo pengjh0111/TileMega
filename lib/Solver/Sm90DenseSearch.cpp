@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <map>
 #include <set>
 #include <tuple>
 
@@ -27,6 +28,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   std::set<std::string> seen;
   auto const& constants=cost.Constants();
   bool ampere=space.target.arch_tag=="sm_80";
+  std::map<std::pair<int,bool>,Sm90DenseCandidate> body_seeds;
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
   for(int residency:{1,2})for(int cluster:{1,2})for(bool reuse:{false,true}) {
     if(reuse && (!ampere || space.weight_stream || !space.search_payload_reuse))continue;
@@ -109,8 +111,17 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         d.group_wait=group_wait;d.embed_la=embed_la;d.expert_fuse=fuse;d.tp=space.tp;
         auto append=[&] {
           if(!space.Legal(d) || !cost.HasCalibratedMma(d))return false;
-          if(seen.insert(d.ToJson().Dump(0)).second)pool.push_back({d,cost.Predict(work,d),origin+
-              (group_wait?"_group":"")+(embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")});
+          if(seen.insert(d.ToJson().Dump(0)).second) {
+            Sm90DenseCandidate candidate{d,cost.Predict(work,d),origin+
+                (group_wait?"_group":"")+(embed_la?"_emb_la":"_emb_stage")+(fuse?"_fused":"")};
+            if(ampere && origin.find("_optimum")!=std::string::npos) {
+              auto key=std::make_pair(residency,reuse);
+              auto prior=body_seeds.find(key);
+              if(prior==body_seeds.end() || candidate.prediction.step_ns<prior->second.prediction.step_ns)
+                body_seeds.insert_or_assign(key,candidate);
+            }
+            pool.push_back(std::move(candidate));
+          }
           return true;
         };
         if(!fuse) {append();continue;}
@@ -132,6 +143,63 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     for(unsigned alt=1;alt<=unsigned(o.alternatives) && alt<attention.size();++alt)
       build(kAttention,alt,prefix+"_attention_alt"+std::to_string(alt));
   }
+  if(ampere)for(auto const& seed:body_seeds) {
+    struct Axis {
+      const char* name;
+      std::vector<Sm90DenseCoordinates> (*neighbours)(Sm90DenseCoordinates);
+    };
+    const Axis axes[]={
+      {"page_segments",+[](Sm90DenseCoordinates c) {
+        if(!c.moe || c.expert_page_segments)return std::vector<Sm90DenseCoordinates>{};
+        c.expert_page_segments=true;c.expert_aligned_gate_pages=-1;
+        return std::vector{c};}},
+      {"gu_route_bases",+[](Sm90DenseCoordinates c) {
+        if(!c.moe || c.expert_gu_route_bases)return std::vector<Sm90DenseCoordinates>{};
+        c.expert_gu_route_bases=true;return std::vector{c};}},
+      {"slot_padding",+[](Sm90DenseCoordinates c) {
+        if(!c.moe || c.expert_slot_padding)return std::vector<Sm90DenseCoordinates>{};
+        c.expert_slot_padding=true;return std::vector{c};}},
+      {"copy_group",+[](Sm90DenseCoordinates c) {
+        if(c.copy_issue_group)return std::vector<Sm90DenseCoordinates>{};
+        auto trial=c;c.copy_issue_group=4;trial.copy_issue_group=8;return std::vector{c,trial};}},
+      {"residual_copy",+[](Sm90DenseCoordinates c) {
+        if(c.residual_copy_issue)return std::vector<Sm90DenseCoordinates>{};
+        c.residual_copy_issue=true;
+        if(c.copy_issue_group)return std::vector{c};
+        auto trial=c;c.copy_issue_group=4;trial.copy_issue_group=8;return std::vector{c,trial};}},
+      {"live_rows",+[](Sm90DenseCoordinates c) {
+        if(c.live_epilogue_rows)return std::vector<Sm90DenseCoordinates>{};
+        c.live_epilogue_rows=true;return std::vector{c};}},
+      {"wide_producer",+[](Sm90DenseCoordinates c) {
+        if(c.wide_producer)return std::vector<Sm90DenseCoordinates>{};
+        c.wide_producer=true;return std::vector{c};}}
+    };
+    auto const top=std::size_t(o.alternatives);
+    std::vector<Sm90DenseCandidate> frontier{seed.second};
+    for(auto const& axis:axes) {
+      auto next=frontier;
+      for(auto const& current:frontier)
+        for(auto trial:axis.neighbours(current.coordinates)) {
+          if(!space.Legal(trial) || !cost.HasCalibratedMma(trial) ||
+             seen.count(trial.ToJson().Dump(0)))continue;
+          try {
+            auto price=cost.Predict(work,trial);
+            Sm90DenseCandidate row{std::move(trial),std::move(price),
+                "r"+std::to_string(seed.first.first)+"_body_"+axis.name};
+            if(seen.insert(row.coordinates.ToJson().Dump(0)).second) {
+              ++result.body_candidates;
+              next.push_back(row);
+              pool.push_back(std::move(row));
+            }
+          } catch(Sm90NativeMissing const&) {}
+        }
+      std::stable_sort(next.begin(),next.end(),[](auto const& a,auto const& b) {
+        return a.prediction.step_ns<b.prediction.step_ns;
+      });
+      if(next.size()>top)next.resize(top);
+      frontier=std::move(next);
+    }
+  }
   std::stable_sort(pool.begin(),pool.end(),[](auto const& a,auto const& b) {
     return a.prediction.step_ns<b.prediction.step_ns;
   });
@@ -141,7 +209,9 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   }
   std::set<std::tuple<int,int,int,int,bool>> optimum_structures;
   for(auto const& candidate:pool)
-    if(candidate.origin.find("_optimum")!=std::string::npos &&
+    if(candidate.origin.find("_body_")!=std::string::npos)
+      result.body_options.push_back(candidate);
+    else if(candidate.origin.find("_optimum")!=std::string::npos &&
        optimum_structures.emplace(candidate.coordinates.residency,candidate.coordinates.cluster,
            ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertSlots():0,
            ampere && candidate.coordinates.expert_fuse?candidate.coordinates.CommonExpertRegisterStages():0,
