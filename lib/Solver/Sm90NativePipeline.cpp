@@ -550,6 +550,9 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::vector<Sm90DenseCoordinates> starts;
   std::set<std::string> start_keys;
   std::set<std::string> protected_anchors;
+  std::map<std::string,Sm90DenseCoordinates> measurement_anchors;
+  if(options.measure_unpriced_anchors && !options.require_anchors)
+    throw std::invalid_argument("measurement-only finalists require explicit SM80 anchors");
   if(options.require_anchors && (!ampere || seeds.empty() || options.pinned_theta ||
       options.retile_only || options.realize_aggregate || options.operator_sum))
     throw std::invalid_argument("required anchors need the SM80 end-to-end pipeline");
@@ -567,6 +570,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     }
     if(!priced(seed)) {
       if(required) {
+        if(options.measure_unpriced_anchors) {
+          measurement_anchors.emplace(CoordinateKey(seed),seed);
+          return;
+        }
         for(unsigned family:seed.Active())cost.MmaK16Ns(seed.gemms[family],seed.residency);
         throw Sm90NativeMissing("required SM80 anchor is missing its exact body price: "+CoordinateKey(seed));
       }
@@ -581,7 +588,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
       options.audit_candidate(seeds[i],i?"submitted_trial":"incumbent",options.require_anchors);
     project(seeds[i],options.require_anchors);
   }
-  if(int(protected_anchors.size())>options.finalists)
+  if(int(protected_anchors.size()+measurement_anchors.size())>options.finalists)
     throw std::invalid_argument("more required anchors than the finalist budget");
   Sm90DenseSearchOptions additive;
   additive.top = 1;
@@ -637,8 +644,12 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
        spent_ms()>options.budget_ms)break;
     origin="seed:"+std::to_string(i);
     double value=score(starts[i]);
-    if(!std::isfinite(value) && required)
-      throw Sm90NativeMissing("full flow is missing a price for required anchor "+key);
+    if(!std::isfinite(value) && required) {
+      if(!options.measure_unpriced_anchors)
+        throw Sm90NativeMissing("full flow is missing a price for required anchor "+key);
+      protected_anchors.erase(key);
+      measurement_anchors.emplace(key,starts[i]);
+    }
   }
   if(result.evaluated.empty())
     throw std::invalid_argument("native pipeline search found no priced seed");
@@ -650,6 +661,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if (spent_ms() > options.budget_ms) break;
     auto current = starts[seed];
     double best = score(current);
+    if(!std::isfinite(best))continue;
     result.descent.emplace_back();
     result.descent.back().push_back(best);
     result.descent_coordinates.push_back({current});
@@ -826,12 +838,13 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::stable_sort(by_replay.begin(), by_replay.end(),
                    [](auto const& a, auto const& b) {return a.replay_ns < b.replay_ns;});
   std::map<std::string, int> taken;
+  int priced_slots=options.finalists-int(measurement_anchors.size());
   for(auto const& c:by_replay)if(protected_anchors.count(CoordinateKey(c.coordinates))) {
     ++taken[c.structural_class];
     result.finalists.push_back(c);
   }
   for (auto const& candidate : by_replay) {
-    if (int(result.finalists.size()) >= options.finalists) break;
+    if (int(result.finalists.size()) >= priced_slots) break;
     if(protected_anchors.count(CoordinateKey(candidate.coordinates)))continue;
     if (taken[candidate.structural_class] >= options.per_class) continue;
     ++taken[candidate.structural_class];
@@ -839,7 +852,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   }
   // Short of the quota, fill by replay time regardless of class.
   for (auto const& candidate : by_replay) {
-    if (int(result.finalists.size()) >= options.finalists) break;
+    if (int(result.finalists.size()) >= priced_slots) break;
     bool present = std::any_of(result.finalists.begin(), result.finalists.end(),
         [&](auto const& f) {return CoordinateKey(f.coordinates) ==
                                    CoordinateKey(candidate.coordinates);});
@@ -847,6 +860,15 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   }
   std::stable_sort(result.finalists.begin(),result.finalists.end(),
                    [](auto const& a,auto const& b){return a.replay_ns<b.replay_ns;});
+  for(auto const& [_,coordinate]:measurement_anchors) {
+    Sm90NativePipelineCandidate trial;
+    trial.coordinates=coordinate;
+    trial.origin="required anchor without a compatible body price";
+    trial.structural_class=Sm90NativeStructuralClass(coordinate,ampere);
+    trial.measurement_only=true;
+    result.shortlist.push_back(trial);
+    result.finalists.push_back(std::move(trial));
+  }
   result.seconds = spent_ms() / 1000.0;
   return result;
 }

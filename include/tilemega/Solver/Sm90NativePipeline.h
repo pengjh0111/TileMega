@@ -30,6 +30,7 @@ struct Sm90NativePipelineOptions {
   // AB-4b: every coupling becomes an aggregate (V3) boundary.
   bool realize_aggregate = false;
   bool require_anchors = false;
+  bool measure_unpriced_anchors = false;
   std::optional<Sm90DenseCoordinates> pinned_theta;
   std::optional<CachePolicy> sm80_cache_policy;
   std::function<void(Sm90DenseCoordinates const&,std::string const&,bool)> audit_candidate;
@@ -56,6 +57,7 @@ struct Sm90NativePipelineCandidate {
   double discovered_ms = 0;
   std::string origin;            // which seed or move produced it
   std::string structural_class;  // continuation 1 section 3's structural key
+  bool measurement_only = false;
 };
 
 struct Sm90NativePipelineResult {

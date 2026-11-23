@@ -373,7 +373,10 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       if(Hash(config.string())!=row.At("coordinates_sha256").AsString("coordinate SHA"))
         throw std::invalid_argument("prepared coordinate changed");
       auto c=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(config.string()));
-      if(!space.Legal(c) || !cost.HasCalibratedMma(c) ||
+      bool measurement_only=row.At("predicted_ns").IsNull();
+      if(!space.Legal(c) || (!measurement_only && !cost.HasCalibratedMma(c)) ||
+         (measurement_only && (!o.measured || target.arch_tag!="sm_80" ||
+             !ranked[i].At("prediction").IsNull())) ||
          c.ToJson().Dump(0)!=ranked[i].At("coordinates").Dump(0))
         throw std::invalid_argument("prepared coordinate is no longer the calibrated candidate");
       auto status=row.At("status").AsString("prepared status");
@@ -385,9 +388,13 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           throw std::invalid_argument("prepared candidate binary or identity changed");
       }else if(status!="resource_rejected")
         throw std::invalid_argument("prepared candidate has an invalid compile status");
-      auto prediction=cost.Predict(work,c);
-      prediction.step_ns=row.At("predicted_ns").AsNumber("prepared replay time");
-      result.ranked.push_back({c,prediction,ranked[i].At("origin").AsString("candidate origin")});
+      solver::Sm90DensePrediction prediction{};
+      if(!measurement_only) {
+        prediction=cost.Predict(work,c);
+        prediction.step_ns=row.At("predicted_ns").AsNumber("prepared replay time");
+      }
+      result.ranked.push_back({c,prediction,ranked[i].At("origin").AsString("candidate origin"),
+          measurement_only});
       configs.push_back(config);
     }
     pipeline_record=receipt.At("pipeline");
@@ -436,6 +443,11 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       }
       if(auto const* anchors=file.Find("required_anchors")) {
         pipeline.require_anchors=true;
+        if(auto const* unpriced=file.Find("measure_unpriced_anchors")) {
+          pipeline.measure_unpriced_anchors=unpriced->AsBool("measure unpriced SM80 anchors");
+          if(pipeline.measure_unpriced_anchors && !o.measured && !o.coverage_only)
+            throw std::invalid_argument("unpriced anchors require measured SM80 selection");
+        }
         for(auto const& anchor:anchors->AsArray("required anchors"))
           seeds.push_back(solver::Sm90DenseCoordinates::FromJson(anchor));
       }else if(!cache)seeds.push_back(solver::Sm90DenseCoordinates::FromJson(file));
@@ -488,7 +500,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
       for(auto const& candidate:input) {
         json::Value row=json::Object{
           {"coordinates",candidate.coordinates.ToJson()},{"structure",candidate.structural_class},
-          {"pool_score_ns",candidate.pool_score_ns},{"replay_ns",candidate.replay_ns},
+          {"pool_score_ns",candidate.measurement_only?json::Value{}:json::Value(candidate.pool_score_ns)},
+          {"replay_ns",candidate.measurement_only?json::Value{}:json::Value(candidate.replay_ns)},
           {"evaluation_ms",candidate.evaluation_ms},{"discovered_ms",candidate.discovered_ms},
           {"origin",candidate.origin}};
         if(work.moe) {
@@ -531,8 +544,11 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     for(auto const& candidate:pipelined.finalists) {
       solver::Sm90DenseCandidate entry;
       entry.coordinates=candidate.coordinates;
-      entry.prediction=cost.Predict(work,candidate.coordinates);
-      entry.prediction.step_ns=candidate.replay_ns;
+      entry.measurement_only=candidate.measurement_only;
+      if(!entry.measurement_only) {
+        entry.prediction=cost.Predict(work,candidate.coordinates);
+        entry.prediction.step_ns=candidate.replay_ns;
+      }
       entry.origin=candidate.structural_class;
       result.ranked.push_back(std::move(entry));
     }
@@ -544,7 +560,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::ofstream(path)<<result.ranked[i].coordinates.ToJson().Dump(2)<<'\n';configs.push_back(path);
     ranked.emplace_back(json::Object{{"rank",int(i)},{"origin",result.ranked[i].origin},
         {"coordinates",result.ranked[i].coordinates.ToJson()},
-        {"prediction",result.ranked[i].prediction.ToJson()}});
+        {"prediction",result.ranked[i].measurement_only?json::Value{}:result.ranked[i].prediction.ToJson()}});
   }
   }  // Prepare the ranking when there is no frozen shortlist.
   json::Value measurement;int winner=0;
@@ -569,7 +585,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
             "",o.split_compile,"solver",json::Object{{"selection","candidate"},{"rank",int(i)}});
       });
       json::Value row=json::Object{{"rank",int(i)},{"coordinates",configs[i].string()},
-          {"predicted_ns",result.ranked[i].prediction.step_ns}};
+          {"predicted_ns",result.ranked[i].measurement_only?json::Value{}:
+              json::Value(result.ranked[i].prediction.step_ns)}};
       if(rejected) {row.Set("status","resource_rejected");row.Set("compile_result",*rejected);}
       else {row.Set("status","compiled");row.Set("binary",binary.string());row.Set("binary_sha256",Hash(binary.string()));}
       if(o.prepare_shortlist) {
@@ -618,7 +635,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
             });
         if(!corrected) {
           candidates[i]=json::Object{{"rank",int(i)},{"status","resource_rejected"},
-              {"coordinates",configs[i].string()},{"predicted_ns",result.ranked[i].prediction.step_ns},
+              {"coordinates",configs[i].string()},{"predicted_ns",row.At("predicted_ns")},
               {"coordinates_sha256",Hash(configs[i].string())},
               {"reason","no legal priced coordinate at measured residency"},{"occupancy",resource}};
           continue;
@@ -628,6 +645,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
         std::ofstream(configs[i])<<c.ToJson().Dump(2)<<'\n';
         auto& entry=result.ranked[i];
         entry.coordinates=c;entry.prediction=cost.Predict(work,c);
+        entry.measurement_only=false;
         entry.prediction.step_ns=corrected->replay_ns;entry.origin="occupancy-corrected";
         ranked[i].Set("origin",entry.origin);ranked[i].Set("coordinates",c.ToJson());
         ranked[i].Set("prediction",entry.prediction.ToJson());
@@ -682,6 +700,10 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
           if(target.arch_tag=="sm_80")actual=std::min(actual,c.residency);
           candidates[i].Set("priced_residency",actual);
           if(actual==c.residency)continue;
+          if(result.ranked[i].measurement_only) {
+            candidates[i].Set("status","occupancy_coordinate_rejected");
+            continue;
+          }
           if(resume && target.arch_tag=="sm_80") {
             corrections.emplace_back(json::Object{{"rank",i},{"submitted",c.ToJson()},
                 {"submitted_coordinates_sha256",Hash(configs[i].string())},

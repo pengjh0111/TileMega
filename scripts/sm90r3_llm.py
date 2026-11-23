@@ -236,7 +236,8 @@ def selection_result(arms, predicted):
     best, second = ranked[:2]
     threshold = max(0.5, 2 * max(arms[best]['range_pct'], arms[second]['range_pct']))
     gap = (arms[second]['tpot_ms'] / arms[best]['tpot_ms'] - 1) * 100
-    winner = min((best, second), key=predicted.__getitem__) if gap <= threshold and predicted else best
+    winner = min((best, second), key=lambda label: (predicted[label] is None, predicted[label])) if (
+        gap <= threshold and predicted) else best
     return dict(measured_order=ranked, top_gap_pct=gap, threshold_pct=threshold,
                 winner=winner, tie_broken_by_prediction=winner != best)
 
