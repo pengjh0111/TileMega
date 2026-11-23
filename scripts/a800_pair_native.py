@@ -38,6 +38,8 @@ def main():
     parser.add_argument('--control-preparation', type=Path)
     parser.add_argument('--trial-preparation', type=Path)
     parser.add_argument('--private-stream', action='store_true')
+    parser.add_argument('--routing-export', type=Path,
+                        help='verify identical MoE routes before measuring fixed router coordinates')
     shared = parser.add_mutually_exclusive_group(required=True)
     shared.add_argument('--decode', type=Path)
     shared.add_argument('--prefill', type=Path)
@@ -73,6 +75,9 @@ def main():
         parser.error('fresh correctness belongs to a formal paired trial')
     if args.formal_trial and phase != 'decode':
         parser.error('formal trial timing requires a solver-selected decode artifact')
+    if args.routing_export and (phase != 'decode' or args.formal_trial or
+                                args.model not in ('olmoe_1b_7b', 'qwen3_30b_a3b')):
+        parser.error('route bit comparison is a fixed MoE decode experiment')
     options = ['--model', args.model, '--batch', str(args.batch),
                f'--{shared_phase}', str(shared_library),
                '--timeout-s', str(args.process_timeout_s)]
@@ -100,18 +105,23 @@ def main():
     for label in libraries:
         path = getattr(args, f'{label}_preparation', None)
         preparations[label] = ['--host-preparation', str(path.resolve(strict=True))] if path else []
-    def correctness(index, budget, run, teacher_forced):
+    def correctness(index, budget, run, teacher_forced, label='trial'):
         command = [*runner, 'run' if run else 'plan', *options, '--stage', 'correctness',
-                   '--round', str(index), '--decode', str(args.trial),
-                   '--target', str(targets['trial']), '--budget-s', str(budget), *preparations['trial']]
+                   '--round', str(index), '--decode', str(variants[label]),
+                   '--target', str(targets[label]), '--budget-s', str(budget), *preparations[label]]
         if teacher_forced:
             command.append('--hf-reference')
+        if args.routing_export:
+            command.extend(('--routing-export', str(args.routing_export.resolve(strict=True))))
         subprocess.run(command, check=True, timeout=budget)
 
     if args.mode == 'plan':
         if args.fresh_correctness:
             for round_index in range(1_000_008, 1_000_013):
                 correctness(round_index, args.budget_s, False, round_index == 1_000_008)
+        if args.routing_export:
+            for offset, label in enumerate(variants):
+                correctness(1_000_016 + offset, args.budget_s, False, label != 'control', label)
         for label in libraries:
             library = variants[label]
             subprocess.run([*runner, 'plan', *options, '--stage', stages[label], '--round', '0', f'--{phase}',
@@ -147,7 +157,37 @@ def main():
         target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()}))
     rounds = []
     rejected = {}
+    if args.routing_export:
+        expected = None
+        route_receipts = {}
+        for offset, label in enumerate(order):
+            repeat = job * 32 + 16 + offset
+            try:
+                correctness(repeat, max(1, int(deadline-time.monotonic())), True,
+                            label != 'control', label)
+                lookup = (RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/correctness-{repeat}.json')
+                path, = [item for item in lookup if json.loads(item.read_text())['job'] == str(job)]
+                observed = json.loads(path.read_text())
+                if (not observed['pass'] or observed['decode_sha256'] != libraries[label] or
+                        label != 'control' and not observed['hf_pass']):
+                    raise ValueError('router correctness is missing bound artifact or teacher-forced proof')
+                fingerprint = (observed['tokens_sha256'], observed['router_indices_sha256'],
+                               observed['device_uuid'], observed['routing_export_sha256'])
+                if label == 'control':
+                    expected = fingerprint
+                elif fingerprint != expected:
+                    raise ValueError('router trial changed ordered expert indices or greedy tokens')
+                route_receipts[label] = {'path': str(path), 'sha256': sha(path)}
+            except (ValueError, subprocess.SubprocessError) as error:
+                if label == 'control':
+                    raise
+                rejected[label] = {'status': 'rejected', 'reason': str(error), 'round': repeat}
+        write_json(out/'routing.json', {'passed': route_receipts, 'rejected': rejected})
+        if not route_receipts.keys() - {'control'}:
+            return 1
     for position, label in enumerate(order):
+        if label in rejected:
+            continue
         round_index = job * (6 if len(variants) == 2 else 16) + position
         remaining = int(deadline - time.monotonic())
         stage = stages[label]
@@ -188,7 +228,7 @@ def main():
         write_json(out/'rounds.json', rounds)
     invariant_fields = ('gpu_uuid', 'tokens_sha256', 'checkpoint_sha256',
                         'config_sha256', 'prompt_sha256')
-    if len(variants) > 2:
+    if len(variants) > 2 or args.routing_export:
         control = rounds[0]
         comparisons = {}
         for arm in rounds[1:]:

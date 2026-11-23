@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--host-preparation', type=Path)
     parser.add_argument('--host-preparation-sha256')
     parser.add_argument('--private-stream', action='store_true')
+    parser.add_argument('--routing-export', type=Path)
     # Megatron tensor parallel: the plan is one rank's, run on every card of the
     # claimed group (CUDA_VISIBLE_DEVICES lists them; local devices 0..tp-1).
     parser.add_argument('--tp', type=int, choices=(1, 2, 4, 8), default=1)
@@ -54,6 +55,9 @@ def main():
     if args.hf_positions is not None and (
             not args.hf_check or not 1 <= args.hf_positions <= args.max_tokens):
         parser.error('--hf-positions requires --hf-check and must fit the generated sequence')
+    if args.routing_export and (args.tp != 1 or args.mode != 'L1' or not args.check_step_loop
+                                or not args.decode_loop or args.check_executors or args.max_tokens < 2):
+        parser.error('routing evidence belongs to the untimed single-rank step/loop check')
     args.load_format = 'auto'
     args.out.mkdir(parents=True, exist_ok=True)
     ids = json.loads(args.prompt_ids.read_text())
@@ -118,6 +122,22 @@ def main():
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode,
             host_preparation=host_preparation, private_stream=args.private_stream)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
+    observer = None
+    if args.routing_export:
+        from tilemega.moe.routing_check import capture, index_names
+        settings = json.loads((args.model/'config.json').read_text())
+        top = settings['num_experts_per_tok']
+        names = index_names(json.loads(args.routing_export.read_text()), settings['num_hidden_layers'])
+        route_hash = hashlib.sha256()
+        observed = []
+
+        def observer(plan, position):
+            routes = capture(plan, names, int(args.batch), 1, top)
+            route_hash.update(json.dumps([position, routes], separators=(',', ':')).encode())
+            observed.append(position)
+            if len(observed) % 32 == 0:
+                heartbeat('native_route_observation', position=position)
+
     reuse_step_loop = (args.check_step_loop and not args.check_executors and
                        args.tp == 1 and args.mode == 'L1' and args.max_tokens > 1)
     compared = {}
@@ -144,10 +164,18 @@ def main():
             loop = not bool(args.decode_loop)
             heartbeat('native_executor_check', mode='L1', loop=int(loop))
             current.decode_loop = loop
-            alternate = current.generate(frozen, args.max_tokens)
+            alternate = current.generate(frozen, args.max_tokens, observe_decode=observer)
             if alternate.decode_loop_used != loop:
                 raise ValueError('C-2 requested an unavailable decode-loop mode')
             compared = {bool(args.decode_loop): reference, loop: alternate.tokens.cpu()}
+            if observer is not None:
+                first = prompt_len if prefill is not None else prompt_len - 1
+                if observed != list(range(first, prompt_len + args.max_tokens - 1)):
+                    raise ValueError('routing observation did not cover each native decode position')
+                (args.out/'routing.json').write_text(json.dumps(dict(
+                    positions=len(observed), first_position=first, last_position=observed[-1],
+                    layers=len(names), top_k=top, indices_sha256=route_hash.hexdigest(),
+                    export_sha256=hashlib.sha256(args.routing_export.read_bytes()).hexdigest()))+'\n')
     # close() releases native contexts; Python still owns the full checkpoint.
     # Drop it before loading another executor or the separate HF reference.
     del current

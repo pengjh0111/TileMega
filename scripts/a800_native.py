@@ -70,6 +70,7 @@ def main():
     parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--host-preparation', type=Path)
     parser.add_argument('--private-stream', action='store_true')
+    parser.add_argument('--routing-export', type=Path)
     args = parser.parse_args()
 
     if not 0 < args.timeout_s + 111 < args.budget_s or args.round < 0:
@@ -78,6 +79,9 @@ def main():
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
     if args.hf_reference and args.stage != 'correctness':
         parser.error('teacher-forced reference is a correctness process')
+    if args.routing_export and (args.stage != 'correctness' or args.model not in
+                                ('olmoe_1b_7b', 'qwen3_30b_a3b')):
+        parser.error('routing evidence belongs to MoE correctness')
     check_hf = args.stage == 'correctness' and (args.round == 0 or args.hf_reference)
     diagnostic = args.stage == 'diagnose'
     tuning = args.stage in ('tune-prefill', 'tune-decode')
@@ -120,6 +124,9 @@ def main():
                     target_sha256=sha(args.target),
                     decode_sha256=decode_id['binary_sha256'],
                     prefill_sha256=prefill_id.get('binary_sha256', 'prompt'))
+    if args.routing_export:
+        args.routing_export = args.routing_export.resolve(strict=True)
+        identity['routing_export_sha256'] = sha(args.routing_export)
     if args.host_preparation:
         args.host_preparation = args.host_preparation.resolve(strict=True)
     artifact_key = hashlib.sha256(json.dumps(
@@ -201,6 +208,8 @@ def main():
                       '--host-preparation-sha256', identity['host_preparation_sha256']))
     if args.stage == 'correctness':
         child.append('--check-step-loop')
+        if args.routing_export:
+            child.extend(('--routing-export', str(args.routing_export)))
         if check_hf:
             child.extend(('--hf-check', '--hf-positions', str(tokens)))
     if args.sanitizer:
@@ -254,6 +263,11 @@ def main():
             hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
             if not hf_pass:
                 return 1
+        if args.routing_export:
+            routes = json.loads((evidence/'routing.json').read_text())
+            if routes['export_sha256'] != identity['routing_export_sha256']:
+                raise ValueError('routing evidence changed its model export')
+            identity['router_indices_sha256'] = routes['indices_sha256']
     write_json(receipt, dict(identity, **{'pass': True}, job=os.environ['SLURM_JOB_ID'], hf_pass=hf_pass,
                process_receipt_sha256=sha(measurement) if measurement.is_file() else sha(evidence/'reference_tokens.json'),
                device=dev, device_uuid=dev['uuid'],

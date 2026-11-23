@@ -94,7 +94,8 @@ def router_arms(anchor, families):
     yield 'control', control
     n, k = families['router']
     original = control['gemms']['router']
-    for width in (24, 40):
+    warps_n = original['warps_n']
+    for width in (24 * warps_n, 40 * warps_n):
         if width > n or not n % width:
             continue
         trial = deepcopy(control)
@@ -103,9 +104,7 @@ def router_arms(anchor, families):
         # Keep the K depth and use the same MMA instruction and output layout.
         if k % tk:
             raise ValueError('router coordinate uses an incomplete K tile')
-        warps_n = max(w for w in (1, 2, 4) if width % (8 * w) == 0)
-        trial['gemms']['router'].update(tile_n=width, slot_bytes=2 * width * tk,
-                                      warps_n=warps_n, warps_k=4 // warps_n)
+        trial['gemms']['router'].update(tile_n=width, slot_bytes=2 * width * tk)
         yield f'router-tn{width}', trial
 
 
@@ -263,6 +262,8 @@ def main():
     command = ['--model', args.model, '--batch', str(args.batch), '--target', target,
                '--prefill', prefill, '--control', control, '--trial', trial,
                '--expected-checkpoint-sha256', checkpoint, '--process-timeout-s', str(timeout)]
+    if args.phase == 'router':
+        command.extend(('--routing-export', str(source)))
     for name, path in linked.items():
         command.extend(('--additional-trial', f'{name}={path}'))
     received = folder / 'pair.plan.json'

@@ -122,15 +122,16 @@ class ServingEngine:
                 self.decode_lib.info.modes & self.decode_mode):
             raise ValueError("requested mode is not in both plan libraries")
 
-    def generate(self, prompt_ids: torch.Tensor,
-                 new_tokens: int | None = None) -> Generation:
+    def generate(self, prompt_ids: torch.Tensor, new_tokens: int | None = None,
+                 observe_decode=None) -> Generation:
         if self.stream is not None and self.stream != torch.cuda.current_stream():
             self.stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(self.stream):
-                return self._generate(prompt_ids, new_tokens)
-        return self._generate(prompt_ids, new_tokens)
+                return self._generate(prompt_ids, new_tokens, observe_decode)
+        return self._generate(prompt_ids, new_tokens, observe_decode)
 
-    def _generate(self, prompt_ids: torch.Tensor, new_tokens: int | None) -> Generation:
+    def _generate(self, prompt_ids: torch.Tensor, new_tokens: int | None,
+                  observe_decode=None) -> Generation:
         count = new_tokens or self.max_new_tokens
         if count < 1 or count > self.max_new_tokens:
             raise ValueError("token count outside allocated step ring")
@@ -149,6 +150,8 @@ class ServingEngine:
         start = torch.cuda.Event(enable_timing=True)
         use_loop = bool(self.loop_modes & self.decode_mode) and self.decode_loop and count > 1 and bool(
             getattr(self.decode_lib.lib, "tm_plan_launch_steps", None))
+        if use_loop and observe_decode is not None:
+            raise ValueError('per-step observers require individual decode launches')
         boundaries = [torch.cuda.Event(enable_timing=True)
                       for _ in range(1 if use_loop or not self.step_events else count)]
         final = torch.cuda.Event(enable_timing=True)
@@ -165,6 +168,9 @@ class ServingEngine:
             # of which writes the first new token, so TTFT ends here (U10).
             self.decode.launch_steps(0, self.prompt_len, self.decode_mode, stream.cuda_stream)
             offset = self.prompt_len
+            if observe_decode is not None:
+                stream.synchronize()
+                observe_decode(self.decode, self.prompt_len - 1)
         boundaries[0].record(stream)
         if use_loop:
             chunk = self.decode_chunk or count - 1
@@ -176,6 +182,9 @@ class ServingEngine:
         else:
             for step in range(count - 1):
                 self.decode.launch(offset + step, self.decode_mode, stream.cuda_stream)
+                if observe_decode is not None:
+                    stream.synchronize()
+                    observe_decode(self.decode, self.prompt_len + step)
                 if self.step_events:
                     boundaries[step + 1].record(stream)
         final.record(stream)
