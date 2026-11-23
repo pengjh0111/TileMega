@@ -132,6 +132,27 @@ def handle_cell(plan, job, state, account_code, timing, stages):
     return rows, state
 
 
+def option_exclusions(plan_path, plan, job):
+    for label, reason in plan.get('rejected', {}).items():
+        evidence = plan_path
+        status = 'prepare_rejected'
+        if isinstance(reason, dict) and 'same_coordinates_as' in reason:
+            status = 'same_coordinates'
+            reason = f"matches {reason['same_coordinates_as']}"
+        elif isinstance(reason, dict):
+            reason = reason.get('reason') or f"shortlist prepare exit {reason['exit_code']}"
+        else:
+            log = plan_path.with_name(f'{label}.log')
+            if log.is_file():
+                lines = [line for line in log.read_text().splitlines()
+                         if line.startswith('tilemega-compile: ')]
+                if lines:
+                    evidence = log
+                    reason = lines[-1]
+        yield dict(model=plan['model'], batch=plan['batch'], job=job, arm=label,
+                   status=status, evidence_sha256=sha(evidence), reason=reason)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('phase', choices=TABLES)
@@ -153,9 +174,10 @@ def main():
         job, state, code = devices[group]
         for index in indices:
             item = sheet['items'][index]
-            if sha(item['plan']) != item['sha256']:
+            plan_path = Path(item['plan'])
+            if sha(plan_path) != item['sha256']:
                 raise ValueError('the prepared experiment changed')
-            plan = read(item['plan'])
+            plan = read(plan_path)
             if 'groups' in sheet:
                 root = args.runs/'optimization/r10-bundles'/job/index
                 timing, stages = root/'timing', root/'stages'
@@ -173,7 +195,8 @@ def main():
             rows.extend(samples)
             summary[f"{plan['model']}/B{plan['batch']}"] = result
             if args.phase == 'options':
-                search = Path(item['plan']).parent/'enum.so.search/receipt.json'
+                rows.extend(option_exclusions(plan_path, plan, job))
+                search = plan_path.parent/'enum.so.search/receipt.json'
                 if search.is_file():
                     prediction = read(search)
                     pipeline = prediction['pipeline']
