@@ -25,10 +25,14 @@ def collect(ledger, accounting, job, runs, destination):
         name, raw, state, exit_status = line.split('|')
         index = re.fullmatch(rf'{job}_(\d+)', name)
         if index:
-            tasks[index.group(1)] = (raw, state.split()[0], exit_status)
+            tasks[index.group(1)] = (raw, state.split()[0].rstrip('+'), exit_status)
     scope = read(ledger)
-    if any(index not in tasks or tasks[index][1] not in TERMINAL for index in scope['items']):
+    groups = scope.get('groups', {index: [index] for index in scope['items']})
+    if any(index not in tasks or tasks[index][1] not in TERMINAL for index in groups):
         return False
+    group_by_cell = {cell: group for group, cells in groups.items() for cell in cells}
+    if group_by_cell.keys() != scope['items'].keys():
+        raise ValueError('array groups do not cover the prepared cells')
 
     rows, selection = [], {}
     for index, entry in scope['rejected'].items():
@@ -42,11 +46,16 @@ def collect(ledger, accounting, job, runs, destination):
         if sha(plan) != entry['sha256']:
             raise ValueError('E1 preparation changed after submission')
         options = read(plan)
-        raw, state, exit_status = tasks[index]
-        out = runs/'optimization/decode-pairs'/raw
+        raw, state, exit_status = tasks[group_by_cell[index]]
+        out = (runs/'optimization/r10-e1-bundles'/raw/index if 'groups' in scope
+               else runs/'optimization/decode-pairs'/raw)
         arms = {}
         source = None
-        if state == 'COMPLETED' and exit_status == '0:0':
+        cell_record = out/'allocation.json'
+        passed = ((cell_record.is_file() and read(cell_record) ==
+                   {'job': raw, 'cell': index, 'return_code': 0}) if 'groups' in scope else
+                  state == 'COMPLETED' and exit_status == '0:0')
+        if passed:
             source = out/'result.json'
             summary, guard = read(source), read(out/'planned.json')
             if guard['protocol_version'] != 'a800-single-v2':
