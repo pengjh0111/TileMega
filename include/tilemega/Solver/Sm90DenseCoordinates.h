@@ -32,19 +32,21 @@ struct Sm90DenseGemm {
   int register_stages=1;
   // D10c: the CTA pair of a cluster shares each A slot by TMA multicast.
   bool multicast=false;
+  int split_k=1;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
   int TaskCount(int n) const {return (n+tile_n-1)/tile_n;}
+  int ComputeTasks(int n) const {return TaskCount(n)*split_k;}
   int ResidualTiles(bool residual,int n,int grid) const {
-    return !residual?0:grid>0?backend::Sm90DenseLayout::ResidualTiles(TaskCount(n),grid):2;
+    return !residual?0:grid>0?backend::Sm90DenseLayout::ResidualTiles(ComputeTasks(n),grid):2;
   }
   std::int64_t SharedBytes(int batch,bool residual,int n=0,int grid=0) const {
     return backend::Sm90DenseLayout::Gemm(tile_n,TileK(),slots,warps_k,batch,
         ResidualTiles(residual,n,grid)).end;
   }
   // D5 full residency: one task's whole K is in flight at once.
-  bool FullyResident(int k) const {return slots==k/TileK();}
+  bool FullyResident(int k) const {return slots==k/(split_k*TileK());}
   // D6 preissue: the first task's slots, weights only (prompt §6).
-  int StreamBytes(int k) const {return std::min(slots,k/TileK())*slot_bytes;}
+  int StreamBytes(int k) const {return std::min(slots,k/(split_k*TileK()))*slot_bytes;}
   void Validate(int n,int k,bool allow_n_tail=false) const {
     if(n<=0 || k<=0 || tile_n<8 || tile_n>n || tile_n%8 ||
        (!allow_n_tail && n%tile_n) || warps_n<1 ||
@@ -54,6 +56,8 @@ struct Sm90DenseGemm {
        (register_stages!=1 && register_stages!=2 && register_stages!=4) ||
        register_stages>TileK()/(16*warps_k) || (multicast && slots%2))
       throw std::invalid_argument("illegal sm90 dense GEMM coordinate");
+    if((split_k!=1 && split_k!=2 && split_k!=4) || k%(split_k*TileK()))
+      throw std::invalid_argument("split-K requires whole native K tiles");
     if(mma==Sm90DenseMma::kWgmma && (tile_n%64 || warps_n!=4 || warps_k!=1))
       throw std::invalid_argument("sm90 dense WGMMA requires a complete N warpgroup");
   }
@@ -131,6 +135,10 @@ struct Sm90DenseCoordinates {
   // Megatron tensor parallel degree (schema 7). The shapes are already one
   // rank's; tp only prices the cross-rank reduction.
   int tp=1;
+  bool HasSplitK() const {
+    return std::any_of(gemms.begin(),gemms.end(),[](auto const& g){return g.split_k>1;});
+  }
+  static constexpr bool NativeSplitFamily(unsigned f) {return f==0 || f==1 || f==3 || f==5 || f==7;}
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
   static constexpr bool PaddedFamily(unsigned family,int n,int tp,bool reuse_payload) {
     return family!=5 && reuse_payload && tp==1 && n%32==0;
@@ -229,6 +237,9 @@ struct Sm90DenseCoordinates {
       bool allow_n_tail=PaddedFamily(i,nk[i][0],tp,reuse_payload) &&
           (i!=2 || nk[i][0]%(2*swiglu_u)==0);
       gemms[i].Validate(nk[i][0],nk[i][1],allow_n_tail);
+      if(gemms[i].split_k>1 && (!NativeSplitFamily(i) || tp!=1 || weight_stream ||
+          gemms[i].multicast || (i==0 && group_wait)))
+        throw std::invalid_argument("native split-K requires an aggregate SM80 handoff");
     }
     // Expert gate_up pages interleave gate/up rows in U = 16 blocks.
     if((!moe && gemms[2].tile_n%(2*swiglu_u)) || (moe && gemms[6].tile_n%32))
@@ -288,13 +299,14 @@ struct Sm90DenseCoordinates {
           {"slot_bytes",g.slot_bytes},{"slots",g.slots},
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
           {"register_stages",g.register_stages},{"multicast",g.multicast}});
+      if(g.split_k>1)families.back().second.Set("split_k",g.split_k);
     }
     // Schema 7 adds tp; a TP1 coordinate still serializes as schema 6, so every
     // R3/R4 coordinate file and its hash are unchanged.
     bool const explicit_body=live_epilogue_rows || reuse_payload || wide_producer || copy_issue_group || residual_copy_issue ||
         expert_page_segments || expert_gu_route_bases || expert_slot_padding ||
         expert_aligned_gate_pages>=0 || attention.compact_workspace ||
-        weight_evict_first || persist_l2_eighths;
+        weight_evict_first || persist_l2_eighths || HasSplitK();
     json::Value attention_json=json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
         {"slots",attention.slots},{"new_row_work",attention.new_row_work},
         {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}};
@@ -414,12 +426,6 @@ struct Sm90DenseCoordinates {
         result.weight_evict_first=evict->AsBool("weight evict first");
       if(value.Find("persist_l2_eighths"))
         result.persist_l2_eighths=integer(value,"persist_l2_eighths");
-      if(!result.weight_evict_first && !result.persist_l2_eighths &&
-          !result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
-          !result.expert_page_segments && !result.expert_gu_route_bases &&
-          !result.expert_slot_padding && result.expert_aligned_gate_pages<0 &&
-          !value.At("attention").Find("compact_workspace"))
-        throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     }
     if(schema>=7)result.tp=integer(value,"tp");
     if(schema>=8) {
@@ -446,7 +452,12 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("sm90 dense coordinates lack a GEMM family");
     for(unsigned i:result.Active()) {
       auto const& v=value.At("gemms").At(kSm90DenseFamilies[i]);auto& g=result.gemms[i];
-      keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma","register_stages","multicast"});
+      keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma","register_stages","multicast","split_k"});
+      if(v.Find("split_k")) {
+        g.split_k=integer(v,"split_k");
+        if(schema!=10 || (g.split_k!=2 && g.split_k!=4))
+          throw std::invalid_argument("invalid SM80 split-K coordinate");
+      }
       g.tile_n=integer(v,"tile_n");g.warps_n=integer(v,"warps_n");g.warps_k=integer(v,"warps_k");
       g.slot_bytes=integer(v,"slot_bytes");g.slots=integer(v,"slots");
       g.register_stages=integer(v,"register_stages");g.multicast=v.At("multicast").AsBool("multicast");
@@ -454,6 +465,12 @@ struct Sm90DenseCoordinates {
       if(mma!="mma_sync" && mma!="wgmma")throw std::invalid_argument("unknown sm90 dense MMA instruction");
       g.mma=mma=="mma_sync"?Sm90DenseMma::kMmaSync:Sm90DenseMma::kWgmma;
     }
+    if(schema==10 && !result.weight_evict_first && !result.persist_l2_eighths &&
+        !result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
+        !result.expert_page_segments && !result.expert_gu_route_bases && !result.expert_slot_padding &&
+        result.expert_aligned_gate_pages<0 && !result.HasSplitK() &&
+        !value.At("attention").Find("compact_workspace"))
+      throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     auto const& a=value.At("attention");
     keys(a,{"chunks","block_keys","slots","new_row_work","merge","compact_workspace"});
     result.attention={integer(a,"chunks"),integer(a,"block_keys"),integer(a,"slots"),

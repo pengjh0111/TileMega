@@ -122,7 +122,7 @@ std::optional<double> Sm90DenseCostModel::ProjectionIssueRate(Sm90DenseWorkload 
 std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
-  if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast ||
+  if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast || g.split_k>1 ||
      (coordinates && (coordinates->weight_stream || coordinates->wide_producer)))return std::nullopt;
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   bool gate=family==2;
@@ -160,7 +160,7 @@ std::optional<double> Sm90DenseCostModel::GemmEpilogueService(
 std::optional<Sm80FusedExpertShape> Sm90DenseCostModel::FusedServiceShape(
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
   if(target_.arch_tag!="sm_80" || !work.moe || work.top_k!=8 || !c.expert_fuse ||
-     c.weight_stream || c.GlobalRoute() || c.combine_stage)
+     c.weight_stream || c.GlobalRoute() || c.combine_stage || c.gemms[7].split_k>1)
     return std::nullopt;
   auto const& gu=c.gemms[6];
   auto const& dn=c.gemms[7];
@@ -288,27 +288,29 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   // MR6: n_active = E (1 - (1 - k/E)^B) from the workload.
   double active=family>=6?work.experts*(1-std::pow(1-double(work.top_k)/work.experts,b)):1;
   double rows=family==6?b*double(work.top_k)/active:family==7?(b<=8?8:16):b;
-  double tasks=g.TaskCount(n)*active,per_cta=std::ceil(tasks/grid);
-  double w_tot=2.0*g.tile_n*k*tasks,a_tot=tasks*rows*k*2.0;
-  double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*rows*k*2.0;
+  double tasks=g.ComputeTasks(n)*active,per_cta=std::ceil(tasks/grid);
+  int slice_k=k/g.split_k;
+  double w_tot=2.0*g.tile_n*slice_k*tasks,a_tot=tasks*rows*slice_k*2.0;
+  double w_cta=per_cta*g.tile_n*slice_k*2.0,a_cta=per_cta*rows*slice_k*2.0;
+  double partial=g.split_k>1?2*4.0*tasks*16*(g.tile_n+(family==0 || family==5)):0;
   // D10c: each CTA of a multicast pair issues half the A slots, and L2
   // serves every A slot once per pair.
   if(g.multicast) {a_tot/=2;a_cta/=2;}
   // D3: weights (bulk) and activations (TMA) share one CTA's async stream.
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
-  double waves=Waves(tasks,grid,2.0*g.tile_n*k);
-  auto issue_rate=ProjectionIssueRate(work,family,g,residency,coordinates);
+  double waves=Waves(tasks,grid,2.0*g.tile_n*slice_k);
+  auto issue_rate=g.split_k>1?std::nullopt:ProjectionIssueRate(work,family,g,residency,coordinates);
   if(issue_rate)waves=std::max(w_tot/c.dram_gbps,w_cta/(*issue_rate));
-  double arithmetic=MmaK16Ns(g,residency)*per_cta*k/(16*g.warps_k);
-  auto service=GemmService(work,family,g,residency,coordinates);
-  double producer=ActivationIssueNs(work,family,g,per_cta,true);
+  double arithmetic=MmaK16Ns(g,residency)*per_cta*slice_k/(16*g.warps_k);
+  auto service=g.split_k>1?std::nullopt:GemmService(work,family,g,residency,coordinates);
+  double producer=ActivationIssueNs(work,family,g,per_cta,true)/g.split_k;
   if(service) {
     double tiles=per_cta*k/g.TileK();
     producer=service->producer_issue_ns*tiles;
     arithmetic=service->consumer_mma_ns*tiles;
   }
-  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot)/c.l2_gbps,cta,ring,arithmetic,producer});
+  double stream=std::max({w_tot/c.dram_gbps,waves,(w_tot+a_tot+partial)/c.l2_gbps,cta,ring,arithmetic,producer});
   // A3: OLMoE's 64-expert stages key their own measurements; rows per slot
   // follow n_active(E), so Qwen3's E = 128 entries do not stand in for them.
   std::string geometry=family>=5 && work.experts==64?"_e64":"";
@@ -332,6 +334,11 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     else if(producer>0)fields.emplace_back("activation_issue_lower_bound",producer);
     if(issue_rate)fields.emplace_back("projection_issue_gbps",*issue_rate);
     if(target_.arch_tag=="sm_80") {
+      if(g.split_k>1) {
+        fields.emplace_back("split_k",g.split_k);
+        fields.emplace_back("active_ctas",std::min(tasks,double(grid)));
+        fields.emplace_back("split_partial_bytes",partial);
+      }
       fields.emplace_back("last_wave_ctas",tasks-(per_cta-1)*grid);
       fields.emplace_back("max_tasks_per_cta",per_cta);
     }

@@ -29,7 +29,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
     return false;
   if((c.live_epilogue_rows || c.reuse_payload || c.copy_issue_group || c.expert_page_segments ||
       c.expert_gu_route_bases || c.expert_slot_padding || c.expert_aligned_gate_pages>=0 ||
-      c.attention.compact_workspace || c.weight_evict_first || c.persist_l2_eighths) && !ampere)
+      c.attention.compact_workspace || c.weight_evict_first || c.persist_l2_eighths || c.HasSplitK()) && !ampere)
     return false;
   if(ampere && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
@@ -55,6 +55,8 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // D9: every CTA publishes one argmax partial into the head's [B][tasks]
   // outputs, so the head needs at least one task per CTA.
   if(c.gemms[4].TaskCount(shapes[4][0])<grid)return false;
+  for(unsigned f:c.Active())
+    if(c.gemms[f].split_k>1 && c.gemms[f].TaskCount(shapes[f][0])>=grid)return false;
   // D10c: both CTAs of a pair run the same task count.
   for(unsigned f:c.Active())
     if(c.gemms[f].multicast && ((shapes[f][0]/c.gemms[f].tile_n)%grid)%2)return false;
@@ -167,6 +169,20 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
       if(!found || g.register_stages>tk/(16*g.warps_k))continue;
       try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
       result.push_back(g);
+    }
+  }
+  if(target.arch_tag=="sm_80" && tp==1 && !weight_stream &&
+      Sm90DenseCoordinates::NativeSplitFamily(family)) {
+    auto base=result.size();
+    for(std::size_t i=0;i<base;++i) {
+      auto candidate=result[i];
+      if(candidate.TaskCount(n)>=grid)continue;
+      for(int split:{2,4}) {
+        if(k%(split*candidate.TileK()))continue;
+        candidate.split_k=split;
+        if(candidate.SharedBytes(batch,residual,n,grid)-1024<=arena)
+          result.push_back(candidate);
+      }
     }
   }
   return result;

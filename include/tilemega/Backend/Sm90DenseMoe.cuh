@@ -387,7 +387,11 @@ struct Sm90DenseMoeCombine {
 // slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
          int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1,bool SoftmaxAll=false,
-         bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false,bool CpAsync=false>
+         bool FinishRouting=false,bool GlobalSchedule=false,bool StageCombine=false,bool CpAsync=false
+#if TILEMEGA_SM80_SPLIT_K
+         ,int SplitK=1
+#endif
+         >
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
@@ -396,10 +400,18 @@ struct Sm90DenseMoeGemm {
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   using Stream=Sm90DenseStreamT<CpAsync>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
-#if defined(TILEMEGA_SM80_PADDED_GATE)
-  static constexpr int kTiles=Core::kTasks,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
+#if TILEMEGA_SM80_SPLIT_K
+  static constexpr int kSlices=SplitK;
 #else
-  static constexpr int kTiles=N/TN,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
+  static constexpr int kSlices=1;
+#endif
+  static_assert((kSlices==1 || kSlices==2 || kSlices==4) && K%(kSlices*TK)==0);
+  static_assert(kSlices==1 || (CpAsync && Mode!=Sm90DenseMoeMode::kGateUp));
+  static constexpr int kEpilogueSplits=kSlices>1?1:WK;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+  static constexpr int kTiles=Core::kTasks,kIterations=K/(kSlices*TK),kRows=Core::kRows,kThreads=Core::kThreads;
+#else
+  static constexpr int kTiles=N/TN,kIterations=K/(kSlices*TK),kRows=Core::kRows,kThreads=Core::kThreads;
 #endif
   static constexpr bool kDynamic=Mode!=Sm90DenseMoeMode::kRouter;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
@@ -413,7 +425,8 @@ struct Sm90DenseMoeGemm {
   static constexpr int kSharedBytes=kLayout.end,kSlotBytes=Core::kSlotBytes;
   static constexpr int kRouteOffset=(Core::kSharedBytes+127)/128*128;
   // M5/M6 run n_active x kTiles tasks; this bounds them.
-  static constexpr int kMaxTasks=kDynamic?Experts*kTiles:kTiles;
+  static constexpr int kOutputTasks=kDynamic?Experts*kTiles:kTiles;
+  static constexpr int kMaxTasks=kOutputTasks*kSlices;
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
   static_assert(Mode!=Sm90DenseMoeMode::kGateUp || TN%(2*U)==0);
   static_assert(Page==0 || (Page==64 && kDynamic && TN%32==0 && N%64==0 && K%64==0));
@@ -421,20 +434,20 @@ struct Sm90DenseMoeGemm {
   using RouterFinish=Sm90DenseRouterFinish<Batch,Experts,TopK,kTiles,FloatWeights,SoftmaxAll>;
 
   __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeOperands const& p) {
-    if constexpr(kDynamic)return p.schedule[Schedule::Active()]*kTiles;
-    else return kTiles;
+    if constexpr(kDynamic)return p.schedule[Schedule::Active()]*kTiles*kSlices;
+    else return kTiles*kSlices;
   }
   // Weight tiles of task t: router tile t, else tile t % kTiles of the
   // expert in slot t / kTiles (one expert's pages are N x K).
   __device__ static __forceinline__ Element const* Tiles(Element const* weight,int const* schedule,int t) {
-    if constexpr(!kDynamic)return weight+std::size_t(t)*kIterations*TN*TK;
+    if constexpr(!kDynamic)return weight+std::size_t(t)*(K/TK)*TN*TK;
     else if constexpr(Page)return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
     else return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*kTiles*TN*K+
 #else
     else return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K+
 #endif
-        std::size_t(t%kTiles)*kIterations*TN*TK;
+        std::size_t(t%kTiles)*(K/TK)*TN*TK;
   }
   // Select the first page and half-page phase once per expert task.
   template<class Use>
@@ -664,12 +677,12 @@ struct Sm90DenseMoeGemm {
     }
   }
   __device__ static __forceinline__ Element const* TaskTiles(Element const* weight,int expert,int t) {
-    if constexpr(!kDynamic)return weight+std::size_t(t)*kIterations*TN*TK;
+    if constexpr(!kDynamic)return weight+std::size_t(t)*(K/TK)*TN*TK;
     else if constexpr(Page)return weight+std::size_t(expert)*N*K;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
-    else return weight+std::size_t(expert)*kTiles*TN*K+std::size_t(t%kTiles)*kIterations*TN*TK;
+    else return weight+std::size_t(expert)*kTiles*TN*K+std::size_t(t%kTiles)*(K/TK)*TN*TK;
 #else
-    else return weight+std::size_t(expert)*N*K+std::size_t(t%kTiles)*kIterations*TN*TK;
+    else return weight+std::size_t(expert)*N*K+std::size_t(t%kTiles)*(K/TK)*TN*TK;
 #endif
   }
 
@@ -686,9 +699,10 @@ struct Sm90DenseMoeGemm {
     if(lane==0)Async::ProxyAsyncGlobalFence();
     Record next=first;
     for(int local=0;local<tasks;++local) {
-      int t=int(blockIdx.x)+local*int(gridDim.x);
+      int work=int(blockIdx.x)+local*int(gridDim.x);
+      int t=work/kSlices;
       Record current=next;
-      if(local+1<tasks)next=Load(p.schedule,t+int(gridDim.x));
+      if(local+1<tasks)next=Load(p.schedule,(work+int(gridDim.x))/kSlices);
       auto const* tiles=TaskTiles(p.weight,current.expert,t);
       WithWeightTile(tiles,t,[&](auto page_phase,auto* tile_base) {
         int token=current.route/TopK;
@@ -701,16 +715,19 @@ struct Sm90DenseMoeGemm {
               if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
                 prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
             auto* destination=b+slot*TN*TK;
+            int contraction_tile=tile+work%kSlices*kIterations;
             if constexpr(Page) {
-              if(!prefix)CopyWeights<decltype(page_phase)::value>(destination,tile_base,t,tile,state.full+slot);
-            }else if constexpr(Prefix==0)CopyWeights(destination,tile_base,t,tile,state.full+slot);
+              if(!prefix)CopyWeights<decltype(page_phase)::value>(destination,tile_base,t,
+                  contraction_tile,state.full+slot);
+            }else if constexpr(Prefix==0)
+              CopyWeights(destination,tile_base,t,contraction_tile,state.full+slot);
             else Core::WeightSpanHint(destination+prefix,
                 tile_base+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix,Stream::WeightPolicy());
             auto* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
             if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
             // Dynamic records can shrink when the task changes. Establish
             // zeros on the first visit to each slot in the current task.
-            CopyActivation(a+slot*kRows*TK,source,tile,kDynamic?current.count:Batch,token
+            CopyActivation(a+slot*kRows*TK,source,contraction_tile,kDynamic?current.count:Batch,token
                 TILEMEGA_SM80_MOE_FIRST_VISIT((kDynamic?tile:sequence)<Slots));
             Async::CompleteCopies(state.full+slot);
           }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
@@ -763,7 +780,7 @@ struct Sm90DenseMoeGemm {
   __device__ static __forceinline__ float Value(float const* tile,int row,int col) {
     float sum=tile[row*TN+col];
     #pragma unroll
-    for(int s=1;s<WK;++s)sum+=tile[s*16*TN+row*TN+col];
+    for(int s=1;s<kEpilogueSplits;++s)sum+=tile[s*16*TN+row*TN+col];
     return sum;
   }
   __device__ static __forceinline__ float Inverse(float const* norms,int row,float epsilon) {
@@ -771,7 +788,7 @@ struct Sm90DenseMoeGemm {
     else {
       float squares=0;
       #pragma unroll
-      for(int s=0;s<WK;++s)squares+=norms[s*16+row];
+      for(int s=0;s<kEpilogueSplits;++s)squares+=norms[s*16+row];
       return rsqrtf(squares/float(K)+epsilon);
     }
   }
@@ -905,7 +922,11 @@ struct Sm90DenseMoeGemm {
 
   __device__ static __noinline__ void Consume(Sm90DenseMoeOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,unsigned phase,
-      LocalSchedule const* routing=nullptr) {
+      LocalSchedule const* routing
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace,std::uint64_t* split_counters
+#endif
+      ) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
@@ -913,8 +934,10 @@ struct Sm90DenseMoeGemm {
     auto* flag=reinterpret_cast<int*>(norms+64);
     typename Core::Mma mma;auto thread=mma.get_slice(lane);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
+    int completed=0;
     for(int local=0;local<tasks;++local) {
-      int t=int(blockIdx.x)+local*int(gridDim.x);
+      int work=int(blockIdx.x)+local*int(gridDim.x);
+      int t=work/kSlices;
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       float squares[2]={0,0};
       for(int iteration=0;iteration<kIterations;++iteration) {
@@ -950,7 +973,21 @@ struct Sm90DenseMoeGemm {
         }
       if(tid==0)Sm90DenseMark(1);
       codegen::executor::ComputeSync();
+#if TILEMEGA_SM80_SPLIT_K
+      bool ready=true;
+      if constexpr(kSlices>1) {
+        using Reduction=codegen::Sm80SplitKTaskBody<kOutputTasks,kSlices,16,TN,kInputNorm>;
+        int rows=kDynamic?routing->count[t/kTiles]:Batch;
+        ready=Reduction::template Reduce<WK>(split_workspace,split_counters,t,work%kSlices,
+            scratch,norms,flag,rows);
+      }
+      if(ready) {
+        ++completed;
+        Epilogue(p,scratch,norms,t,flag,routing);
+      }
+#else
       Epilogue(p,scratch,norms,t,flag,routing);
+#endif
       codegen::executor::ComputeSync();
       if(tid==0)Sm90DenseMark(2);
     }
@@ -965,7 +1002,7 @@ struct Sm90DenseMoeGemm {
     // ahead of every M56 task, and the previous layer's M56 finished before
     // that barrier. Only the last CTA does it, and it owns no router task.
     if constexpr(Mode==Sm90DenseMoeMode::kRouter && FinishRouting)
-      RouterFinish{}(p,tasks,reinterpret_cast<char*>(scratch));
+      RouterFinish{}(p,kSlices>1?completed:tasks,reinterpret_cast<char*>(scratch));
     else if constexpr(Mode==Sm90DenseMoeMode::kRouter)
       if(p.gate_up_done && int(blockIdx.x)==int(gridDim.x)-1 && tid<Experts)
         p.gate_up_done[tid]=0;
@@ -973,7 +1010,12 @@ struct Sm90DenseMoeGemm {
 
   template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __forceinline__ void Run(Sm90DenseMoeOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace=nullptr,std::uint64_t* split_counters=nullptr
+#endif
+      ) {
+    static_assert(kSlices==1 || Prefix==0);
     static_assert(Prefix>=0 && Prefix%16==0 && Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
     static_assert(Mode!=Sm90DenseMoeMode::kGateUp || Prefix==0,"M4 does not stream into M5");
     static_assert(Page==0 || Prefix%(2*TN*TK)==0,"paged experts stream whole slots");
@@ -994,10 +1036,14 @@ struct Sm90DenseMoeGemm {
       __syncthreads();
     }
     Record first{};
-    if(threadIdx.x>=128)first=Load(p.schedule,int(blockIdx.x));
+    if(threadIdx.x>=128)first=Load(p.schedule,int(blockIdx.x)/kSlices);
     int total=TotalTasks(p);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,routing);
+    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,routing
+#if TILEMEGA_SM80_SPLIT_K
+        ,split_workspace,split_counters
+#endif
+        );
 #if TILEMEGA_SM80_WIDE_PRODUCER
     else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
 #else
@@ -1028,7 +1074,11 @@ struct Sm90DenseMoeGemm {
 template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,int TKDn,int Slots,
          int WNGu,int WKGu,int WNDn,int WKDn,int U,int Experts,int TopK,bool FloatWeights,
          int Page=0,int RegisterStages=1,bool SoftmaxAll=false,bool LocalRouting=true,bool StageCombine=false,
-         bool CpAsync=false,int SampleRole=kMoeNoSample>
+         bool CpAsync=false,int SampleRole=kMoeNoSample
+#if TILEMEGA_SM80_SPLIT_K
+         ,int DownSplitK=1
+#endif
+         >
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
@@ -1039,13 +1089,18 @@ struct Sm90DenseMoeFusedGemm {
   using Gu=Sm90DenseMoeGemm<Batch,NGateUp,Hidden,TNGu,TKGu,Slots,WNGu,WKGu,
       Sm90DenseMoeMode::kGateUp,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,false,CpAsync>;
   using Dn=Sm90DenseMoeGemm<Batch,NDown,kIntermediate,TNDn,TKDn,Slots,WNDn,WKDn,
-      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,StageCombine,CpAsync>;
+      Sm90DenseMoeMode::kDown,U,Experts,TopK,FloatWeights,Page,RegisterStages,false,false,false,StageCombine,CpAsync
+#if TILEMEGA_SM80_SPLIT_K
+      ,DownSplitK
+#endif
+      >;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
   static constexpr int kTilesGu=Gu::kTiles,kTilesDn=Dn::kTiles;
 #else
   static constexpr int kTilesGu=NGateUp/TNGu,kTilesDn=NDown/TNDn;
 #endif
-  static constexpr int kIterGu=Hidden/TKGu,kIterDn=kIntermediate/TKDn;
+  static constexpr int kIterGu=Hidden/TKGu,kIterDn=Dn::kIterations;
+  static constexpr int kSlicesDn=Dn::kSlices;
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
   static constexpr int kThreads=160;
   // One ring for both task types: a slot takes the larger of the two.
@@ -1064,7 +1119,7 @@ struct Sm90DenseMoeFusedGemm {
   static constexpr int kSharedBytes=kLayout.end;
   // E2: the route region is the tail of the arena (Sm90DenseLayout::MoeFused).
   static constexpr int kRouteOffset=kLayout.end-kRouteBytes;
-  static constexpr int kMaxTasks=Experts*(kTilesGu+kTilesDn);
+  static constexpr int kMaxTasks=Experts*(kTilesGu+kTilesDn*kSlicesDn);
   // M4's routes are unknown to its predecessor, so M56 receives no D6 stream.
   static constexpr int kMaxPreissue=0;
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
@@ -1075,18 +1130,29 @@ struct Sm90DenseMoeFusedGemm {
     return p.schedule[Schedule::Active()];
   }
   __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeFusedOperands const& p) {
-    return Active(p)*(kTilesGu+kTilesDn);
+    return Active(p)*(kTilesGu+kTilesDn*kSlicesDn);
   }
   // Task t: gate_up while t < n T_gu, else down. `slot` is the active expert
   // slot a and `tile` the column tile j of that task's own family.
-  struct Task {int slot,tile;bool down;};
+  struct Task {
+    int slot,tile;bool down;
+#if TILEMEGA_SM80_SPLIT_K
+    int slice=0;
+#endif
+  };
   // MR1's record, read once per task. The component bodies each nest their
   // own, so the fused stage carries one for both task types.
   struct Record {int expert,count,route;};
   __device__ static __forceinline__ Task Of(int t,int active) {
     int split=active*kTilesGu;
     if(t<split)return {t/kTilesGu,t%kTilesGu,false};
-    int u=t-split;return {u/kTilesDn,u%kTilesDn,true};
+    int u=t-split;
+#if TILEMEGA_SM80_SPLIT_K
+    int output=u/kSlicesDn;
+    return {output/kTilesDn,output%kTilesDn,true,u%kSlicesDn};
+#else
+    return {u/kTilesDn,u%kTilesDn,true};
+#endif
   }
   // The component bodies' epilogues read only these fields.
   __device__ static __forceinline__ Sm90DenseMoeOperands GateUpOperands(
@@ -1212,6 +1278,11 @@ struct Sm90DenseMoeFusedGemm {
     Dn::WithWeightTile(tiles,task.slot*kTilesDn+task.tile,[&](auto page_phase,auto* tile_base) {
       using Profile=Sm80MoeStageMarks<CpAsync,true,SampleRole>;
       constexpr int kAhead=Slots<kIterDn?Slots:kIterDn;
+#if TILEMEGA_SM80_SPLIT_K
+      int contraction=task.slice*kIterDn;
+#else
+      constexpr int contraction=0;
+#endif
       int first=sequence;
       for(int tile=0;tile<kAhead;++tile) {
         int slot=(sequence++)%Slots;
@@ -1221,7 +1292,7 @@ struct Sm90DenseMoeFusedGemm {
         stamp=Profile::template Begin<Sm90DenseMarks::kDnPreissueIssue>();
         if(CpAsync || lane==0) {
           if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytesDn);
-          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile+contraction,state.full+slot);
         }
         Profile::template End<Sm90DenseMarks::kDnPreissueIssue>(stamp);
         phase^=1u<<slot;
@@ -1241,7 +1312,7 @@ struct Sm90DenseMoeFusedGemm {
         auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
         for(int tile=0;tile<kAhead;++tile) {
           int slot=(first+tile)%Slots;
-          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0 TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile+contraction,record.count,0 TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
           Async::CompleteCopies(state.full+slot);
         }
       }else if(lane==0) {
@@ -1260,12 +1331,12 @@ struct Sm90DenseMoeFusedGemm {
         stamp=Profile::template Begin<Sm90DenseMarks::kDnIssue>(tile);
         if constexpr(CpAsync) {
           auto* source=static_cast<Element const*>(p.hidden)+std::size_t(task.slot)*16*kIntermediate;
-          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
-          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile,record.count,0 TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
+          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile+contraction,state.full+slot);
+          Dn::CopyActivation(a+slot*kRows*kMaxTK,source,tile+contraction,record.count,0 TILEMEGA_SM80_MOE_FIRST_VISIT(tile<Slots));
           Async::CompleteCopies(state.full+slot);
         }else if(lane==0) {
           Async::ExpectTx(state.full+slot,kSlotBytesDn);
-          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile,state.full+slot);
+          Dn::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,task.slot*kTilesDn+task.tile,tile+contraction,state.full+slot);
           Async::Tensor4D(a+slot*kRows*kMaxTK,p.activation,0,0,tile*(TKDn/64),task.slot,
               state.full+slot);
         }
@@ -1306,7 +1377,11 @@ struct Sm90DenseMoeFusedGemm {
   template<class Body,int Iterations,int TN,int TK,int WN,int WK,bool Down>
   __device__ static __forceinline__ void ConsumeTask(Sm90DenseMoeOperands const& q,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int t,unsigned& phase,
-      int& sequence,int* flag,LocalSchedule const& routing) {
+      int& sequence,int* flag,LocalSchedule const& routing
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace=nullptr,std::uint64_t* split_counters=nullptr,int slice=0
+#endif
+      ) {
     using namespace cute;
     using Profile=Sm80MoeStageMarks<CpAsync,false,SampleRole>;
     int tid=threadIdx.x,lane=tid%(32*WN),split=tid/(32*WN);
@@ -1351,7 +1426,15 @@ struct Sm90DenseMoeFusedGemm {
         norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
       }
     codegen::executor::ComputeSync();
-    Body::Epilogue(q,scratch,norms,t,flag,&routing);
+#if TILEMEGA_SM80_SPLIT_K
+    if constexpr(Down && kSlicesDn>1) {
+      using Reduction=codegen::Sm80SplitKTaskBody<Experts*kTilesDn,kSlicesDn,16,TN,false>;
+      if(Reduction::template Reduce<WK>(split_workspace,split_counters,t,slice,scratch,norms,
+                                      flag,routing.count[t/kTilesDn]))
+        Body::Epilogue(q,scratch,norms,t,flag,&routing);
+    } else
+#endif
+      Body::Epilogue(q,scratch,norms,t,flag,&routing);
     codegen::executor::ComputeSync();
     Profile::template End<Down?Sm90DenseMarks::kDnEpilogue:Sm90DenseMarks::kGuEpilogue>(epilogue);
   }
@@ -1370,10 +1453,18 @@ struct Sm90DenseMoeFusedGemm {
   }
   __device__ static __noinline__ void ConsumeDown(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Task task,unsigned& phase,
-      int& sequence,int* flag,LocalSchedule const& routing) {
+      int& sequence,int* flag,LocalSchedule const& routing
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace,std::uint64_t* split_counters
+#endif
+      ) {
     auto q=DownOperands(p);
     ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn,true>(q,state,a,b,scratch,
-        task.slot*kTilesDn+task.tile,phase,sequence,flag,routing);
+        task.slot*kTilesDn+task.tile,phase,sequence,flag,routing
+#if TILEMEGA_SM80_SPLIT_K
+        ,split_workspace,split_counters,task.slice
+#endif
+        );
 #if TILEMEGA_SM80_FUSED_PHASE_TRACE
     if(threadIdx.x==0)Sm90DenseMark(Sm90DenseMarks::kLastDnEpilogue);
 #endif
@@ -1381,7 +1472,11 @@ struct Sm90DenseMoeFusedGemm {
 
   __device__ static __forceinline__ void Consume(Sm90DenseMoeFusedOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,unsigned phase,
-      int active,LocalSchedule const& routing) {
+      int active,LocalSchedule const& routing
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace,std::uint64_t* split_counters
+#endif
+      ) {
     Sm90DenseRoles::Consumer();
     constexpr int kScratchTN=TNGu>TNDn?TNGu:TNDn,kScratchWK=WKGu>WKDn?WKGu:WKDn;
     auto* flag=reinterpret_cast<int*>(scratch+kScratchWK*16*kScratchTN+64);
@@ -1389,7 +1484,11 @@ struct Sm90DenseMoeFusedGemm {
     for(int local=0;local<tasks;++local) {
       int t=int(blockIdx.x)+local*int(gridDim.x);
       Task task=Of(t,active);
-      if(task.down)ConsumeDown(p,state,a,b,scratch,task,phase,sequence,flag,routing);
+      if(task.down)ConsumeDown(p,state,a,b,scratch,task,phase,sequence,flag,routing
+#if TILEMEGA_SM80_SPLIT_K
+          ,split_workspace,split_counters
+#endif
+          );
       else ConsumeGateUp(p,state,a,b,scratch,task,phase,sequence,flag,routing);
     }
     if(threadIdx.x==0 && tasks)
@@ -1398,7 +1497,11 @@ struct Sm90DenseMoeFusedGemm {
 
   template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __forceinline__ void Run(Sm90DenseMoeFusedOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace=nullptr,std::uint64_t* split_counters=nullptr
+#endif
+      ) {
     static_assert(Prefix==0,"M56 receives no stream: M4 does not know the routes");
     (void)streamed;
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
@@ -1426,7 +1529,7 @@ struct Sm90DenseMoeFusedGemm {
       if(auto* marks=Sm90DenseMarks::Base())marks[Sm90DenseMarks::kActiveExperts]=active;
     }
 #endif
-    int total=active*(kTilesGu+kTilesDn);
+    int total=active*(kTilesGu+kTilesDn*kSlicesDn);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
 #if TILEMEGA_SM80_FUSED_PRICES_TRACE
     if(threadIdx.x==0)
@@ -1442,7 +1545,11 @@ struct Sm90DenseMoeFusedGemm {
       // off the task path because no stage reads it any more.
       if constexpr(LocalRouting)
         if(blockIdx.x==0)LocalRoute::Publish(routing,p.schedule,p.route_weights,p.route_index);
-      Consume(p,state,a,b,scratch,tasks,phase,active,routing);
+      Consume(p,state,a,b,scratch,tasks,phase,active,routing
+#if TILEMEGA_SM80_SPLIT_K
+          ,split_workspace,split_counters
+#endif
+          );
 #if TILEMEGA_SM80_WIDE_PRODUCER
     }else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
 #else

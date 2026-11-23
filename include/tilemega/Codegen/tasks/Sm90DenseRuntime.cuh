@@ -439,6 +439,12 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
            {m.box[0],m.box[1],m.box[2],m.box[3]}});
       else throw std::invalid_argument("native tensor map rank must be 3 or 4");
     }
+#if TILEMEGA_SM80_SPLIT_K
+    plan->bindings.splitk_workspace=Allocate<float>(kNativeSplitKWorkspace/sizeof(float));
+    plan->owned.push_back(plan->bindings.splitk_workspace);
+    plan->bindings.splitk_counters=Allocate<std::uint64_t>(kNativeSplitKCounters);
+    plan->owned.push_back(plan->bindings.splitk_counters);
+#endif
     plan->events=Allocate<GridCounter>(NativeProgram::kCounters);
     if(plan->grid>NativeProgram::kHeadMaxGrid)
       throw std::invalid_argument("native grid exceeds the lm_head partial outputs");

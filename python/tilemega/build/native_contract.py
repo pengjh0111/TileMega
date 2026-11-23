@@ -62,7 +62,23 @@ def validate(manifest, defines):
             or 'expert_slot_padding' in c and (not slot_padding or c['model'] != 'moe')
             or 'expert_aligned_gate_pages' in c and (type(gate_pages) is not bool or not c['expert_fuse'])):
         raise ValueError('invalid native producer or expert copy coordinate')
-    explicit = (reuse or live_rows or issue_group or page_segments or wide or compact_attention
+    evict_first = c.get('weight_evict_first') is True
+    persist = c.get('persist_l2_eighths', 0)
+    if ('weight_evict_first' in c and not evict_first or
+            'persist_l2_eighths' in c and (type(persist) is not int or persist not in (1, 2, 4))):
+        raise ValueError('invalid native L2 cache policy')
+    if (evict_first != (defines.get('TILEMEGA_SM80_WEIGHT_EVICT_FIRST') == '1') or
+            defines.get('TILEMEGA_SM80_PERSIST_L2_EIGHTHS') != (str(persist) if persist else None)):
+        raise ValueError('native cache policy differs from generated macros')
+    splits = {family: coord['split_k'] for family, coord in c['gemms'].items() if 'split_k' in coord}
+    for family, split in splits.items():
+        if (family not in ('qkv', 'o', 'down', 'router', 'expert_down') or type(split) is not int or split not in (2, 4)
+                or c.get('weight_stream') or (family == 'qkv' and c.get('group_wait'))):
+            raise ValueError('invalid SM80 split-K coordinate')
+    if bool(splits) != (defines.get('TILEMEGA_SM80_SPLIT_K') == '1'):
+        raise ValueError('native split-K family differs from generated macros')
+    explicit = (evict_first or persist or splits or reuse or live_rows or issue_group
+                or page_segments or wide or compact_attention
                 or residual_group or route_bases or slot_padding or gate_pages is not None)
     if (c['schema'] == 10) != bool(explicit) or (c['schema'] == 10 and not ampere):
         raise ValueError('explicit native payload and epilogue modes require SM80 schema 10')
@@ -309,11 +325,17 @@ def dispatch(manifest, defines, source):
         args = raw.split(',')
         family = gemm['family']
         moe = family in MOE_MODES
+        split_k = c['gemms'][family].get('split_k', 1)
         expected_kind = ('MoeFused' if fused and family in FUSED else 'Moe' if moe else
                          'AmpereGemm' if ampere else 'Gemm')
         if kind != expected_kind:
             raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
         if kind == 'MoeFused':
+            down_split = c['gemms']['expert_down'].get('split_k', 1)
+            if down_split > 1:
+                if len(args) != 36 or int(args[-1]) != down_split:
+                    raise ValueError('native expert split-K call does not match its coordinate')
+                args = args[:-1]
             # batch, N_gu, N_dn, K_gu, TN/TK gate_up, TN/TK down, slots, WN/WK
             # gate_up, WN/WK down, U, experts, top-k, float routes, page, 11
             # operands (the 10th gu_done), map, register stages. E2 appends the
@@ -341,6 +363,10 @@ def dispatch(manifest, defines, source):
             register_stages = int(args[29])
             stream = 0
         elif moe:
+            if split_k > 1:
+                if len(args) != 30 or int(args[-1]) != split_k:
+                    raise ValueError('native MoE split-K call does not match its coordinate')
+                args = args[:-1]
             # batch, N, K, TN, TK, slots, WN, WK, mode, U, experts, top-k,
             # float routes, page, buffers, map, register stages[, softmax-all].
             # 23 arguments: binaries generated before A3 and MR7 (REF-R3, the MR
@@ -374,9 +400,10 @@ def dispatch(manifest, defines, source):
             reduces = tp > 1 and family in TP_OPS
             if ampere:
                 grid = manifest['grid']
-                tasks = (gemm['n'] + gemm['tile_n'] - 1) // gemm['tile_n']
+                tasks = split_k * ((gemm['n'] + gemm['tile_n'] - 1) // gemm['tile_n'])
                 residual = max(2, (tasks + grid - 1) // grid) if family in TP_OPS else 0
-                if len(args) != 18 or args[15] == 'kAbsent' or int(args[17]) != residual:
+                if (len(args) != (19 if split_k > 1 else 18) or args[15] == 'kAbsent'
+                        or int(args[17]) != residual or (split_k > 1 and int(args[18]) != split_k)):
                     raise ValueError('SM80 native GEMM copy operands or residual capacity are invalid')
                 multicast = False
             elif reduces:
@@ -406,7 +433,7 @@ def dispatch(manifest, defines, source):
         if kind != 'MoeFused':
             batch, n, k, tn, tk, slots, wn, wk = map(int, args[:8])
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
-                      warps_n=wn, warps_k=wk, split_k=1)
+                      warps_n=wn, warps_k=wk, split_k=split_k)
         f = c['gemms'][family]
         if (merge_stage and family == 'o') or (combine_stage and family in ('qkv', 'lm_head')):
             stream = 0

@@ -2141,7 +2141,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     auto const& cfg=c.gemms[gemm_family];
     if(cfg.mma!=solver::Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("this native lowering does not implement the optional WGMMA coordinate");
-    if(integerField(r,"split_k")!=1 || integerField(r,"tile_n")!=cfg.tile_n ||
+    if(integerField(r,"split_k")!=cfg.split_k || integerField(r,"tile_n")!=cfg.tile_n ||
        integerField(r,"tile_k")!=cfg.TileK() || integerField(r,"tile_m")!=16 ||
        integerField(r,"stages")!=cfg.slots || integerField(r,"impl")!=3)
       throw std::invalid_argument("native coordinates disagree with materialized CTG GEMM geometry");
@@ -2206,6 +2206,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // serial tails re-read, so only it takes the evict_first policy. A dense
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
+     <<(c.HasSplitK()?"#define TILEMEGA_SM80_SPLIT_K 1\n":"")
      <<(c.weight_evict_first?"#define TILEMEGA_SM80_WEIGHT_EVICT_FIRST 1\n":"")
      <<(c.persist_l2_eighths?"#define TILEMEGA_SM80_PERSIST_L2_EIGHTHS "+
          std::to_string(c.persist_l2_eighths)+"\n":"")
@@ -2320,6 +2321,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   std::array<int,2> kv_maps{-1,-1};
   std::int64_t kv_bytes=0;  // one layer's K (or V): B*Hkv*Cap*D BF16
   unsigned group_columns=0;  // one KV group's qkv columns, (Q + 2) D (D8)
+  std::uint64_t split_workspace_bytes=0,split_counters=0;
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
     auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -2347,6 +2349,15 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         throw std::invalid_argument("native GEMM exceeds residual tasks per CTA");
       if(cfg.SharedBytes(batch,residual,n,grid)-1024>arena)
         throw std::invalid_argument("native GEMM storage exceeds its arena");
+      if(cfg.split_k>1) {
+        if(!cp_async || cfg.TaskCount(int(n))>=grid)
+          throw std::invalid_argument("native split-K requires a partial SM80 grid");
+        int stacks=e.family==7?nk[5][0]:1;
+        bool input_norm=e.family==0 || e.family==5;
+        std::uint64_t bytes=4ull*stacks*cfg.ComputeTasks(int(n))*16*(cfg.tile_n+unsigned(input_norm));
+        split_workspace_bytes=std::max(split_workspace_bytes,bytes);
+        split_counters=std::max(split_counters,std::uint64_t(stacks)*cfg.TaskCount(int(n)));
+      }
       if(e.family>=5) {
         // Native MoE stages (prompt §8): operands W, x', output, then the
         // stage's schedule/routes/indices/counter; maps x' (router), h (down).
@@ -2368,7 +2379,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           throw std::invalid_argument("padded expert tiles require a shared SM80 payload");
         weight=name(integerField(g,"b"));
         bytes=2ull*(page?n:tile_count*cfg.tile_n)*k*(e.family==5?1:experts);
-        tasks=tile_count*(e.family==5?1:experts);
+        tasks=tile_count*cfg.split_k*(e.family==5?1:experts);
         // Paged experts stream whole slots only.
         if(page)e.stream=std::min(cfg.slots,int(k/cfg.TileK()))*cfg.slot_bytes*(e.family==6?0:1);
         // MR7's per-slot counters: the router clears them, and only a fused
@@ -2421,6 +2432,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           else e.tail=","+std::to_string(map_index({integerField(g,"a"),4,64,16,k/64,experts,2*k,128,
               2*16*k,64,activation_rows,cfg.TileK()/64,1}))+","+std::to_string(cfg.register_stages)+
               ","+router_logits+(moe_softmax_all?",true":",false")+(c.GlobalRoute()?",false":c.combine_stage?",true":"")+(c.combine_stage?",true":"");
+          if(cp_async && cfg.split_k>1)e.tail+=","+std::to_string(cfg.split_k);
           e.stream=0;
           weight=gu.weight_name;bytes+=gu.bytes;tasks+=gu.tasks;
           gate_up_held.held=false;
@@ -2437,6 +2449,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
               (e.family==5 && c.route==solver::Sm90DenseCoordinates::Route::kLastArriver?",true":",false")+
               (e.family>=6 && c.GlobalRoute()?",true":",false")+
               (e.family==7 && c.combine_stage?",true":",false")+",true";
+          if(cfg.split_k>1)e.tail+=","+std::to_string(cfg.split_k);
         }else {
         std::string map="kAbsent";
         if(e.family==5)
@@ -2458,10 +2471,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         throw std::invalid_argument("native all-reduce epilogue in an unsharded plan");
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="residual_ar"?"kResidualAllReduce":op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
-      weight=name(integerField(g,"b"));tasks=cfg.TaskCount(int(n));
+      weight=name(integerField(g,"b"));tasks=cfg.ComputeTasks(int(n));
       if(n%cfg.tile_n && (!cp_async || c.weight_stream || op=="residual_ar"))
         throw std::invalid_argument("padded native GEMM requires an unsharded SM80 payload");
-      bytes=2ull*tasks*cfg.tile_n*k;
+      bytes=2ull*cfg.TaskCount(int(n))*cfg.tile_n*k;
       bool input_norm=op=="store" || op=="swiglu" || op=="argmax_partial";
       head<<(cp_async?"AmpereGemm<":"Gemm<")<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
           <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
@@ -2471,6 +2484,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       if(cp_async) {
         e.ids.push_back(id(g,"a"));
         e.tail=","+std::to_string(cfg.register_stages)+","+std::to_string(residual_tiles);
+        if(cfg.split_k>1)e.tail+=","+std::to_string(cfg.split_k);
       }else {
       // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot.
       auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
@@ -2712,8 +2726,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<">;\nconstexpr int kNativeGrid="<<grid<<";\n"
      <<"constexpr std::array<StageInfo,"<<info.size()<<"> kNativeStages={{\n";
   for(auto const& row:info)out<<row;
-  out<<"}};\n"
-     <<"}  // namespace tilemega::codegen::native_dense\n";
+  out<<"}};\n";
+  if(split_workspace_bytes)
+    out<<"constexpr std::size_t kNativeSplitKWorkspace="<<split_workspace_bytes<<";\n"
+       <<"constexpr std::size_t kNativeSplitKCounters="<<split_counters<<";\n";
+  out<<"}  // namespace tilemega::codegen::native_dense\n";
   if(kernel_sequence) {
     out<<"#define TILEMEGA_NATIVE_KERNEL_SEQUENCE 1\n"
        <<(preserve_sequence?"#define TILEMEGA_NATIVE_SEQUENCE_PRESERVE_BODY 1\n":"")

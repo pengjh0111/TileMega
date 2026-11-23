@@ -11,6 +11,9 @@
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <cute/tensor.hpp>
+#if TILEMEGA_SM80_SPLIT_K
+#include <tilemega/Codegen/tasks/GemmSplitKTaskBody.h>
+#endif
 
 #ifndef TILEMEGA_SM80_COPY_ISSUE_GROUP
 #define TILEMEGA_SM80_COPY_ISSUE_GROUP 0
@@ -24,16 +27,28 @@ namespace tilemega::backend {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
          ServingEpilogueOp Op,int U,bool InputNorm,int RegisterStages=1,bool Multicast=false,
 #if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
-         int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false,int Producers=32>
+         int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false,int Producers=32
 #else
-         int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false>
+         int ResidualTiles=2,bool CpAsync=false,bool ServiceProbe=false
 #endif
+#if TILEMEGA_SM80_SPLIT_K
+         ,int SplitK=1
+#endif
+         >
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
   using Stream=Sm90DenseStreamT<CpAsync>;
-#if defined(TILEMEGA_SM80_PADDED_GATE)
-  static constexpr int kTasks=(N+TN-1)/TN;
+#if TILEMEGA_SM80_SPLIT_K
+  static constexpr int kSlices=SplitK,kOutputTiles=(N+TN-1)/TN;
+  static_assert((SplitK==1 || SplitK==2 || SplitK==4) && K%(SplitK*TK)==0);
+  static_assert(SplitK==1 || (CpAsync && !Multicast &&
+      (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual)));
+#else
+  static constexpr int kSlices=1,kOutputTiles=(N+TN-1)/TN;
+#endif
+#if defined(TILEMEGA_SM80_PADDED_GATE) || TILEMEGA_SM80_SPLIT_K
+  static constexpr int kTasks=kOutputTiles*kSlices;
   static_assert(Batch>0 && Batch<=16 && TN%8==0 && TK%64==0 && K%TK==0);
   static_assert(N%TN==0 || (CpAsync && N%8==0 &&
       (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
@@ -57,9 +72,9 @@ struct Sm90DenseGemm {
   static constexpr bool kAllReduce=Op==ServingEpilogueOp::kResidualAllReduce;
   static_assert(!kResidual || (ResidualTiles>0 && ResidualTiles<=kSm90DenseResidualTiles));
 #if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
-  static constexpr int kThreads=Sm90DenseRoleAbi::kConsumers+Producers,kIterations=K/TK;
+  static constexpr int kThreads=Sm90DenseRoleAbi::kConsumers+Producers,kIterations=K/(kSlices*TK);
 #else
-  static constexpr int kThreads=160,kIterations=K/TK;
+  static constexpr int kThreads=160,kIterations=K/(kSlices*TK);
 #endif
   static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
   static constexpr int kOperandBytes=2*Slots*TK*(kRows+TN);
@@ -70,7 +85,7 @@ struct Sm90DenseGemm {
   static constexpr int kSharedBytes=kLayout.end;
   static_assert(kSharedBytes==1024+kOperandBytes+kScratchBytes+512+2*kSideTiles*Batch*TN);
   // Store and residual write from registers when one warp holds all of K.
-  static constexpr bool kRegisterEpilogue=WarpsK==1 &&
+  static constexpr bool kRegisterEpilogue=WarpsK==1 && kSlices==1 &&
       (Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual ||
        Op==ServingEpilogueOp::kResidualAllReduce);
   using Epilogue=Sm90DenseEpilogue<Op,Batch,N,K,TN,U,InputNorm>;
@@ -198,6 +213,9 @@ struct Sm90DenseGemm {
     if constexpr(kResidual)
       for(int local=0;local<tasks;++local) {
         int task=int(blockIdx.x)+local*int(gridDim.x);
+#if TILEMEGA_SM80_SPLIT_K
+        if constexpr(kSlices>1)task%=kOutputTiles;
+#endif
 #if defined(TILEMEGA_SM80_PADDED_GATE)
         if constexpr(N%TN!=0) {
 #if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
@@ -236,7 +254,14 @@ struct Sm90DenseGemm {
       if constexpr(Prefix>0)
         if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
           prefix=min(Prefix/2-sequence*TN*TK,TN*TK);
-      auto* weight=p.weight+(std::size_t(task)*kIterations+tile)*TN*TK;
+      int activation_tile=tile;
+#if TILEMEGA_SM80_SPLIT_K
+      if constexpr(kSlices>1) {
+        activation_tile+=task/kOutputTiles*kIterations;
+        task%=kOutputTiles;
+      }
+#endif
+      auto* weight=p.weight+(std::size_t(task)*(K/TK)+activation_tile)*TN*TK;
       auto* weight_slot=b+slot*TN*TK;
 #ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
       if constexpr(Prefix==0 && kResidual && !kAllReduce)
@@ -257,7 +282,7 @@ struct Sm90DenseGemm {
       for(int i=lane*8;i<copy_rows*TK;i+=32*8) {
 #endif
         int row=i/TK,col=i%TK;
-        auto* source=row<Batch?p.activation_address+std::size_t(row)*K+tile*TK+col:p.activation_address;
+        auto* source=row<Batch?p.activation_address+std::size_t(row)*K+activation_tile*TK+col:p.activation_address;
         auto swizzled=LayoutA{}(row,col);
         Async::Copy16(a+slot*kRows*TK+swizzled,source,row<Batch);
       }
@@ -394,7 +419,11 @@ struct Sm90DenseGemm {
   template<class Finish>
   __device__ static __noinline__ void Consume(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Element* residual,
-      int tasks,unsigned phase,Finish finish,Sm90DenseTpOperands const* tp=nullptr) {
+      int tasks,unsigned phase,Finish finish,Sm90DenseTpOperands const* tp
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace,std::uint64_t* split_counters
+#endif
+      ) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WarpsN),split=tid/(32*WarpsN);
@@ -468,6 +497,10 @@ struct Sm90DenseGemm {
           squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],2);
         }
       int task=int(blockIdx.x)+local*int(gridDim.x);
+#if TILEMEGA_SM80_SPLIT_K
+      int slice=task/kOutputTiles;
+      if constexpr(kSlices>1)task%=kOutputTiles;
+#endif
       Element const* tile_residual=nullptr;
       if constexpr(kResidual) {
         Async::Wait(state.side+local,(side>>local)&1);side^=1u<<local;
@@ -487,7 +520,7 @@ struct Sm90DenseGemm {
         for(int i=0;i<size(accum);++i) {
           int row=get<0>(owned(i));
 #if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
-          if constexpr(CpAsync && Batch<16) {
+          if constexpr(CpAsync && Batch<16 && kSlices==1) {
             if(row>=Batch)continue;
           }
 #endif
@@ -500,6 +533,15 @@ struct Sm90DenseGemm {
             norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
           }
         codegen::executor::ComputeSync();
+#if TILEMEGA_SM80_SPLIT_K
+        if constexpr(kSlices>1) {
+          using Reduction=codegen::Sm80SplitKTaskBody<kOutputTiles,kSlices,16,TN,InputNorm>;
+          if(Reduction::template Reduce<WarpsK>(split_workspace,split_counters,task,slice,scratch,norms,
+              reinterpret_cast<int*>(norms+96)))
+            Epilogue::template Shared<1>(scratch,norms,tile_residual,p.output,p.argmax_index,
+                task,p.epsilon,tp);
+        }else
+#endif
         if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
           Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,
               reinterpret_cast<Element*>(best),arg,task,p.epsilon);
@@ -542,7 +584,12 @@ struct Sm90DenseGemm {
   template<int Prefix=0,class Tail=Sm90DenseNoTail,class Finish=Sm90DenseNoFinish>
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true,Finish finish={},
-      Sm90DenseTpOperands const* tp=nullptr) {
+      Sm90DenseTpOperands const* tp=nullptr
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace=nullptr,std::uint64_t* split_counters=nullptr
+#endif
+      ) {
+    static_assert(kSlices==1 || Prefix==0);
     static_assert(Op==ServingEpilogueOp::kArgmaxPartial ||
         std::is_same_v<Finish,Sm90DenseNoFinish>,"only lm_head finishes with the folded argmax");
     static_assert(Prefix>=0 && Prefix%16==0 &&
@@ -561,13 +608,17 @@ struct Sm90DenseGemm {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
-#if defined(TILEMEGA_SM80_PADDED_GATE)
+#if defined(TILEMEGA_SM80_PADDED_GATE) || TILEMEGA_SM80_SPLIT_K
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
 #else
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
 #endif
     if constexpr(kResidual)if(tasks>kSideTiles)asm volatile("trap;");
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish,tp);
+    if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish,tp
+#if TILEMEGA_SM80_SPLIT_K
+        ,split_workspace,split_counters
+#endif
+        );
     else {
       if constexpr(CpAsync) {
         ProduceCpAsync<Prefix>(p,state,a,b,residual,tasks,phase,streamed);

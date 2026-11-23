@@ -71,6 +71,10 @@ struct alignas(64) Bindings:Sm90DenseTpFields<Tp> {
   std::uint64_t* lm_counter;
   // Prompt length of the teacher-forced prefill (§8 A3.5); 0 is pure decode.
   int prompt_len;
+#if TILEMEGA_SM80_SPLIT_K
+  float* splitk_workspace;
+  std::uint64_t* splitk_counters;
+#endif
   template<unsigned Id>
   __device__ __forceinline__ Element* Get(int layer=0) const {
     if constexpr(Id==kAbsent)return nullptr;
@@ -140,19 +144,31 @@ __device__ inline unsigned long long Now() {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
          unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false,
-         int ArSlot=-1,int Tp=1,int ResidualTiles=2,bool CpAsync=false>
+         int ArSlot=-1,int Tp=1,int ResidualTiles=2,bool CpAsync=false
+#if TILEMEGA_SM80_SPLIT_K
+         ,int SplitK=1
+#endif
+         >
 struct Gemm {
 #if TILEMEGA_SM80_WIDE_PRODUCER
   static constexpr bool kWideProducer=CpAsync;
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
-      RegisterStages,Multicast,ResidualTiles,CpAsync,false,CpAsync?64:32>;
+      RegisterStages,Multicast,ResidualTiles,CpAsync,false,CpAsync?64:32
+#if TILEMEGA_SM80_SPLIT_K
+      ,SplitK
+#endif
+      >;
 #else
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
-      RegisterStages,Multicast,ResidualTiles,CpAsync>;
+      RegisterStages,Multicast,ResidualTiles,CpAsync
+#if TILEMEGA_SM80_SPLIT_K
+      ,false,SplitK
+#endif
+      >;
 #endif
   static constexpr bool kMulticast=Multicast;
   static constexpr bool kCpAsync=CpAsync;
-#if defined(TILEMEGA_SM80_PADDED_GATE)
+#if defined(TILEMEGA_SM80_PADDED_GATE) || TILEMEGA_SM80_SPLIT_K
   static constexpr int kBatch=Batch,kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
 #else
   static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
@@ -197,6 +213,12 @@ struct Gemm {
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
+#if TILEMEGA_SM80_SPLIT_K
+    if constexpr(SplitK>1)
+      Body::template Run<Prefix>(record.gemm,shared,&ring,tail,streamed,
+          backend::Sm90DenseNoFinish{},nullptr,b.splitk_workspace,b.splitk_counters);
+    else
+#endif
     if constexpr(ArSlot>=0)
       StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail,streamed,&record.tp);
     else StageEntry<Body>::template Gemm<Prefix>(record.gemm,shared,&ring,tail,streamed);
@@ -205,9 +227,17 @@ struct Gemm {
 
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
-         unsigned D,unsigned Index,unsigned A,int RegisterStages,int ResidualTiles>
+         unsigned D,unsigned Index,unsigned A,int RegisterStages,int ResidualTiles
+#if TILEMEGA_SM80_SPLIT_K
+         ,int SplitK=1
+#endif
+         >
 using AmpereGemm=Gemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,
-    W,C,D,Index,RegisterStages,A,false,-1,1,ResidualTiles,true>;
+    W,C,D,Index,RegisterStages,A,false,-1,1,ResidualTiles,true
+#if TILEMEGA_SM80_SPLIT_K
+    ,SplitK
+#endif
+    >;
 
 template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
@@ -332,10 +362,18 @@ template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm
          int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
          unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,
          unsigned Map,int RegisterStages,bool SoftmaxAll=false,bool FinishRouting=false,
-         bool GlobalSchedule=false,bool StageCombine=false,bool CpAsync=false>
+         bool GlobalSchedule=false,bool StageCombine=false,bool CpAsync=false
+#if TILEMEGA_SM80_SPLIT_K
+         ,int SplitK=1
+#endif
+         >
 struct Moe {
   using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
-      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule,StageCombine,CpAsync>;
+      Page,RegisterStages,SoftmaxAll,FinishRouting,GlobalSchedule,StageCombine,CpAsync
+#if TILEMEGA_SM80_SPLIT_K
+      ,SplitK
+#endif
+      >;
   static_assert(GateUpDone==kAbsent || Mode==backend::Sm90DenseMoeMode::kRouter,
       "only the router clears the fused stage's counters");
   static constexpr bool kUsesOperandRecord=true;
@@ -368,9 +406,15 @@ struct Moe {
     if constexpr(CpAsync)record.moe.activation_address=b.template Get<Map>(layer);
   }
   template<int Prefix,class B,class Tail>
-  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+  __device__ static __forceinline__ void Run([[maybe_unused]] B const& b,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
+#if TILEMEGA_SM80_SPLIT_K
+    if constexpr(SplitK>1)
+      Body::template Run<Prefix>(record.moe,shared,&ring,tail,streamed,
+          b.splitk_workspace,b.splitk_counters);
+    else
+#endif
     StageEntry<Body>::template Moe<Prefix>(record.moe,shared,&ring,tail,streamed);
   }
 };
@@ -418,14 +462,22 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
          unsigned WGu,unsigned WDn,unsigned X,unsigned Hid,unsigned Out,unsigned Schedule,
          unsigned Routes,unsigned Index,unsigned Counter,unsigned GateUpDone,unsigned Map,
          int RegisterStages,unsigned Logits=kAbsent,bool SoftmaxAll=false,bool LocalRouting=true,
-         bool StageCombine=false,bool CpAsync=false>
+         bool StageCombine=false,bool CpAsync=false
+#if TILEMEGA_SM80_SPLIT_K
+         ,int DownSplitK=1
+#endif
+         >
 struct MoeFused {
 #if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
   static constexpr bool kFusedTraceStage=true;
 #endif
   using Body=backend::Sm90DenseMoeFusedGemm<Batch,NGateUp,NDown,Hidden,TNGu,TKGu,TNDn,TKDn,Slots,
       WNGu,WKGu,WNDn,WKDn,U,Experts,TopK,FloatWeights,Page,RegisterStages,SoftmaxAll,
-      LocalRouting,StageCombine,CpAsync>;
+      LocalRouting,StageCombine,CpAsync
+#if TILEMEGA_SM80_SPLIT_K
+      ,backend::kMoeNoSample,DownSplitK
+#endif
+      >;
   // E2: the stage routes locally, so it needs the router's logits buffer.
   static_assert(Logits!=kAbsent,"the fused expert stage routes from the logits");
   static_assert(GateUpDone!=kAbsent && (CpAsync || Map!=kAbsent),
@@ -460,9 +512,15 @@ struct MoeFused {
         reinterpret_cast<float const*>(b.template Get<Logits>(layer)),epsilon};
   }
   template<int Prefix,class B,class Tail>
-  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+  __device__ static __forceinline__ void Run([[maybe_unused]] B const& b,int,char* shared,float,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
       bool streamed) {
+#if TILEMEGA_SM80_SPLIT_K
+    if constexpr(DownSplitK>1)
+      Body::template Run<Prefix>(record.moe_fused,shared,&ring,tail,streamed,
+          b.splitk_workspace,b.splitk_counters);
+    else
+#endif
     Body::template Run<Prefix,Tail>(record.moe_fused,shared,&ring,tail,streamed);
   }
 };

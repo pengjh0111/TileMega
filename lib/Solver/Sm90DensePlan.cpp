@@ -291,7 +291,9 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
       throw std::invalid_argument("native GEMM exceeds target shared-memory budget");
     if(cfg.mma!=Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("requested native mechanism is not implemented yet");
-    options.gemms.push_back({16,cfg.tile_n,cfg.TileK(),cfg.slots,1,kSm90DenseGemmImpl});
+    if(cfg.split_k>1 && (!cp_async || cfg.TaskCount(g.n)>=grid))
+      throw std::invalid_argument("native split-K needs a partial SM80 grid");
+    options.gemms.push_back({16,cfg.tile_n,cfg.TileK(),cfg.slots,cfg.split_k,kSm90DenseGemmImpl});
   }
   for(auto const& stage:plan.stages)if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
     if(stage.dense_attention_chunks!=c.attention.chunks ||
