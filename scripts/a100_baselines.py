@@ -98,7 +98,8 @@ def mpk_serving_path(model):
 
 def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'envs',
             gpu_model='A100', timeout_s=14400, heartbeat_timeout_s=None,
-            seed_suite='vllm', expected_checkpoint=None, engines=None, mpk_include_root=None):
+            seed_suite='vllm', expected_checkpoint=None, engines=None, mpk_include_root=None,
+            mpk_qwen30_source=None):
     policy = json.loads(policy_path.read_text())
     dev = device_environment(policy, gpu_model)
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']),
@@ -153,6 +154,10 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                 job_env['MIRAGE_HOME'] = str(ROOT.parent/'software/mpk-63af900')
                 if mpk_include_root is not None:
                     job_env['MIRAGE_ROOT'] = str(mpk_include_root)
+                if mpk_qwen30_source is not None:
+                    job_env.update(MIRAGE_HOME=str(mpk_qwen30_source),
+                                   MIRAGE_ROOT=str(mpk_qwen30_source),
+                                   PYTHONPATH=f'{mpk_qwen30_source}/python:{env["PYTHONPATH"]}')
             if engine == 'trtllm':
                 job_env['TLLM_WORKER_USE_SINGLE_PROCESS'] = '1'
             for batch in BATCHES:
@@ -176,6 +181,8 @@ def prepare(policy_path=POLICY, run=RUN, inventory=RUN/'inventory', envs=RUN/'en
                         '--round-index', round_index, '--tp', 1, '--load-format', 'auto',
                         '--out', '{attempt_dir}/job/measurements',
                     ]
+                    if engine == 'mpk' and mpk_qwen30_source is not None:
+                        command.extend(('--sm80-qwen3-moe', '--page-size', '256'))
                     jobs.append(dict(name=f'{model}_{engine}_b{batch:02d}_r{round_index}',
                                      model=model, engine=engine, batch=batch, round=round_index,
                                      gpu=True, timing=True, after=[device_job],

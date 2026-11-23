@@ -122,18 +122,28 @@ def run_cohort(args, wanted):
             args.heartbeat_timeout_s = min(args.heartbeat_timeout_s, args.process_timeout_s)
             print(f'MPK process budget {args.process_timeout_s}s after both guard allowances', flush=True)
         row_overlay = None
+        mpk_qwen30_source = None
+        if args.mpk_qwen30_sm80:
+            from a800_mpk_qwen30 import SOURCE, fingerprint as qwen30_fingerprint
+            mpk_qwen30_source = SOURCE
+            pinned = json.loads(args.mpk_qwen30_sm80.read_text())
+            if pinned != qwen30_fingerprint():
+                raise RuntimeError('Qwen3 MoE SM80 binary or source differs from the login receipt')
         if args.mpk_row_overlay:
             from a800_mpk_row_overlay import prepare_row_overlay
             row_overlay = prepare_row_overlay(ROOT.parent/'software/mpk-63af900', run/'mpk-headers')
         jobs = prepare(policy_path, run, INVENTORY, ENVS, 'A800',
                        args.process_timeout_s, args.heartbeat_timeout_s, args.seed_suite, expected_checkpoint,
                        engines={'mpk': 'mpk'} if args.engine == ['mpk'] else None,
-                       mpk_include_root=row_overlay['root'] if row_overlay else None)
+                       mpk_include_root=row_overlay['root'] if row_overlay else None,
+                       mpk_qwen30_source=mpk_qwen30_source)
         inputs = json.loads((run/'baseline_inputs.json').read_text())
         if not first_device.exists():
             write_json(first_device, inputs['device'])
         write_json(allocation/'baseline_inputs.json', inputs)
-        if args.engine == ['mpk']:
+        if args.mpk_qwen30_sm80:
+            write_json(allocation/'mpk-inputs.json', dict(pinned, guard_policy_sha256=sha(policy_path)))
+        elif args.engine == ['mpk']:
             preflight = json.loads((RUN/'mpk/preflight.json').read_text())
             serving = mpk_serving_path(args.model[0]) if args.model else ROOT/'scripts/a800_mpk_serving.py'
             expected_serving = preflight.get('model_serving_sha256', {}).get(
@@ -178,6 +188,7 @@ def main():
     parser.add_argument('mode', choices=('plan', 'run'))
     parser.add_argument('--cohort', required=True)
     parser.add_argument('--mpk-row-overlay', action='store_true')
+    parser.add_argument('--mpk-qwen30-sm80', type=Path, metavar='LOGIN_RECEIPT')
     parser.add_argument('--probe-only', action='store_true')
     parser.add_argument('--expected-target', type=Path)
     parser.add_argument('--retry-failed', action='store_true')
@@ -206,6 +217,10 @@ def main():
     if args.mpk_row_overlay and (args.engine != ['mpk'] or args.model != ['llama3_1_8b']
                                  or len(args.batch or []) != 1 or args.batch[0] <= 1):
         parser.error('the MPK reduction experiment requires one multirow Llama-3.1-8B cell')
+    if args.mpk_qwen30_sm80 and (args.engine != ['mpk'] or args.model != ['qwen3_30b_a3b']
+                                  or len(args.batch or []) != 1 or args.mpk_row_overlay
+                                  or not args.expected_checkpoint_sha256):
+        parser.error('Qwen3 MoE SM80 requires one MPK cell and the frozen checkpoint hash')
     wanted = [] if args.probe_only else selection(args)
     models = inspect_inputs(INVENTORY)
     if args.mode == 'plan':

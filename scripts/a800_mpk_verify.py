@@ -37,7 +37,7 @@ def reference(model, checkpoint, prompt, batch):
 
 def check_teacher_forced(proof, batch, checkpoint, prompt, generated):
     proof = proof.resolve(strict=True)
-    proof.relative_to(RUN/'mpk')
+    proof.relative_to((RUN/'mpk').resolve(strict=True))
     binding = read(proof/'binding.json')
     validation = read(proof/'full-c1.json')
     guard = read(proof/'guard/guard_result.json')
@@ -50,7 +50,7 @@ def check_teacher_forced(proof, batch, checkpoint, prompt, generated):
             or validation['prompt_len'] != 64 or validation['max_new_tokens'] != 1024
             or validation['gap_le_0_5_ratio'] < 0.99 or validation['max_gap'] > 3.0):
         raise ValueError('teacher-forced proof differs from this guarded full MPK trajectory')
-    return dict(evidence=str(proof.relative_to(RUN)), binding_sha256=sha(proof/'binding.json'),
+    return dict(evidence=str(proof.relative_to(RUN.resolve(strict=True))), binding_sha256=sha(proof/'binding.json'),
                 full_c1_sha256=sha(proof/'full-c1.json'), max_gap=validation['max_gap'])
 
 
@@ -81,7 +81,14 @@ def main():
             environment.get('serving_sha256') != job['harness_sha256'] or
             environment.get('revision') != REVISION):
         raise ValueError('measurement and allocation MPK sources differ')
-    if 'MIRAGE_ROOT' in job['env']:
+    qwen30_port = environment.get('sm80_qwen3_moe', False)
+    if qwen30_port:
+        from a800_mpk_qwen30 import SOURCE, fingerprint
+        bound = {k: v for k, v in environment.items() if k != 'guard_policy_sha256'}
+        if (job['model'] != 'qwen3_30b_a3b' or bound != fingerprint()
+                or any(job['env'].get(key) != str(SOURCE) for key in ('MIRAGE_HOME', 'MIRAGE_ROOT'))):
+            raise ValueError('measurement differs from the pinned Qwen3 MoE port')
+    elif 'MIRAGE_ROOT' in job['env']:
         from a800_mpk_row_overlay import HEADER, ORIGINAL, PATCHED
         overlay = environment.get('argmax_overlay', {})
         include_root = cohort/'mpk-headers'
@@ -122,6 +129,13 @@ def main():
             gates = {(int(n),int(k)) for n,k,stride in linear if int(stride)==28672}
             if gates != {(256,4096)}:
                 raise ValueError(f'MPK Llama 8B gate/up launch geometry mismatch: {gates}')
+        if qwen30_port:
+            task_types = ('TASK_MOE_W13_LINEAR_SM80', 'TASK_MOE_W2_LINEAR_SM80')
+            if (cfg.get('expert_backend') != 'mpk-sm80-cp-async-mma-sync'
+                    or any(task not in generated for task in task_types)
+                    or not re.search(r"multitoken_paged_attention_task_impl<bfloat16, 8, 1, [^>]+MPK_MAX_TOKENS_PER_REQUEST",
+                                     generated)):
+                raise ValueError('measurement lacks the native SM80 expert and attention tasks')
         if groups != {'0'}:
             raise ValueError(f'expected only KV group zero, got {sorted(groups)}')
         listing = subprocess.check_output(['cuobjdump', '--list-elf', str(lib)], text=True, timeout=30)
@@ -153,7 +167,8 @@ def main():
                    common_prefix_tokens_by_row=prefix, equal_positions_by_row=equal,
                    matching_first_tokens=matching, teacher_forced=proof, sm80_binary_sha256=artifacts,
                    linear_output_widths=projection_widths,
-                   deterministic_repeats=True, environment=environment, tpot_ms=result['tpot_ms'])
+                   deterministic_repeats=True, environment=environment, tpot_ms=result['tpot_ms'],
+                   t1_s=result['t1_s'], t1024_s=result['t1024_s'], tok_s=result['tok_s'])
     write_json(cohort/'mpk-accepted.json', receipt)
     print(receipt)
 

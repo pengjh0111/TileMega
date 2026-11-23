@@ -1,0 +1,464 @@
+diff --git a/include/mirage/kernel/task_register.h b/include/mirage/kernel/task_register.h
+index 3634e95..86403f7 100644
+--- a/include/mirage/kernel/task_register.h
++++ b/include/mirage/kernel/task_register.h
+@@ -79,6 +79,8 @@ public:
+                                     std::vector<int> const &params);
+   int register_embedding_hopper_task(threadblock::Graph const &bgraph,
+                                      std::vector<int> const &params);
++  int register_moe_linear_sm80_task(threadblock::Graph const &bgraph,
++                                    bool w13_linear);
+   int register_moe_linear_sm90_task(threadblock::Graph const &bgraph,
+                                     std::vector<int> const &params,
+                                     bool w13_linear);
+diff --git a/include/mirage/persistent_kernel/runtime_header.h b/include/mirage/persistent_kernel/runtime_header.h
+index 4c4b9e0..9dd8a98 100644
+--- a/include/mirage/persistent_kernel/runtime_header.h
++++ b/include/mirage/persistent_kernel/runtime_header.h
+@@ -109,6 +109,8 @@ enum TaskType {
+   TASK_RMS_NORM = 119,
+   TASK_LINEAR = 120,
+   TASK_IDENTITY = 121,
++  TASK_MOE_W13_LINEAR_SM80 = 122,
++  TASK_MOE_W2_LINEAR_SM80 = 123,
+   // Hopper Tasks
+   TASK_HOPPER_TASK_BEGIN = 150, // Hopper start placeholder, not a real task
+   TASK_LINEAR_WITH_RESIDUAL_HOPPER = 151,
+diff --git a/include/mirage/persistent_kernel/tasks/ampere/argmax.cuh b/include/mirage/persistent_kernel/tasks/ampere/argmax.cuh
+index 1b0068c..3432735 100644
+--- a/include/mirage/persistent_kernel/tasks/ampere/argmax.cuh
++++ b/include/mirage/persistent_kernel/tasks/ampere/argmax.cuh
+@@ -108,6 +108,9 @@ __device__ __forceinline__ void
+       output_val[batch_idx * NUM_PARTIAL_TASKS] = local_max;
+       output_idx[batch_idx * NUM_PARTIAL_TASKS] = local_idx;
+     }
++    if constexpr (BATCH_SIZE > 1) {
++      if (batch_idx + 1 < num_active_tokens) __syncthreads();
++    }
+   }
+ }
+ 
+@@ -159,6 +162,9 @@ __device__ __forceinline__ void
+         // tokens[step + 1] = -1;
+       }
+     }
++    if constexpr (BATCH_SIZE > 1) {
++      if (batch_idx + 1 < num_active_tokens) __syncthreads();
++    }
+   }
+ }
+ 
+diff --git a/include/mirage/persistent_kernel/tasks/ampere/moe_linear.cuh b/include/mirage/persistent_kernel/tasks/ampere/moe_linear.cuh
+index 677a3f3..566b4be 100644
+--- a/include/mirage/persistent_kernel/tasks/ampere/moe_linear.cuh
++++ b/include/mirage/persistent_kernel/tasks/ampere/moe_linear.cuh
+@@ -76,7 +76,7 @@ struct GemmConfig {
+ 
+   using SmemLayoutAtom = decltype(composition(
+       Swizzle<kShmLoadSwizzleB, kShmLoadSwizzleM, kShmLoadSwizzleS>{},
+-      make_layout(make_shape(Int<BATCH_SIZE>{}, Int<BankMaxElemNum>{}),
++      make_layout(make_shape(Int<8>{}, Int<BankMaxElemNum>{}),
+                   make_stride(Int<BankMaxElemNum>{}, Int<1>{}))));
+   using SmemLayoutA = decltype(tile_to_shape(
+       SmemLayoutAtom{},
+@@ -186,7 +186,8 @@ template <typename T,
+           int NUM_TOPK,
+           int EXPERT_STRIDE,
+           bool NOBIAS,
+-          int PIPE_MAX = 3>
++          int PIPE_MAX = 3,
++          bool ROUTED_INPUT = false>
+ __device__ __forceinline__ void
+     moe_linear_kernel(void const *input_ptr,
+                       void const *weight_ptr,
+@@ -607,6 +608,30 @@ __device__ __forceinline__ void
+         }
+ #endif
+ 
++        auto copy_activation = [&](int tile, int stage) {
++          // W13 reads the shared input row. W2 reads the expert-specific
++          // top-k slot populated by SwiGLU. Unrouted rows are zero-filled.
++          constexpr int pack = 16 / sizeof(T);
++          static_assert(kTileK % pack == 0);
++          for (int i = threadIdx.x; i < kTileM * kTileK / pack; i += blockDim.x) {
++            int const row = i / (kTileK / pack);
++            int const col = i % (kTileK / pack) * pack;
++            int const token = m_iter * kTileM + row;
++            int const slot = token < BATCH_SIZE ? tRoutingIndex(token) - 1 : -1;
++            int const input_row =
++                ROUTED_INPUT ? token * NUM_TOPK + slot : token;
++            T const *src = slot >= 0
++                               ? d_input + input_row * REDUCTION_SIZE +
++                                     tile * kTileK + col
++                               : d_input;
++            uint32_t const dst = static_cast<uint32_t>(
++                __cvta_generic_to_shared(&sA(row, col, stage)));
++            asm volatile("cp.async.cg.shared.global [%0], [%1], 16, %2;"
++                         :: "r"(dst), "l"(src), "r"(slot >= 0 ? 16 : 0)
++                         : "memory");
++          }
++        };
++
+         int itile_to_read = 0;
+         int ismem_read_stage = 0;
+         int ismem_write_stage = 0;
+@@ -619,10 +644,7 @@ __device__ __forceinline__ void
+           // but is it a better solution if we just load valid data at here? it
+           // may reduce the total data we load, but we may need some branches
+           // here, that's a trade-off.
+-          cute::copy_if(g2s_tiled_copy_a,
+-                        tApA,
+-                        tAgA_copy(_, _, _, istage),
+-                        tAsA_copy(_, _, _, istage));
++          copy_activation(istage, istage);
+           cute::copy(g2s_tiled_copy_b,
+                      tBgB_copy(_, _, _, istage),
+                      tBsB_copy(_, _, _, istage));
+@@ -656,10 +678,7 @@ __device__ __forceinline__ void
+ 
+             if (ik == 0) {
+               if (itile_to_read < ntile) {
+-                cute::copy_if(g2s_tiled_copy_a,
+-                              tApA,
+-                              tAgA_copy(_, _, _, itile_to_read),
+-                              tAsA_copy(_, _, _, ismem_write_stage));
++                copy_activation(itile_to_read, ismem_write_stage);
+                 cute::copy(g2s_tiled_copy_b,
+                            tBgB_copy(_, _, _, itile_to_read),
+                            tBsB_copy(_, _, _, ismem_write_stage));
+@@ -768,16 +787,8 @@ __device__ __forceinline__ void
+             D(t, tRoutingIndex(t) - 1, o) = sC(t, o, 0);
+           }
+         }
+-        // TODO: Given we will reuse the (last stage + 1) shared memory of A for
+-        // C, under such a scenario, if the (last stage + 1) of A is the first
+-        // pipeline, we should add a sync when LoopN > 1 or LoopM > 1, maybe we
+-        // could remove the sync by selecting a suitable pipe slot to reuse for
+-        // C later.
+-        constexpr bool need_sync_after_writeback =
+-            (LoopN > 1 || LoopM > 1) && ((ntile + 1) % PIPE_MAX == 0);
+-        if (need_sync_after_writeback) {
+-          __syncthreads();
+-        }
++        // Shared output may alias the next expert's first input stage.
++        __syncthreads();
+       } // n_iter
+     }   // m_iter
+   }
+diff --git a/include/mirage/persistent_kernel/tasks/ampere/task_header.cuh b/include/mirage/persistent_kernel/tasks/ampere/task_header.cuh
+index cf38826..365dbe1 100644
+--- a/include/mirage/persistent_kernel/tasks/ampere/task_header.cuh
++++ b/include/mirage/persistent_kernel/tasks/ampere/task_header.cuh
+@@ -13,6 +13,8 @@
+ #include "rmsnorm.cuh"
+ #include "rotary_embedding.cuh"
+ #include "silu_mul.cuh"
++#include "tasks/blackwell/mul_sum_add_sm100.cuh"
++#include "tasks/blackwell/topk_softmax_sm100.cuh"
+ 
+ #ifdef USE_NVSHMEM
+ #include "allreduce.cuh"
+diff --git a/include/mirage/persistent_kernel/tasks/blackwell/topk_softmax_sm100.cuh b/include/mirage/persistent_kernel/tasks/blackwell/topk_softmax_sm100.cuh
+index fc710b1..5242ca1 100644
+--- a/include/mirage/persistent_kernel/tasks/blackwell/topk_softmax_sm100.cuh
++++ b/include/mirage/persistent_kernel/tasks/blackwell/topk_softmax_sm100.cuh
+@@ -1,37 +1,10 @@
+ #pragma once
+-#include <cstdio>
+-#include <iostream>
+-
+-// Use Thrust to handle host/device allocations
+-#include <thrust/device_vector.h>
+-#include <thrust/host_vector.h>
+-
+-// Cutlass includes
+-#include <cutlass/half.h> // F16 data type
+-// #include <cutlass/util/print_error.hpp>
+-#include <cutlass/arch/barrier.h>
+-#include <cutlass/cluster_launch.hpp>
+-#include <cutlass/cutlass.h>
++#include <cstdint>
++#include <cuda_runtime.h>
++#include <cutlass/array.h>
+ #include <cutlass/numeric_conversion.h>
+ #include <cutlass/numeric_types.h>
+-
+-// CuTe includes
+-#include <cute/arch/cluster_sm90.hpp> // CuTe functions for querying the details of cluster launched
+-#include <cute/numeric/integral_constant.hpp> // Compile time in constants such as _1, _256 etc.
+-#include <cute/tensor.hpp>                    // CuTe tensor implementation
+-// using namespace cute;
+-
+-// topk_reduce includes
+-#include <cooperative_groups.h>
+-#include <cooperative_groups/reduce.h>
+-#include <cub/cub.cuh>
+-
+-// mirage includes
+-#include "../common/dmem_layout.cuh"
+-#include "../common/worker_config.h"
+-#include "../hopper/barrier.cuh"
+-#include "../hopper/smem_layout_tma.cuh"
+-#include "../hopper/tma.cuh"
++#include <cute/numeric/integral_constant.hpp>
+ 
+ // ====================== TopK softmax things ===============================
+ 
+@@ -272,8 +245,10 @@ __device__ __forceinline__ void topk_softmax_task_impl(
+             mpk_routing_indices[local_expert * num_rows + thread_row] =
+                 k_idx + 1;
+             // Sparse mark expert as active; idempotent without atomics
+-            if (mpk_active_expert_ids != nullptr) {
+-              mpk_active_expert_ids[local_expert] = local_expert;
++            if constexpr (WARPS_PER_CTA != 4) {
++              if (mpk_active_expert_ids != nullptr) {
++                mpk_active_expert_ids[local_expert] = local_expert;
++              }
+             }
+           }
+         }
+@@ -307,7 +282,19 @@ __device__ __forceinline__ void topk_softmax_task_impl(
+     for (int expert = start_expert + threadIdx.x; expert < end_expert;
+          expert += blockDim.x) {
+       int const local_expert = expert - start_expert;
+-      int const mark = mpk_active_expert_ids[local_expert];
++      int mark = -1;
++      if constexpr (WARPS_PER_CTA == 4) {
++        // The compact output aliases the old marks. Read immutable routing
++        // entries so another thread cannot replace this expert's mark.
++        for (int row = 0; row < num_rows; ++row) {
++          if (mpk_routing_indices[local_expert * num_rows + row] != 0) {
++            mark = expert;
++            break;
++          }
++        }
++      } else {
++        mark = mpk_active_expert_ids[local_expert];
++      }
+       if (mark >= 0) {
+         int const pos = atomicAdd(mpk_active_expert_ids + NUM_EXPERTS, 1);
+         mpk_active_expert_ids[pos] = expert;
+diff --git a/python/mirage/mpk/persistent_kernel.py b/python/mirage/mpk/persistent_kernel.py
+index d016b30..894e5a1 100644
+--- a/python/mirage/mpk/persistent_kernel.py
++++ b/python/mirage/mpk/persistent_kernel.py
+@@ -376,6 +376,8 @@ def get_compile_command(
+             "-DMPK_ENABLE_TMA",
+             "-DMIRAGE_GRACE_BLACKWELL",
+         ]
++    elif target_cc == 80:
++        specific_cmd = ["-arch=sm_80"]
+     else:
+         specific_cmd = [
+             "-arch=native",
+@@ -2083,6 +2085,9 @@ class PersistentKernel:
+             self.kn_graph.register_task(tb_graph, "moe_w13_linear_sm100", params)
+         elif self.target_cc == 90:
+             self.kn_graph.register_task(tb_graph, "moe_w13_linear_sm90")
++        elif self.target_cc == 80:
++            assert block_dim == (128, 1, 1)
++            self.kn_graph.register_task(tb_graph, "moe_w13_linear_sm80")
+         else:
+             assert False
+             
+@@ -2332,6 +2337,9 @@ class PersistentKernel:
+             self.kn_graph.register_task(tb_graph, "moe_w2_linear_sm100", params)
+         elif self.target_cc == 90:
+             self.kn_graph.register_task(tb_graph, "moe_w2_linear_sm90")
++        elif self.target_cc == 80:
++            assert block_dim == (128, 1, 1)
++            self.kn_graph.register_task(tb_graph, "moe_w2_linear_sm80")
+         else:
+             assert False
+         
+diff --git a/src/kernel/graph.cc b/src/kernel/graph.cc
+index f78801b..dbce4d9 100644
+--- a/src/kernel/graph.cc
++++ b/src/kernel/graph.cc
+@@ -684,6 +684,13 @@ void Graph::register_task_for_op(KNOperator const *op,
+     int variant_id = task_register->register_embedding_hopper_task(
+         customized->bgraph, params);
+     task_config[op] = std::make_tuple(2, 1, TASK_EMBEDDING_HOPPER, variant_id);
++  } else if (name == "moe_w13_linear_sm80" || name == "moe_w2_linear_sm80") {
++    bool const w13 = name == "moe_w13_linear_sm80";
++    int const variant_id =
++        task_register->register_moe_linear_sm80_task(customized->bgraph, w13);
++    task_config[op] = std::make_tuple(
++        4, 1, w13 ? TASK_MOE_W13_LINEAR_SM80 : TASK_MOE_W2_LINEAR_SM80,
++        variant_id);
+   } else if (name == "moe_w13_linear_sm90") {
+     int variant_id = task_register->register_moe_linear_sm90_task(
+         customized->bgraph, params, true /*w13_linear*/);
+diff --git a/src/kernel/runtime.cc b/src/kernel/runtime.cc
+index b40d5e9..53fea88 100644
+--- a/src/kernel/runtime.cc
++++ b/src/kernel/runtime.cc
+@@ -349,7 +349,9 @@ void register_mugraph(
+               task.task_metadata.task_offset = bid.x;
+             }
+             // Set expert_offset for MoE tasks
+-            if (task_type == TASK_MOE_W13_LINEAR_SM100 ||
++            if (task_type == TASK_MOE_W13_LINEAR_SM80 ||
++                task_type == TASK_MOE_W2_LINEAR_SM80 ||
++                task_type == TASK_MOE_W13_LINEAR_SM100 ||
+                 task_type == TASK_MOE_W2_LINEAR_SM100 ||
+                 task_type == TASK_MOE_W13_LINEAR_SM90 ||
+                 task_type == TASK_MOE_W2_LINEAR_SM90 ||
+@@ -1766,6 +1768,8 @@ TaskGraphResult print_task_graph(
+   task_type_to_name[TASK_ATTENTION_1] = "TASK_ATTENTION_1";
+   task_type_to_name[TASK_SILU_MUL] = "TASK_SILU_MUL";
+   task_type_to_name[TASK_IDENTITY] = "TASK_IDENTITY";
++  task_type_to_name[TASK_MOE_W13_LINEAR_SM80] = "TASK_MOE_W13_LINEAR_SM80";
++  task_type_to_name[TASK_MOE_W2_LINEAR_SM80] = "TASK_MOE_W2_LINEAR_SM80";
+   task_type_to_name[TASK_SILU_MUL_LINEAR_WITH_RESIDUAL] =
+       "TASK_SILU_MUL_LINEAR_WITH_RESIDUAL";
+   task_type_to_name[TASK_LINEAR] = "TASK_LINEAR";
+diff --git a/src/kernel/task_register.cc b/src/kernel/task_register.cc
+index cb7ceb6..1647b45 100644
+--- a/src/kernel/task_register.cc
++++ b/src/kernel/task_register.cc
+@@ -632,8 +632,6 @@ int TaskRegister::register_paged_attention_task(
+   assert(head_dim == input_ops[1]->output_tensors[0].dim[3]);
+   assert(input_ops[2]->output_tensors[0].num_dims == 4);
+   assert(head_dim == input_ops[2]->output_tensors[0].dim[3]);
+-  int max_tokens = input_ops[0]->dtensor.dim[0];
+-
+   mirage::transpiler::CodeKeeper code;
+   code.inc_indent();
+   code.e("kernel::multitoken_paged_attention_task_impl<bfloat16, $, $, $, $, "
+@@ -646,7 +644,7 @@ int TaskRegister::register_paged_attention_task(
+          head_dim,
+          max_seq_len,
+          page_size,
+-         max_tokens,
++         "MPK_MAX_TOKENS_PER_REQUEST",
+          page_stride_rows);
+   code.e("    task_desc->input_ptrs[0],");
+   code.e("    task_desc->input_ptrs[1],");
+@@ -2917,7 +2915,7 @@ int TaskRegister::register_moe_topk_softmax_sm100_task(
+   code.e("kernel::topk_softmax_task_impl<cute::bfloat16_t, $, $, $, $>(",
+          /*VPT=*/vpt,
+          /*EXPERTS=*/num_experts,
+-         /*WARPS_PER_TB=*/8,
++         /*WARPS_PER_TB=*/bgraph.block_dim.x / 32,
+          /*BYTES_PER_LDG=*/bytes_per_ldg);
+   code.e("    task_desc->input_ptrs[0],");
+   code.e("    nullptr,");
+@@ -3608,6 +3606,45 @@ int TaskRegister::register_moe_mul_sum_add_sm100_task(
+   return register_task_variant(TASK_MOE_MUL_SUM_ADD_SM100, code.to_string());
+ }
+ 
++int TaskRegister::register_moe_linear_sm80_task(
++    threadblock::Graph const &bgraph, bool w13_linear) {
++  assert(bgraph.operators.size() == 5 && bgraph.block_dim.x == 128);
++  auto const &input = static_cast<tb::TBInputOp *>(bgraph.operators.at(0))->dtensor;
++  auto const &weight = *static_cast<tb::TBInputOp *>(bgraph.operators.at(1));
++  auto const &routing =
++      static_cast<tb::TBInputOp *>(bgraph.operators.at(2))->dtensor;
++  auto const &mask = static_cast<tb::TBInputOp *>(bgraph.operators.at(3))->dtensor;
++  auto const &output = *static_cast<tb::TBInputOp *>(bgraph.operators.at(4));
++  int const batch = input.dim[0];
++  int const experts = weight.dtensor.dim[0];
++  int const topk = output.dtensor.dim[1];
++  int const width = output.output_tensors[0].dim[2];
++  int const stride = output.dtensor.dim[2];
++  int const reduction = weight.dtensor.dim[2];
++  assert(input.num_dims == (w13_linear ? 2 : 3));
++  assert(output.dtensor.num_dims == 3 && weight.dtensor.num_dims == 3);
++  assert(input.dim[input.num_dims - 1] == reduction);
++  assert(w13_linear || input.dim[1] == topk);
++  assert(weight.dtensor.dim[1] == stride &&
++         weight.output_tensors[0].dim[1] == width);
++  assert(routing.dim[0] == experts && routing.dim[1] == batch &&
++         mask.dim[0] == experts + 1);
++  assert(batch > 0 && batch <= 16 && width == 128 && stride % width == 0 &&
++         reduction % 128 == 0 && reduction >= 256);
++
++  mirage::transpiler::CodeKeeper code;
++  code.e("kernel::moe_linear_kernel<cute::bfloat16_t, $, $, $, $, $, $, $, "
++         "true, 3, $>(",
++         batch, width, stride, reduction, experts, topk,
++         bgraph.grid_dim.x, w13_linear ? "false" : "true");
++  code.e("    task_desc->input_ptrs[0], task_desc->input_ptrs[1], nullptr,");
++  code.e("    task_desc->input_ptrs[2], task_desc->input_ptrs[3],");
++  code.e("    task_desc->output_ptrs[0], task_desc->task_metadata.expert_offset);");
++  return register_task_variant(
++      w13_linear ? TASK_MOE_W13_LINEAR_SM80 : TASK_MOE_W2_LINEAR_SM80,
++      code.to_string());
++}
++
+ int TaskRegister::register_moe_linear_sm90_task(
+     threadblock::Graph const &bgraph,
+     std::vector<int> const &params,
+diff --git a/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_32_64.cuh b/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_32_64.cuh
+index 9d9eab1..1ff597c 100644
+--- a/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_32_64.cuh
++++ b/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_32_64.cuh
+@@ -109,23 +109,11 @@ __device__ __forceinline__ void multitoken_paged_attention_task_impl_32_64(
+   // valid_lens = [seq_len - num_tokens + 1 + i for i in range(num_tokens)]
+   // seq_len = 7 * 64 + 64 = 512
+   // num tokens = 8
+-  // Load the paged KV indices into shared memory
+-  __shared__ __align__(16) int page_indices[MAX_PAGES_PER_REQUEST];
+-#pragma unroll
+-  for (int i = threadIdx.x; i < num_pages * sizeof(int) / 16;
+-       i += NUM_THREADS) {
+-    __uint128_t const *src_ptr =
+-        reinterpret_cast<__uint128_t const *>(paged_kv_indices_buffer_ptr) + i;
+-    __uint128_t *dst_ptr = reinterpret_cast<__uint128_t *>(page_indices) + i;
+-    *dst_ptr = *src_ptr;
+-  }
+-  if (num_pages % (16 / sizeof(int)) != 0) {
+-    int tail_pages = num_pages % (16 / sizeof(int));
+-    int tail_offset = num_pages - tail_pages;
+-    for (int i = threadIdx.x; i < tail_pages; i += NUM_THREADS) {
+-      page_indices[tail_offset + i] =
+-          paged_kv_indices_buffer_ptr[first_page_pos + tail_offset + i];
+-    }
++  // Each request owns a slice of the flattened page table. The slice's
++  // starting index does not have to be 16-byte aligned.
++  __shared__ int page_indices[MAX_PAGES_PER_REQUEST];
++  for (int i = threadIdx.x; i < num_pages; i += NUM_THREADS) {
++    page_indices[i] = paged_kv_indices_buffer_ptr[first_page_pos + i];
+   }
+   __syncthreads();
+ 
+diff --git a/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_4_16.cuh b/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_4_16.cuh
+index 50dc766..dfc1069 100644
+--- a/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_4_16.cuh
++++ b/include/mirage/persistent_kernel/tasks/ampere/multitoken_paged_attention_4_16.cuh
+@@ -107,29 +107,11 @@ __device__ __forceinline__ void multitoken_paged_attention_task_impl_4_16(
+   //    num_tokens, seq_len, num_pages,
+   //    paged_kv_last_page_len_buffer_ptr[request_id], request_id);
+   // }
+-  // Load the paged KV indices into shared memory
+-  // We need to align the page_indices to 16 bytes because vectorized access is
+-  // used
+-  __shared__ __align__(16) int page_indices[MAX_PAGES_PER_REQUEST];
+-#pragma unroll
+-  for (int i = threadIdx.x; i < num_pages * sizeof(int) / 16;
+-       i += NUM_THREADS) {
+-    __uint128_t const *src_ptr =
+-        reinterpret_cast<__uint128_t const *>(paged_kv_indices_buffer_ptr) + i;
+-    __uint128_t *dst_ptr = reinterpret_cast<__uint128_t *>(page_indices) + i;
+-    *dst_ptr = *src_ptr;
+-  }
+-  if (num_pages % (16 / sizeof(int)) != 0) {
+-    int tail_pages = num_pages % (16 / sizeof(int));
+-    int tail_offset = num_pages - tail_pages;
+-    for (int i = threadIdx.x; i < tail_pages; i += NUM_THREADS) {
+-      page_indices[tail_offset + i] =
+-          paged_kv_indices_buffer_ptr[first_page_pos + tail_offset + i];
+-      // if(threadIdx.x == 0){
+-      //   printf("page_indices[%d] = %d, %d, %d\n", tail_offset + i,
+-      //   page_indices[tail_offset + i], first_page_pos, tail_offset, i);
+-      // }
+-    }
++  // Each request owns a slice of the flattened page table. The slice's
++  // starting index does not have to be 16-byte aligned.
++  __shared__ int page_indices[MAX_PAGES_PER_REQUEST];
++  for (int i = threadIdx.x; i < num_pages; i += NUM_THREADS) {
++    page_indices[i] = paged_kv_indices_buffer_ptr[first_page_pos + i];
+   }
+   __syncthreads();
+ 

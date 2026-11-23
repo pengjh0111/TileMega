@@ -45,6 +45,8 @@ class Unsupported(RuntimeError):
 
 
 def extend(parser):
+    parser.add_argument("--sm80-qwen3-moe", action="store_true",
+                        help="use the A800 MPK expert-task port for Qwen3-30B-A3B")
     parser.add_argument("--page-size", type=int, default=4096)
     # 16 pages x 4096 is the demos' CLI default, sized for one long-context
     # request; this protocol runs B requests of prompt + max_tokens tokens. 0
@@ -377,6 +379,10 @@ class Engine:
         # The demo's per-rank widths: heads and the MLP split, hidden, the
         # vocabulary and lm_head replicated (convert.py shards neither).
         local_q, local_kv = q_heads // world, kv_heads // world
+        ampere_moe = self.args.sm80_qwen3_moe
+        block = (128 if ampere_moe else 256, 1, 1)
+        request_cap = min(a.max_num_batched_tokens, 64 // (local_q // local_kv))
+        attention_options = {"max_tokens_per_request": request_cap} if ampere_moe else {}
         fused_1, fused_2 = (q_heads + 2 * kv_heads) * head_dim, 2 * inter
         workers, schedulers = mi.get_configurations_from_gpu(rank)
         b = a.max_num_batched_requests
@@ -393,7 +399,7 @@ class Engine:
             page_size=a.page_size, eos_token_id=-1, meta_tensors=dict(meta, **buffers),
             profiler_tensor=None, trace_name="",
             spec_decode_config=mi.speculative.spec_decode_class(None, ngram_size=3, spec_length=3),
-            use_cutlass_kernel=True)
+            use_cutlass_kernel=True, **attention_options)
         t = a.max_num_batched_tokens
 
         def tensor(name, dims, dtype=mi.bfloat16):
@@ -451,7 +457,7 @@ class Engine:
         argmax_out = mpk.attach_input(torch_tensor=meta["output_tokens"], name="output_token")
 
         w = mpk.attach_input(torch_tensor=model.model.embed_tokens.weight, name="embed_tokens")
-        mpk.embed_layer(input=x, weight=w, output=y, grid_dim=(1, 1, 1), block_dim=(256, 1, 1),
+        mpk.embed_layer(input=x, weight=w, output=y, grid_dim=(1, 1, 1), block_dim=block,
                         input_source=1)
         x = y
         k_all, v_all = self.kv_cache
@@ -465,9 +471,9 @@ class Engine:
                                         name=f"layer_{i}_qkv_proj")
             normed = rms_qkv if moe else rms
             mpk.rmsnorm_layer(input=x, weight=w_norm, output=normed, grid_dim=(t, 1, 1),
-                              block_dim=(256, 1, 1))
+                              block_dim=block)
             mpk.linear_layer(input=normed, weight=w_qkv, output=attn_in,
-                             grid_dim=(grid_for_linear_layer(w_qkv.dim(0)), 1, 1), block_dim=(256, 1, 1))
+                             grid_dim=(grid_for_linear_layer(w_qkv.dim(0)), 1, 1), block_dim=block)
             w_q_norm = attach(torch_tensor=layer.self_attn.q_norm.weight, name=f"layer_{i}_q_norm")
             w_k_norm = attach(torch_tensor=layer.self_attn.k_norm.weight, name=f"layer_{i}_k_norm")
             k_cache = attach(torch_tensor=k_all[i], name=f"layer_{i}_k_cache")
@@ -477,27 +483,27 @@ class Engine:
                     input=attn_in, k_cache=k_cache, v_cache=v_cache, q_norm=w_q_norm, k_norm=w_k_norm,
                     cos_pos_embed=cos, sin_pos_embed=sin, lse=lse, output=attn_out_tmp,
                     attention_params=(local_q, chunks), grid_dim=(b, local_kv, chunks),
-                    block_dim=(256, 1, 1))
+                    block_dim=block)
                 mpk.paged_attention_split_kv_merge_layer(
                     lse=lse, output_tmp=attn_out_tmp, output=attn_out,
-                    attention_params=(local_q, head_dim), grid_dim=(b, local_kv, 1), block_dim=(256, 1, 1))
+                    attention_params=(local_q, head_dim), grid_dim=(b, local_kv, 1), block_dim=block)
             else:
                 mpk.paged_attention_layer(input=attn_in, k_cache=k_cache, v_cache=v_cache,
                                           q_norm=w_q_norm, k_norm=w_k_norm, cos_pos_embed=cos,
                                           sin_pos_embed=sin, output=attn_out, grid_dim=(b, local_kv, 1),
-                                          block_dim=(256 if moe else 128, 1, 1))
+                                          block_dim=block if moe else (128, 1, 1))
             w = attach(torch_tensor=layer.self_attn.o_proj.weight, name=f"layer_{i}_o_proj")
             mpk.linear_with_residual_layer(
                 input=attn_out, weight=w, residual=x, output=attn_proj_out,
                 grid_dim=((hidden // 64) if moe else grid_for_linear_layer(w.dim(0), with_residual=True), 1, 1),
-                block_dim=(256, 1, 1))
+                block_dim=block)
             x = attn_proj_out
             if world > 1:
                 # o is row sharded, so its partial sums are reduced across the
                 # ranks before the residual branch continues.
                 mpk.allreduce_layer(input=attn_proj_out, buffer=allreduce_buf,
                                     output=attn_allreduce_out, grid_dim=(hidden // 64, 1, 1),
-                                    block_dim=(256, 1, 1))
+                                    block_dim=block)
                 x = attn_allreduce_out
             w_norm = attach(torch_tensor=layer.post_attention_layernorm.weight,
                             name=f"layer_{i}_post_attn_layernorm")
@@ -506,21 +512,21 @@ class Engine:
                 w_gatedup = attach(torch_tensor=self.gate_up[i], name=f"layer_{i}_gate_proj")
                 w_down = attach(torch_tensor=self.down[i], name=f"layer_{i}_down_proj")
                 mpk.rmsnorm_layer(input=x, weight=w_norm, output=rms_moe, grid_dim=(t, 1, 1),
-                                  block_dim=(256, 1, 1))
+                                  block_dim=block)
                 mpk.linear_layer(input=rms_moe, weight=w_gate, output=gate_out,
-                                 grid_dim=(experts // 16, 1, 1), block_dim=(256, 1, 1))
+                                 grid_dim=(experts // (64 if ampere_moe else 16), 1, 1), block_dim=block)
                 mpk.moe_topk_softmax_routing_layer(input=gate_out, output=(topk_weight, routing, mask),
-                                                   grid_dim=(1, 1, 1), block_dim=(256, 1, 1))
+                                                   grid_dim=(1, 1, 1), block_dim=block)
                 mpk.moe_w13_linear_layer(input=rms_moe, weight=w_gatedup, moe_routing_indices=routing,
-                                         moe_mask=mask, output=mlp_mid, grid_dim=(5, 24, 1),
-                                         block_dim=(256, 1, 1))
+                                         moe_mask=mask, output=mlp_mid, grid_dim=(8, fused_2 // 128, 1) if ampere_moe else (5, 24, 1),
+                                         block_dim=block)
                 mpk.moe_silu_mul_layer(input=mlp_mid, output=silu_out, grid_dim=(t, topk, 1),
-                                       block_dim=(256, 1, 1))
+                                       block_dim=block)
                 mpk.moe_w2_linear_layer(input=silu_out, weight=w_down, moe_routing_indices=routing,
-                                        moe_mask=mask, output=mlp_out, grid_dim=(4, 32, 1),
-                                        block_dim=(256, 1, 1))
+                                        moe_mask=mask, output=mlp_out, grid_dim=(8, hidden // 128, 1) if ampere_moe else (4, 32, 1),
+                                        block_dim=block)
                 mpk.moe_mul_sum_add_layer(input=mlp_out, weight=topk_weight, residual=x, output=weighted,
-                                          grid_dim=(t, hidden // 256, 1), block_dim=(256, 1, 1))
+                                          grid_dim=(t, hidden // 256, 1), block_dim=block)
                 x = weighted
             else:
                 w_gate = attach(torch_tensor=layer.mlp.gate_proj.weight, name=f"layer_{i}_gate_proj")
@@ -529,33 +535,35 @@ class Engine:
                 w_gatedup = mpk.shuffle_tensors(inputs=[w_gate, w_up], shuffled_dim=0,
                                                 num_groups=tasks // 2, name=f"layer_{i}_gatedup_proj")
                 mpk.rmsnorm_layer(input=x, weight=w_norm, output=rms, grid_dim=(t, 1, 1),
-                                  block_dim=(256, 1, 1))
+                                  block_dim=block)
                 mpk.linear_layer(input=rms, weight=w_gatedup, output=mlp_mid,
                                  grid_dim=(grid_for_linear_layer(w_gatedup.dim(0)), 1, 1),
-                                 block_dim=(256, 1, 1))
+                                 block_dim=block)
                 mpk.silu_mul_layer(input=mlp_mid, output=silu_out, grid_dim=(tasks // 2, 1, 1),
-                                   block_dim=(256, 1, 1))
+                                   block_dim=block)
                 w = attach(torch_tensor=layer.mlp.down_proj.weight, name=f"layer_{i}_down_proj")
                 mpk.linear_with_residual_layer(
                     input=silu_out, weight=w, residual=x, output=mlp_out,
                     grid_dim=(grid_for_linear_layer(w.dim(0), with_residual=True), 1, 1),
-                    block_dim=(256, 1, 1))
+                    block_dim=block)
                 x = mlp_out
                 if world > 1:
                     mpk.allreduce_layer(input=mlp_out, buffer=allreduce_buf, output=mlp_final,
-                                        grid_dim=(hidden // 64, 1, 1), block_dim=(256, 1, 1))
+                                        grid_dim=(hidden // 64, 1, 1), block_dim=block)
                     x = mlp_final
         w_norm = mpk.attach_input(torch_tensor=model.model.norm.weight, name="model_norm_weight")
         w_proj = mpk.attach_input(torch_tensor=self.lm_head, name="lm_head")
-        mpk.rmsnorm_layer(input=x, weight=w_norm, output=rms, grid_dim=(t, 1, 1), block_dim=(256, 1, 1))
+        mpk.rmsnorm_layer(input=x, weight=w_norm, output=rms, grid_dim=(t, 1, 1), block_dim=block)
+        head_grid = (mpk.num_workers if moe and not ampere_moe
+                     else grid_for_linear_layer(w_proj.dim(0)))
         mpk.linear_layer(input=rms, weight=w_proj, output=argmax_in,
-                         grid_dim=((mpk.num_workers if moe else grid_for_linear_layer(w_proj.dim(0))), 1, 1),
-                         block_dim=(256, 1, 1))
+                         grid_dim=(head_grid, 1, 1),
+                         block_dim=block)
         mpk.argmax_partial_layer(input=argmax_in, output=(part_value, part_index),
-                                 grid_dim=(mpk.num_workers, 1, 1), block_dim=(256, 1, 1),
+                                 grid_dim=(mpk.num_workers, 1, 1), block_dim=block,
                                  vocab_size=config.vocab_size)
         mpk.argmax_reduce_layer(input=(part_value, part_index), output=argmax_out, grid_dim=(1, 1, 1),
-                                block_dim=(256, 1, 1))
+                                block_dim=block)
         results = mpk.kn_graph.generate_task_graph(num_gpus=world, my_gpu_id=rank)
         Path(f"task_graph_{rank}.json").write_text(results["json_file"])
         Path(f"kernel_{rank}.cu").write_text(results["cuda_code"])
@@ -576,6 +584,18 @@ def main():
     world = args.tp
     devices = require_guard(world if world > 1 else None)
     arch = architecture(args.model)
+    if args.sm80_qwen3_moe:
+        import torch
+        if (arch != "Qwen3MoeForCausalLM" or world != 1
+                or torch.cuda.get_device_capability() != (8, 0)
+                or args.batch == "all" or args.split_kv_cache):
+            raise Unsupported("the MPK SM80 expert port requires one Qwen3 MoE batch on SM80")
+        config = json.loads((args.model / "config.json").read_text())
+        expected = {"hidden_size": 2048, "moe_intermediate_size": 768, "num_experts": 128,
+                    "num_experts_per_tok": 8, "num_attention_heads": 32,
+                    "num_key_value_heads": 4, "head_dim": 128, "norm_topk_prob": True}
+        if any(config.get(key) != value for key, value in expected.items()):
+            raise Unsupported("the checkpoint shape differs from the Qwen3-30B-A3B SM80 port")
     comm, rank = None, 0
     if world > 1:
         if arch not in TP_DEMOS:
@@ -625,6 +645,7 @@ def main():
               "use_cutlass_kernel": True, "spec_decode": None,
               "kernels_reported_for_rank": rank,
               "split_kv_cache": args.split_kv_cache,
+              "expert_backend": "mpk-sm80-cp-async-mma-sync" if args.sm80_qwen3_moe else None,
               "timed_scope": "prompt H2D copy + init_request_func + mpk() + synchronize + token D2H",
               "kernels": engine.compiles}
 
