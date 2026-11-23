@@ -24,6 +24,17 @@ def suffix(path, ending):
     return Path(str(path) + ending)
 
 
+def paired_libraries(plan):
+    command = plan['command']
+    libraries = dict(control=command[command.index('--control')+1])
+    libraries[plan['labels']['trial']] = command[command.index('--trial')+1]
+    for index, entry in enumerate(command):
+        if entry == '--additional-trial':
+            name, library = command[index+1].split('=', 1)
+            libraries[name] = library
+    return libraries
+
+
 def archive(record):
     source = Path(record['timing_source'])
     if sha(source) != record['timing_sha256']:

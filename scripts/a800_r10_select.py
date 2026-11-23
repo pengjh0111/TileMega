@@ -6,7 +6,7 @@ from pathlib import Path
 
 from a100_baselines import BATCHES, sha
 from a800_native import artifact
-from a800_r10_prepare import MODELS, read, schema10
+from a800_r10_prepare import MODELS, paired_libraries, read, schema10
 from tilemega.bench.scheduler import write_json
 
 
@@ -15,14 +15,7 @@ def measured_arm(campaign, phase, model, batch, label, evidence):
     plan = read(receipt)
     if (plan['phase'], plan['model'], plan['batch']) != (phase, model, batch):
         raise ValueError(f'screening plan does not belong to {model}/B{batch} {phase}')
-    command = plan['command']
-    variants = dict(control=command[command.index('--control')+1])
-    variants[plan['labels']['trial']] = command[command.index('--trial')+1]
-    for index, entry in enumerate(command):
-        if entry == '--additional-trial':
-            name, binary = command[index+1].split('=', 1)
-            variants[name] = binary
-    library, identity, manifest = artifact(Path(variants[label]))
+    library, identity, manifest = artifact(Path(paired_libraries(plan)[label]))
     if identity['binary_sha256'] != evidence['decode_sha256']:
         raise ValueError(f'{phase} {label} changed after paired screening')
     proof = dict(evidence, library=str(library), screen_plan_sha256=sha(receipt))

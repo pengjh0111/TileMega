@@ -9,8 +9,9 @@ import re
 import statistics
 
 from a100_baselines import sha
+from a800_native import artifact
 from a800_r10_collect_e1 import TERMINAL
-from a800_r10_prepare import read
+from a800_r10_prepare import paired_libraries, read
 from tilemega.bench.scheduler import write_json
 
 
@@ -71,6 +72,12 @@ def handle_cell(plan, job, state, account_code, timing, stages):
             binding['protocol_version'] != 'a800-single-v2'):
         raise ValueError('paired timing belongs to another experiment')
     control = samples['control']
+    if plan['phase'] == 'router':
+        routing = read(timing/'routing.json')['passed']
+        route_reference = read(routing['control']['path'])['router_indices_sha256']
+        binaries = paired_libraries(plan)
+    else:
+        routing = {}
     rows, candidates = [], {}
     for name in binding['order']:
         label = plan['labels'].get(name, name)
@@ -83,6 +90,21 @@ def handle_cell(plan, job, state, account_code, timing, stages):
             continue
         if any(sample[field] != control[field] for field in INVARIANTS):
             raise ValueError('trial changed a frozen input, GPU, or output token sequence')
+        if routing:
+            proof = routing[name]
+            observed = read(proof['path'])
+            if (sha(proof['path']) != proof['sha256'] or not observed['pass']
+                    or name != 'control' and not observed['hf_pass']
+                    or observed['decode_sha256'] != base['binary_sha256']
+                    or observed['device_uuid'] != sample['gpu_uuid']
+                    or observed['router_indices_sha256'] != route_reference):
+                raise ValueError('router trial lacks its guarded ordered-index proof')
+            _, identity, manifest = artifact(Path(binaries[label]))
+            if identity['binary_sha256'] != base['binary_sha256']:
+                raise ValueError('router geometry changed after timing')
+            base.update(router_tn=manifest['native_dense']['gemms']['router']['tile_n'],
+                        router_indices_sha256=observed['router_indices_sha256'],
+                        router_proof_sha256=proof['sha256'], teacher_forced=observed['hf_pass'])
         tpot = (statistics.median(sample['n1024_seconds']) -
                 statistics.median(sample['n1_seconds']))/1023
         if tpot <= 0 or not math.isclose(tpot, sample['tpot_seconds'], rel_tol=1e-7):
@@ -137,7 +159,14 @@ def main():
             else:
                 timing = args.runs/'optimization/decode-pairs'/job
                 stages = args.runs/'calibration/r2-supplement-service'/job
-            samples, result = handle_cell(plan, job, state, code, timing, stages)
+            try:
+                samples, result = handle_cell(plan, job, state, code, timing, stages)
+            except (KeyError, OSError, ValueError) as error:
+                evidence = timing/'result.json'
+                samples = [dict(model=plan['model'], batch=plan['batch'], job=job,
+                                status='rejected_evidence', reason=str(error),
+                                evidence_sha256=sha(evidence) if evidence.is_file() else '')]
+                result = {'status': 'rejected_evidence', 'reason': str(error), 'job': job}
             rows.extend(samples)
             summary[f"{plan['model']}/B{plan['batch']}"] = result
             if args.phase == 'options':
@@ -153,7 +182,9 @@ def main():
                                       receipt_sha256=sha(search)))
     args.out.mkdir(parents=True, exist_ok=True)
     fields = ('model', 'batch', 'arm', 'job', 'status', 'tpot_ms', 'improvement_pct',
-              'gpu_uuid', 'binary_sha256', 'stage', 'split_k', *STAGES, 'evidence_sha256')
+              'gpu_uuid', 'binary_sha256', 'stage', 'split_k', *STAGES, 'evidence_sha256', 'reason')
+    if args.phase == 'router':
+        fields += ('router_tn', 'router_indices_sha256', 'router_proof_sha256', 'teacher_forced')
     with (args.out/f'A800_R10_{TABLES[args.phase]}.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fields)
         writer.writeheader()
