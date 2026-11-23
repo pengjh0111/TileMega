@@ -108,6 +108,8 @@ def adopt_pair(phase, job, plan, folder, runs, current, inputs):
     if (sha(target) != artifact['target_sha256'] or
             any(current[name] != artifact[name] for name in ('prefill_sha256', 'target_sha256'))):
         raise ValueError(f'{model} B{batch} changes a frozen prefill or target')
+    if artifact['decode_sha256'] == current['decode_sha256']:
+        return None
     checks = 0
     correctness = 'guarded timing, full greedy tokens match paired control'
     if phase == 'router':
@@ -192,12 +194,15 @@ def adopt_pipeline(entry, current, inputs):
             raise ValueError(f'{model} B{batch} changes the solver request timing')
         tokens = sha(base/'reference_tokens.json')
         equal = tokens == reference['tokens_sha256']
+        unchanged = case['binary_sha256'] == current['decode_sha256']
         status = 'eligible' if equal else 'rejected_token_mismatch'
+        if equal and unchanged:
+            status = 'incumbent_binary'
         statuses.append(dict(model=model, batch=batch, arm=label, job=job, status=status,
                              tpot_ms=raw['tpot_ms'], incumbent_tpot_ms=current['tpot_ms'],
                              gpu_uuid=device['uuid'], decode_sha256=case['binary_sha256'],
                              tokens_sha256=tokens, timing_sha256=raw['receipt'], selection_sha256=sha(receipt_path)))
-        if not equal or raw['tpot_ms'] >= .995*float(current['tpot_ms']):
+        if not equal or unchanged or raw['tpot_ms'] >= .995*float(current['tpot_ms']):
             continue
         if winner is not None and raw['tpot_ms'] >= winner[0]['tpot_ms']:
             continue
