@@ -37,6 +37,26 @@ def invoke(script, mode, options, bound, receipt=None):
         subprocess.run(command, cwd=ROOT, timeout=bound, check=True)
 
 
+def bind_shortlist(folder, options, control, prepared):
+    candidates = read(prepared)['receipt']['candidates']
+    if sum(row['status'] == 'compiled' for row in candidates) < 2:
+        raise ValueError('normal measured selection needs two prepared finalists')
+    model, batch = control['model'], control['batch']
+    suite_budget = 2*timeout(model)+480
+    measure_output = folder/'measured.so'
+    request = [*options, '--out', str(measure_output), '--timeout-s', str(suite_budget),
+               '--prepared-shortlist', str(prepared), '--defer-finalize']
+    receipt = folder/'selection.plan.json'
+    invoke(SOLVE, 'plan', request, 120, receipt)
+    spec = dict(model=model, batch=batch, control=control, solve=options,
+                shortlist=str(prepared), select=request, receipt_sha256=sha(receipt),
+                select_budget_s=suite_budget, selection_results=str(folder/'measured.so.search'))
+    metadata = folder/'selection.binding.json'
+    if metadata.exists() and read(metadata) != spec:
+        raise ValueError('retain the original R10 selection binding')
+    write_json(metadata, spec)
+
+
 def prepare(args):
     if os.environ.get('SLURM_JOB_ID') or os.environ.get('CUDA_VISIBLE_DEVICES') != '':
         raise ValueError('prepare the normal shortlist on the login node with CUDA devices hidden')
@@ -46,33 +66,20 @@ def prepare(args):
     if sha(seed) != selection['seed_sha256']:
         raise ValueError('the measured seed changed before shortlist preparation')
     control = read(args.inventory)['cells'][cell]
-    if sha(control['timing_source']) != control['timing_sha256']:
+    if (sha(control['timing_source']) != control['timing_sha256']
+            or (control['model'], control['batch']) != (args.model, args.batch)):
         raise ValueError('the archived R9 control changed')
     args.out.mkdir(parents=True, exist_ok=True)
     options = ['--model', args.model, '--batch', str(args.batch), '--export', str(args.export),
                '--target', control['target'], '--prefill', control['prefill'], '--cli', str(args.cli),
-               '--out', str(args.out/'winner.so'), '--compile-jobs', '1', '--top', '2',
+               '--compile-jobs', '1', '--top', '2',
                '--search-budget-ms', '600000', '--seed-coordinates', str(seed)]
-    search = args.out/'winner.so.search'
+    search = args.out/'prepared.so.search'
     cpu_budget = 3000
     if not (search/'weight-abi.json').exists():
-        invoke(SOLVE, 'prepare', [*options, '--timeout-s', str(cpu_budget)], cpu_budget+30)
-    prepared = search/'prepared.json'
-    candidates = read(prepared)['receipt']['candidates']
-    if sum(row['status'] == 'compiled' for row in candidates) < 2:
-        raise ValueError('normal measured selection needs two prepared finalists')
-    suite_budget = 2*timeout(args.model)+480
-    request = [*options, '--timeout-s', str(suite_budget), '--prepared-shortlist', str(prepared),
-               '--defer-finalize']
-    receipt = args.out/'selection.plan.json'
-    invoke(SOLVE, 'plan', request, 120, receipt)
-    spec = dict(model=args.model, batch=args.batch, control=control, solve=options,
-                shortlist=str(prepared), select=request, receipt_sha256=sha(receipt),
-                select_budget_s=suite_budget, seed_sha256=sha(seed))
-    metadata = args.out/'selection.binding.json'
-    if metadata.exists() and read(metadata) != spec:
-        raise ValueError('retain the original R10 selection binding')
-    write_json(metadata, spec)
+        invoke(SOLVE, 'prepare', [*options, '--out', str(args.out/'prepared.so'),
+                                 '--timeout-s', str(cpu_budget)], cpu_budget+30)
+    bind_shortlist(args.out, options, control, search/'prepared.json')
 
 
 def measure(folder, binding):
@@ -92,9 +99,9 @@ def measure(folder, binding):
             run.rename(archive)
 
 
-def finalize(folder, binding, job):
+def guarded_selection(folder, job, exit_code):
     if os.environ.get('SLURM_JOB_ID') or os.environ.get('CUDA_VISIBLE_DEVICES') != '':
-        raise ValueError('finalize the GPU-selected binary on the login node')
+        raise ValueError('process GPU selection receipts on the login node')
     if not job.isdecimal():
         raise ValueError('provide the numeric allocation ID recorded by Slurm')
     guard = folder/f'selection-{job}'
@@ -102,11 +109,37 @@ def finalize(folder, binding, job):
     device = read(guard/'job/physical-device-identity.json')
     plan = read(folder/'selection.plan.json')
     observed = read(guard/'planned.json')
-    if (result['code'] or result['acceptance'] != 'strict' or not result['ownership_verified']
+    acceptance = 'strict' if exit_code == 0 else 'rejected'
+    if (result['code'] != exit_code or result['acceptance'] != acceptance
+            or result['reason'] != f'child exit {exit_code}' or not result['ownership_verified']
             or device['compute_capability'] != [8, 0]
             or observed.pop('device')['uuid'] != device['nvml_uuid'] or observed != plan):
         raise ValueError('selection did not pass its frozen single-A800 guard')
-    search = folder/'winner.so.search'
+    return device
+
+
+def reprepare(folder, binding, job, output):
+    device = guarded_selection(folder, job, 75)
+    proof = Path(binding['selection_results'])/'needs-reprepare.json'
+    receipt = read(proof)
+    original = Path(binding['shortlist'])
+    if (receipt['prepared_sha256'] != sha(original) or receipt['status'] != 'needs_reprepare'
+            or not receipt['corrections']):
+        raise ValueError('occupancy corrections do not bind the guarded shortlist')
+    output.mkdir(parents=True, exist_ok=True)
+    prepared = output/'prepared.so.search/prepared.json'
+    if not prepared.with_name('weight-abi.json').exists():
+        invoke(SOLVE, 'reprepare', [*binding['solve'], '--out', str(output/'prepared.so'),
+                                    '--prepared-shortlist', str(original), '--reprepare-receipt', str(proof),
+                                    '--timeout-s', '1800'], 1830)
+    bind_shortlist(output, binding['solve'], binding['control'], prepared)
+    write_json(output/'occupancy-binding.json', dict(job=job, gpu_uuid=device['nvml_uuid'],
+                                                     correction_sha256=sha(proof)))
+
+
+def finalize(folder, binding, job):
+    device = guarded_selection(folder, job, 0)
+    search = Path(binding['selection_results'])
     proof = search/'ready-to-finalize.json'
     prepared = Path(binding['shortlist'])
     selection = read(proof)
@@ -119,7 +152,7 @@ def finalize(folder, binding, job):
         raise ValueError('normal finalists did not use one shared guarded allocation and checkpoint')
     library = folder/'winner.so'
     if not library.exists():
-        invoke(SOLVE, 'finalize', [*binding['solve'], '--prepared-shortlist', str(prepared),
+        invoke(SOLVE, 'finalize', [*binding['solve'], '--out', str(library), '--prepared-shortlist', str(prepared),
                                  '--finalize-receipt', str(proof), '--timeout-s', '1800'], 1830)
     _, identity, manifest = artifact(library)
     rebuild = read(folder/'winner.so.rebuild/comparison.json')
@@ -179,11 +212,13 @@ def main():
     make.add_argument('--batch', choices=BATCHES, type=int, required=True)
     for name in ('selection', 'inventory', 'export', 'cli', 'out'):
         make.add_argument(f'--{name}', type=Path, required=True)
-    for mode in ('measure', 'finalize', 'formal'):
+    for mode in ('measure', 'reprepare', 'finalize', 'formal'):
         run = sub.add_parser(mode)
         run.add_argument('--folder', type=Path, required=True)
-        if mode == 'finalize':
+        if mode in ('reprepare', 'finalize'):
             run.add_argument('--job', required=True)
+        if mode == 'reprepare':
+            run.add_argument('--out', required=True, type=Path)
     args = parser.parse_args()
     if args.mode == 'prepare':
         prepare(args)
@@ -193,6 +228,8 @@ def main():
         binding = read(args.folder/'selection.binding.json')
         if args.mode == 'measure':
             measure(args.folder, binding)
+        elif args.mode == 'reprepare':
+            reprepare(args.folder, binding, args.job, args.out)
         else:
             finalize(args.folder, binding, args.job)
 
