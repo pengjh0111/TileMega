@@ -7,15 +7,24 @@ import math
 from pathlib import Path
 
 from a100_baselines import ROOT, inspect_inputs, sha
-from a100_results import measurement, write_csv
+from a100_results import guarded_measurement, measurement, write_csv
 from a800_baselines import INVENTORY, hardware_class
 from a800_efficiency import calculate
+from a800_native import verify_request_tokens
 from a800_r10_collect_round import INVARIANTS, accounting
 from a800_r10_matrix import summarize
 from a800_r10_prepare import MODELS, read
 from a800_r9_matrix import IDENTITY
 from a800_results import native_provenance
 from tilemega.bench.scheduler import write_json
+
+
+def timed_row(current, artifact, raw, provenance, uuid, checks, correctness):
+    metrics = {name: raw[name] for name in ('tpot_ms', 't1_s', 't1024_s', 'tok_s', 'versions')}
+    return dict(current, **artifact, **provenance, **metrics, processes=1,
+                accepted_correctness_processes=checks, correctness=correctness,
+                receipt_sha256=raw['receipt'], gpu_uuid=uuid,
+                speedup=float(current['fastest_baseline_tpot_ms'])/raw['tpot_ms'])
 
 
 def request(runs, control, sample, job, key, artifact, target, inputs):
@@ -114,12 +123,10 @@ def adopt_pair(phase, job, plan, folder, runs, current, inputs):
             raise ValueError(f'{model} B{batch} changes ordered expert routing')
         checks, correctness = 1, 'paired exact greedy tokens and ordered routes, full teacher-forced passed'
     raw, provenance = request(runs, control, best, job, key, artifact, read(target), inputs)
-    metrics = {name: raw[name] for name in ('tpot_ms', 't1_s', 't1024_s', 'tok_s', 'versions')}
-    row = dict(current, **artifact, **provenance, **metrics, processes=1,
-               accepted_correctness_processes=checks, correctness=correctness,
-               receipt_sha256=raw['receipt'], gpu_uuid=best['gpu_uuid'],
-               speedup=float(current['fastest_baseline_tpot_ms'])/raw['tpot_ms'])
+    row = timed_row(current, artifact, raw, provenance, best['gpu_uuid'], checks, correctness)
     tag = plan.get('labels', {}).get(label, label)
+    if phase == 'e1':
+        tag = Path(tag).stem
     fact = dict(model=model, batch=batch, phase=phase, arm=tag, job=job,
                 paired_control_ms=1000*control['tpot_seconds'], prior_tpot_ms=current['tpot_ms'],
                 tpot_ms=raw['tpot_ms'], pair_sha256=sha(result_path), timing_sha256=raw['receipt'],
@@ -128,13 +135,92 @@ def adopt_pair(phase, job, plan, folder, runs, current, inputs):
     return row, fact
 
 
+def adopt_pipeline(entry, current, inputs):
+    folder, job = Path(entry['folder']), entry['job']
+    model, batch = current['model'], int(current['batch'])
+    spec = read(folder/'selection.binding.json')
+    guard = folder/f'selection-{job}'
+    observed = read(guard/'planned.json')
+    device = observed.pop('device')
+    identity = read(guard/'job/physical-device-identity.json')
+    expected = folder/'selection.plan.json'
+    profile = read(Path(spec['control']['target']))
+    if (not job.isdecimal() or sha(expected) != spec['receipt_sha256'] or observed != read(expected)
+            or (spec['model'], spec['batch'], observed['protocol_version']) != (model, batch, 'a800-single-v2')
+            or identity['compute_capability'] != [8, 0] or identity['nvml_uuid'] != device['uuid']
+            or hardware_class(device) != hardware_class(profile['device_provenance'])):
+        raise ValueError(f'{model} B{batch} changes the pipeline measurement binding')
+    frozen = Path(spec['shortlist'])
+    archive = Path(spec['control']['timing_source'])
+    if sha(archive) != spec['control']['timing_sha256']:
+        raise ValueError(f'{model} B{batch} changes the archived greedy reference')
+    reference = read(archive)
+    directory = Path(spec['selection_results'])
+    receipt_path = directory/'ready-to-finalize.json'
+    selected = read(receipt_path)
+    stage = selected['receipt']
+    timing = stage['measurement']
+    if (sha(frozen) != selected['prepared_sha256'] or selected['scope'] != read(frozen)['scope']
+            or selected['status'] != 'ready_to_finalize' or timing['protocol_version'] != 'a800-single-v2'
+            or timing['prior_measurements'] or timing.get('split_rank_measurement')
+            or timing['gpu_uuid'] != device['uuid'] or observed['target_sha256'] != current['target_sha256']
+            or observed['prefill_sha256'] != current['prefill_sha256']
+            or timing['checkpoint_sha256'] != current['checkpoint_sha256']
+            or set(timing['launch_order']) != set(timing['arms']) or len(timing['arms']) < 2):
+        raise ValueError(f'{model} B{batch} lacks a complete guarded solver measurement')
+    candidates = {f"c{row['rank']}": row for row in stage['candidates'] if row['status'] == 'compiled'}
+    winner = None
+    statuses = []
+    for index, label in enumerate(timing['launch_order']):
+        case, arm = candidates[label], timing['arms'][label]
+        binary = Path(case['binary'])
+        if (arm['processes'] != 1 or sha(binary) != case['binary_sha256']
+                or case['occupancy']['effective_residency'] < case['occupancy']['requested_residency']):
+            raise ValueError(f'{model} B{batch} changed the prepared candidate or its occupancy')
+        base = directory/'measure'/f'{index:02d}-{label}'/'measurements'
+        path = base/f'B{batch}'/'measurements.json'
+        verify_request_tokens(path, batch, 3)
+        # The guarded selector binds the physical identity to the parent
+        # receipt. Its nested executor writes request timings separately.
+        raw = guarded_measurement(dict(name=f'{model} B{batch} {label}', model=model, batch=batch, round=index),
+                                  path, guard, dict(device=device, models=inputs), selector_bound=True)
+        artifact = dict(decode_sha256=case['binary_sha256'], prefill_sha256=observed['prefill_sha256'],
+                        target_sha256=observed['target_sha256'])
+        if (raw['receipt'] != timing['process_receipts'][label]
+                or raw['checkpoint_sha256'] != current['checkpoint_sha256']
+                or not math.isclose(raw['tpot_ms'], arm['tpot_ms'], rel_tol=1e-7)):
+            raise ValueError(f'{model} B{batch} changes the solver request timing')
+        tokens = sha(base/'reference_tokens.json')
+        equal = tokens == reference['tokens_sha256']
+        status = 'eligible' if equal else 'rejected_token_mismatch'
+        statuses.append(dict(model=model, batch=batch, arm=label, job=job, status=status,
+                             tpot_ms=raw['tpot_ms'], incumbent_tpot_ms=current['tpot_ms'],
+                             gpu_uuid=device['uuid'], decode_sha256=case['binary_sha256'],
+                             tokens_sha256=tokens, timing_sha256=raw['receipt'], selection_sha256=sha(receipt_path)))
+        if not equal or raw['tpot_ms'] >= .995*float(current['tpot_ms']):
+            continue
+        if winner is not None and raw['tpot_ms'] >= winner[0]['tpot_ms']:
+            continue
+        correctness = 'guarded pipeline timing, full greedy tokens match archived control'
+        row = timed_row(current, artifact, raw, native_provenance(raw, artifact), device['uuid'], 0, correctness)
+        fact = dict(model=model, batch=batch, phase='pipeline', arm=label, job=job,
+                    paired_control_ms='', prior_tpot_ms=current['tpot_ms'], tpot_ms=raw['tpot_ms'],
+                    pair_sha256=sha(receipt_path), timing_sha256=raw['receipt'], decode_sha256=artifact['decode_sha256'],
+                    tokens_sha256=tokens, path=str(receipt_path), correctness=correctness)
+        winner = row, fact
+    return winner, statuses
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--incumbent', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--phase', action='append', required=True, nargs=5,
+    parser.add_argument('--phase', action='append', default=[], nargs=5,
                         metavar=('NAME', 'LEDGER', 'ACCOUNTING', 'PARENT_JOB', 'RUNS'))
+    parser.add_argument('--pipeline', type=Path, help='per-cell guarded solver allocation receipts')
     args = parser.parse_args()
+    if not args.phase and not args.pipeline:
+        parser.error('supply a paired phase or guarded pipeline receipts')
     with args.incumbent.open(newline='') as stream:
         frozen = list(csv.DictReader(stream))
     rows = {(row['model'], int(row['batch'])): row for row in frozen}
@@ -153,6 +239,16 @@ def main():
             verdict = adopt_pair(phase, job, plan, folder, runs, rows[key], inputs)
             if verdict:
                 rows[key], accepted[key] = verdict
+    pipeline = []
+    if args.pipeline:
+        for entry in read(args.pipeline).values():
+            key = entry['model'], entry['batch']
+            if key[0] not in MODELS:
+                raise ValueError('the solver measurement is outside R10')
+            verdict, statuses = adopt_pipeline(entry, rows[key], inputs)
+            pipeline.extend(statuses)
+            if verdict:
+                rows[key], accepted[key] = verdict
     args.out.mkdir(parents=True, exist_ok=False)
     native = args.out/'A800_llm.csv'
     write_csv(native, list(rows.values()))
@@ -162,6 +258,8 @@ def main():
     write_csv(args.out/'A800_R10_efficiency.csv', efficiency)
     if accepted:
         write_csv(args.out/'A800_R10_adopted.csv', list(accepted.values()))
+    if pipeline:
+        write_csv(args.out/'A800_R10_pipeline.csv', pipeline)
     write_json(args.out/'a800_native_selection.json',
                {f'{model}/B{batch}': {name: row[name] for name in IDENTITY}
                 for (model, batch), row in rows.items()})

@@ -17,8 +17,12 @@ def measurement(job, state, inputs):
     if state.get('status') != 'done':
         return None
     folder = Path(state['out'])
-    guard = read(folder/'guard_result.json')
     path = folder/f'job/measurements/B{job["batch"]}/measurements.json'
+    return guarded_measurement(job, path, folder, inputs)
+
+
+def guarded_measurement(job, path, folder, inputs, *, selector_bound=False):
+    guard = read(folder/'guard_result.json')
     data = read(path)
     identity = folder/'job/physical-device-identity.json'
     if not (guard.get('code') == 0 and guard.get('acceptance') == 'strict'
@@ -29,7 +33,9 @@ def measurement(job, state, inputs):
             and data.get('tp') == 1 and data.get('prompt_length') == 64 and data.get('max_tokens') == 1024
             and data.get('model_config_sha256') == inputs['models'][job['model']]['config_sha256']
             and data.get('prompt_ids_sha256') == inputs['models'][job['model']]['prompt_sha256']
-            and identity.is_file() and data.get('physical_device_identity_sha256') == sha(identity)
+            and identity.is_file()
+            and (data.get('physical_device_identity_sha256') == sha(identity)
+                 or selector_bound and 'physical_device_identity_sha256' not in data)
             and read(identity).get('nvml_uuid') == inputs['device']['uuid']):
         raise ValueError(f'invalid strict measurement receipt: {job["name"]}')
     times = {}
