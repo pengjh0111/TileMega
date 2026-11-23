@@ -133,7 +133,7 @@ def prepare_options(args, source, target, folder, prefill, anchor):
         page['expert_page_copy'] = 'segments'
         page.pop('expert_aligned_gate_pages', None)
         seeded = folder / 'page-segments.anchors.json'
-        contract = {'cache_policy': cache, 'required_anchors': [page]}
+        contract = {'cache_policy': cache, 'required_anchors': [page], 'measure_unpriced_anchors': True}
         if not seeded.exists():
             write_json(seeded, contract)
         elif read(seeded) != contract:

@@ -93,7 +93,8 @@ def receipt(catalog, samples, campaign, model, batch):
             candidates.append(pinned)
     # A failed joint projection must not remove a separately observed arm.
     alternatives = [seeded(item) for item in (*selected.values(), old['coords'])]
-    return dict(cache_policy=cache, required_anchors=candidates), alternatives, proofs
+    return dict(cache_policy=cache, required_anchors=candidates,
+                measure_unpriced_anchors=True), alternatives, proofs
 
 
 def main():

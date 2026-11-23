@@ -14,6 +14,7 @@ struct Sm90DenseCandidate {
   Sm90DenseCoordinates coordinates;
   Sm90DensePrediction prediction;
   std::string origin;
+  bool measurement_only = false;
 };
 struct Sm90DenseSearchResult {
   std::vector<Sm90DenseCandidate> ranked;
