@@ -25,12 +25,21 @@ def main():
     parser.add_argument('--target', required=True, type=Path)
     parser.add_argument('--independent-arms', action='store_true')
     parser.add_argument('--submission-plan', type=Path)
+    parser.add_argument('--run-label', help='unique local ledger when a job contains several traces')
+    parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--timeout-s', type=int, default=330)
     args = parser.parse_args()
     if args.timeout_s <= 0:
         parser.error('trace deadline must be positive')
 
-    prefill = artifact(args.prefill)[0]
+    if args.run_label and (Path(args.run_label).name != args.run_label or args.run_label in ('.', '..')):
+        parser.error('run labels name one local directory')
+    if str(args.prefill) == 'prompt':
+        if args.model != 'olmoe_1b_7b':
+            parser.error('only OLMoE uses the native decode for prefill')
+        prefill = 'prompt'
+    else:
+        prefill = artifact(args.prefill)[0]
     reference, original, manifest = artifact(args.reference)
     trace = args.trace.resolve(strict=True)
     identity = json.loads(Path(f'{trace}.identity.json').read_text())
@@ -44,8 +53,13 @@ def main():
             or manifest['runtime_batch'] != args.batch):
         parser.error('the trace and reference must share one SM80 native plan and target')
     planned = dict(model=args.model, batch=args.batch, reference=sha(reference), trace=sha(trace),
-                   prefill=sha(prefill), target=sha(args.target), timeout_s=args.timeout_s,
+                   prefill=prefill if prefill == 'prompt' else sha(prefill),
+                   target=sha(args.target), timeout_s=args.timeout_s,
                    independent_arms=args.independent_arms)
+    if args.run_label:
+        planned['run_label'] = args.run_label
+    if args.expected_checkpoint_sha256:
+        planned['checkpoint_sha256'] = args.expected_checkpoint_sha256
     if args.mode == 'plan':
         print(json.dumps(planned, indent=2))
         return 0
@@ -54,15 +68,19 @@ def main():
     policy = device_policy()
     device = calibrated_device(policy, json.loads(args.target.read_text()))
     folder = RUN/'optimization'/'decode-traces'/os.environ['SLURM_JOB_ID']
+    if args.run_label:
+        folder /= args.run_label
     folder.mkdir(parents=True, exist_ok=False)
     policy_path = folder/'guard-policy.json'
     write_json(policy_path, policy)
     write_json(folder/'planned.json', dict(planned, device=device))
     config, prompt = inputs(args.model)
     checkpoint = inspect_inputs(INVENTORY)[args.model]['checkpoint_bytes']
+    frozen_weights = (['--expected-sha256', args.expected_checkpoint_sha256]
+                      if args.expected_checkpoint_sha256 else [])
     child = [str(ENVS/'vllm/bin/python'), '-m', 'tilemega.serving.random_checkpoint',
              '--config', str(config), '--out', str(folder/'checkpoint'),
-             '--seed', '0', '--max-gib', str(math.ceil(checkpoint/2**30)), '--',
+             '--seed', '0', '--max-gib', str(math.ceil(checkpoint/2**30)), *frozen_weights, '--',
              sys.executable, str(ROOT/'scripts/sm90r4_ledger.py'), 'run',
              '--batch', str(args.batch), '--prefill', str(prefill), '--decode', str(trace),
              '--reference', str(reference), '--prompt-ids', str(prompt), '--out', str(folder/'ledger')]
