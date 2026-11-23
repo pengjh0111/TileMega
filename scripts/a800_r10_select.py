@@ -23,8 +23,9 @@ def measured_arm(campaign, phase, model, batch, label, evidence):
 
 
 def combine(base, split, mainloop, router, shapes):
-    coords = schema10(deepcopy(base))
+    coords = deepcopy(base)
     if router:
+        schema10(coords)
         coords['gemms']['router'] = deepcopy(router['gemms']['router'])
         coords['payload'] = router['payload']
     if split:
@@ -38,10 +39,12 @@ def combine(base, split, mainloop, router, shapes):
                 continue
             if shapes[family][1] % (current['slot_bytes']//(2*current['tile_n'])*gemm['split_k']):
                 raise ValueError('measured split K does not divide the frozen ModelPlan')
+            schema10(coords)
             current['split_k'] = gemm['split_k']
             if family == 'qkv':
                 coords['group_wait'] = False
     if mainloop:
+        schema10(coords)
         coords['multistage'] = True
         coords.pop('producer_warps', None)
     return coords
@@ -75,7 +78,9 @@ def receipt(catalog, samples, campaign, model, batch):
                     break
 
     def seeded(coords):
-        result = schema10(deepcopy(coords))
+        result = deepcopy(coords)
+        if any(cache.values()):
+            schema10(result)
         for field, value in cache.items():
             if value:
                 result[field] = value
