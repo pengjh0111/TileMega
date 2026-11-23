@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import os
+import re
 from pathlib import Path
 import statistics
 import subprocess
@@ -32,6 +33,8 @@ def main():
     parser.add_argument('--batch', choices=BATCHES, required=True, type=int)
     parser.add_argument('--control', type=Path, required=True)
     parser.add_argument('--trial', type=Path, required=True)
+    parser.add_argument('--additional-trial', action='append', default=[], metavar='LABEL=LIBRARY')
+    parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--control-preparation', type=Path)
     parser.add_argument('--trial-preparation', type=Path)
     parser.add_argument('--private-stream', action='store_true')
@@ -55,6 +58,15 @@ def main():
     prompt_mode = shared_phase == 'prefill' and str(shared_library) == 'prompt'
     if prompt_mode and args.model != 'olmoe_1b_7b':
         parser.error('only OLMoE uses the decode library for prompt processing')
+    variants = {'control': args.control, 'trial': args.trial}
+    for spec in args.additional_trial:
+        label, equal, path = spec.partition('=')
+        if not equal or not path or not re.fullmatch(r'[a-z0-9_-]+', label) or label in variants:
+            parser.error('additional trials require distinct labels and existing libraries')
+        variants[label] = Path(path)
+    if len(variants) > 16 or (len(variants) > 2 and
+                             (args.formal_trial or args.trial_target or args.trial_preparation)):
+        parser.error('multi-arm trials share one target and use independent screening')
     if args.formal_trial and phase != 'decode':
         parser.error('formal trial timing requires a solver-selected decode artifact')
     options = ['--model', args.model, '--batch', str(args.batch),
@@ -62,9 +74,13 @@ def main():
                '--timeout-s', str(args.process_timeout_s)]
     if args.private_stream:
         options.append('--private-stream')
+    if args.expected_checkpoint_sha256:
+        options.extend(('--expected-checkpoint-sha256', args.expected_checkpoint_sha256))
     stages = {'control': f'tune-{phase}',
               'trial': 'candidate-timing' if args.formal_trial else f'tune-{phase}'}
-    targets = {'control': args.target, 'trial': args.trial_target or args.target}
+    stages.update((label, f'tune-{phase}') for label in variants if label not in stages)
+    targets = {label: args.target for label in variants}
+    targets['trial'] = args.trial_target or args.target
     if args.trial_target:
         control, trial = (json.loads(target.read_text()) for target in targets.values())
         fields = ('name', 'memory_mib', 'capability', 'mig', 'driver')
@@ -72,18 +88,17 @@ def main():
                 or any(control['device_provenance'][key] != trial['device_provenance'][key]
                        for key in fields)):
             parser.error('a paired trial must preserve the calibrated device class')
-    libraries = {'control': artifact(args.control)[1]['binary_sha256'],
-                 'trial': artifact(args.trial)[1]['binary_sha256']}
-    if libraries['control'] == libraries['trial']:
-        parser.error('the two variant libraries must be distinct')
+    libraries = {label: artifact(path)[1]['binary_sha256'] for label, path in variants.items()}
+    if len(set(libraries.values())) != len(variants):
+        parser.error('the variant libraries must be distinct')
     runner = [sys.executable, str(ROOT/'scripts/a800_native.py')]
     preparations = {}
     for label in libraries:
-        path = getattr(args, f'{label}_preparation')
+        path = getattr(args, f'{label}_preparation', None)
         preparations[label] = ['--host-preparation', str(path.resolve(strict=True))] if path else []
     if args.mode == 'plan':
         for label in libraries:
-            library = getattr(args, label)
+            library = variants[label]
             subprocess.run([*runner, 'plan', *options, '--stage', stages[label], '--round', '0', f'--{phase}',
                             str(library), '--target', str(targets[label]), '--budget-s',
                             str(args.budget_s), *preparations[label]], check=True)
@@ -104,21 +119,28 @@ def main():
             raise ValueError('formal paired timing needs five prior independent correctness processes and full HF')
     out = RUN/'optimization'/f'{phase}-pairs'/str(job)
     out.mkdir(parents=True, exist_ok=False)
-    order = ('control', 'trial')
+    order = tuple(variants)
     write_json(out/'planned.json', dict(protocol_version='a800-single-v2', kind='paired_tuning',
         model=args.model, batch=args.batch, order=order,
         phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library),
         target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()}))
     rounds = []
+    rejected = {}
     for position, label in enumerate(order):
-        round_index = job * 6 + position
+        round_index = job * (6 if len(variants) == 2 else 16) + position
         remaining = int(deadline - time.monotonic())
         stage = stages[label]
-        subprocess.run([*runner, 'run', *options, '--stage', stage, '--round', str(round_index),
-                        f'--{phase}', str(getattr(args, label)), '--target', str(targets[label]),
-                        '--budget-s', str(remaining),
-                        *preparations[label]],
-                       check=True, timeout=remaining)
+        command = [*runner, 'run', *options, '--stage', stage, '--round', str(round_index),
+                   f'--{phase}', str(variants[label]), '--target', str(targets[label]),
+                   '--budget-s', str(remaining), *preparations[label]]
+        completed = subprocess.run(command, timeout=max(1, remaining))
+        if completed.returncode:
+            if label == 'control' or len(variants) == 2:
+                completed.check_returncode()
+            rejected[label] = {'status': 'rejected', 'runner_exit': completed.returncode,
+                               'round': round_index}
+            write_json(out/'rejected.json', rejected)
+            continue
         receipts = (RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/{stage}-{round_index}.json')
         receipt, = [json.loads(path.read_text()) for path in receipts]
         result_path = Path(receipt['evidence'])/f'B{args.batch}'/'measurements.json'
@@ -143,9 +165,24 @@ def main():
             n1_seconds=short, n1024_seconds=long, tpot_by_repeat_seconds=individual,
             measurement_sha256=sha(result_path), **metric))
         write_json(out/'rounds.json', rounds)
-    if any(len({r[field] for r in rounds}) != 1
-           for field in ('gpu_uuid', 'tokens_sha256', 'checkpoint_sha256',
-                         'config_sha256', 'prompt_sha256')):
+    invariant_fields = ('gpu_uuid', 'tokens_sha256', 'checkpoint_sha256',
+                        'config_sha256', 'prompt_sha256')
+    if len(variants) > 2:
+        control = rounds[0]
+        comparisons = {}
+        for arm in rounds[1:]:
+            label = arm['arm']
+            differences = [field for field in invariant_fields if arm[field] != control[field]]
+            if differences:
+                rejected[label] = {'status': 'rejected', 'fields': differences, 'round': arm['round']}
+                continue
+            ratio = control['tpot_seconds'] / arm['tpot_seconds']
+            comparisons[label] = {'ratio': ratio, 'tpot_seconds': arm['tpot_seconds'],
+                                  'clears_tpot_screen': arm['tpot_seconds'] < .995 * control['tpot_seconds']}
+        write_json(out/'result.json', dict(protocol_version='a800-single-v2', kind='paired_tuning',
+                    control_seconds=control['tpot_seconds'], arms=comparisons, rejected=rejected))
+        return 0
+    if any(len({r[field] for r in rounds}) != 1 for field in invariant_fields):
         raise ValueError('paired comparison changed GPU, output tokens, or weights')
     medians = {label: {name: statistics.median(r[name] for r in rounds if r['arm'] == label)
                        for name in metric} for label in libraries}
