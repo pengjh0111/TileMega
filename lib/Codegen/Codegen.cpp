@@ -2043,6 +2043,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("live epilogue rows require the SM80 native backend");
   if(c.attention.compact_workspace && !cp_async)
     throw std::invalid_argument("compact attention workspace requires SM80");
+  if((c.weight_evict_first || c.persist_l2_eighths) && !cp_async)
+    throw std::invalid_argument("native L2 policy options require SM80");
   if(c.copy_issue_group && !cp_async)
     throw std::invalid_argument("explicit weight copy issue groups require SM80");
   if(c.expert_gu_route_bases && !cp_async)
@@ -2204,6 +2206,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // serial tails re-read, so only it takes the evict_first policy. A dense
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
+     <<(c.weight_evict_first?"#define TILEMEGA_SM80_WEIGHT_EVICT_FIRST 1\n":"")
+     <<(c.persist_l2_eighths?"#define TILEMEGA_SM80_PERSIST_L2_EIGHTHS "+
+         std::to_string(c.persist_l2_eighths)+"\n":"")
      <<(c.live_epilogue_rows?"#define TILEMEGA_SM80_ACTIVE_EPILOGUE 1\n":"")
      <<(c.copy_issue_group?"#define TILEMEGA_SM80_COPY_ISSUE_GROUP "+
          std::to_string(c.copy_issue_group)+"\n":"")

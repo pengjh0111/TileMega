@@ -30,7 +30,8 @@ class ServingEngine:
                  max_new_tokens: int = 1024, mode: str = "auto",
                  device: int = 0, decode_loop: bool | str = True,
                  decode_chunk: int | None = None, step_events: bool = True,
-                 prefill_mode: str | None = None, host_preparation: dict | None = None):
+                 prefill_mode: str | None = None, host_preparation: dict | None = None,
+                 private_stream: bool = False):
         if prompt_len < 1 or max_new_tokens < 1:
             raise ValueError('prompt length and output length must be positive')
         torch.cuda.set_device(device)
@@ -39,6 +40,8 @@ class ServingEngine:
         # prompt positions teacher-forced, so a model needs no prefill binary.
         self.prefill_lib = PlanLibrary(prefill_so) if prefill_so is not None else None
         self.decode_lib = PlanLibrary(decode_so)
+        self.stream = (torch.cuda.Stream(device=device) if private_stream or
+                       getattr(self.decode_lib.lib, "tm_plan_persist_l2_eighths", None) else None)
         self.execution = self.decode_lib.execution
         libraries = [lib for lib in (self.prefill_lib, self.decode_lib) if lib is not None]
         static_abi = getattr(self.decode_lib.lib, 'tm_plan_static_dense_abi', None)
@@ -121,6 +124,13 @@ class ServingEngine:
 
     def generate(self, prompt_ids: torch.Tensor,
                  new_tokens: int | None = None) -> Generation:
+        if self.stream is not None and self.stream != torch.cuda.current_stream():
+            self.stream.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(self.stream):
+                return self._generate(prompt_ids, new_tokens)
+        return self._generate(prompt_ids, new_tokens)
+
+    def _generate(self, prompt_ids: torch.Tensor, new_tokens: int | None) -> Generation:
         count = new_tokens or self.max_new_tokens
         if count < 1 or count > self.max_new_tokens:
             raise ValueError("token count outside allocated step ring")

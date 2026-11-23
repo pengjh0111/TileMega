@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--trial', type=Path, required=True)
     parser.add_argument('--control-preparation', type=Path)
     parser.add_argument('--trial-preparation', type=Path)
+    parser.add_argument('--private-stream', action='store_true')
     shared = parser.add_mutually_exclusive_group(required=True)
     shared.add_argument('--decode', type=Path)
     shared.add_argument('--prefill', type=Path)
@@ -59,6 +60,8 @@ def main():
     options = ['--model', args.model, '--batch', str(args.batch),
                f'--{shared_phase}', str(shared_library),
                '--timeout-s', str(args.process_timeout_s)]
+    if args.private_stream:
+        options.append('--private-stream')
     stages = {'control': f'tune-{phase}',
               'trial': 'candidate-timing' if args.formal_trial else f'tune-{phase}'}
     targets = {'control': args.target, 'trial': args.trial_target or args.target}

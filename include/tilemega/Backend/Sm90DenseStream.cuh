@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Codegen/executor/Async.cuh>
+#include <type_traits>
 
 #ifndef TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST
 #define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 0
+#endif
+
+#ifndef TILEMEGA_SM80_WEIGHT_EVICT_FIRST
+#define TILEMEGA_SM80_WEIGHT_EVICT_FIRST 0
 #endif
 
 namespace tilemega::backend {
@@ -21,15 +26,27 @@ namespace tilemega::backend {
 //
 // Only MoE programs define the macro, so a dense program's generated source and
 // its PTX are unchanged.
-struct Sm90DenseStream {
-  using Async=codegen::executor::Async<arch::Sm90>;
+template<bool CpAsync>
+struct Sm90DenseStreamT {
+  using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
 
   __device__ static __forceinline__ std::uint64_t WeightPolicy() {
-#if TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST
-    return Async::EvictFirst();
-#else
+    if constexpr(CpAsync && TILEMEGA_SM80_WEIGHT_EVICT_FIRST) {
+      return Async::EvictFirst();
+    } else if constexpr(!CpAsync && TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST) {
+      return Async::EvictFirst();
+    }
     return 0;
-#endif
+  }
+
+  __device__ static __forceinline__ void WeightCopy16(void* destination,void const* source,
+      std::uint64_t policy,bool valid=true) {
+    if constexpr(CpAsync && TILEMEGA_SM80_WEIGHT_EVICT_FIRST) {
+      if(valid)Async::Copy16Hint(destination,source,policy);
+      else Async::Copy16(destination,source,false);
+    } else {
+      Async::Copy16(destination,source,valid);
+    }
   }
 
   __device__ static __forceinline__ void WeightBulk(void* destination,void const* source,
@@ -50,5 +67,7 @@ struct Sm90DenseStream {
 #endif
   }
 };
+
+using Sm90DenseStream=Sm90DenseStreamT<false>;
 
 }  // namespace tilemega::backend

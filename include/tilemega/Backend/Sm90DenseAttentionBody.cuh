@@ -41,6 +41,7 @@ template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int BlockKeys,int Slo
 struct Sm90DenseAttentionBody {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
+  using Stream=Sm90DenseStreamT<CpAsync>;
   using Math=Sm90DenseAttentionMath;
   using Partition=Sm90DenseAttentionPartition<Chunks>;
   static constexpr bool kCpAsync=CpAsync;
@@ -133,7 +134,7 @@ struct Sm90DenseAttentionBody {
   }
   static constexpr int kMaxPreissue=Slots*4*BlockKeys*D;
   __device__ static __forceinline__ void CopyHistory(Storage& s,int slot,int bg,int begin,int end,
-      Element const* key,Element const* value,std::uint64_t* full) {
+      Element const* key,Element const* value,std::uint64_t* full,std::uint64_t policy) {
 #ifdef TILEMEGA_SM80_ATTN_MASKED_STRIPS
     int copied_rows=min(BlockKeys,((end-begin+15)/16)*16);
     for(int i=(threadIdx.x&31)*8;i<copied_rows*D;i+=32*8) {
@@ -144,8 +145,8 @@ struct Sm90DenseAttentionBody {
       bool valid=begin+row<end;
       auto offset=std::size_t(bg)*Capacity*D+(begin+row)*D+col;
       auto swizzled=Swizzled<BlockKeys>(row,col)/2;
-      Async::Copy16(s.kv[slot][0]+swizzled,valid?key+offset:key,valid);
-      Async::Copy16(s.kv[slot][1]+swizzled,valid?value+offset:value,valid);
+      Stream::WeightCopy16(s.kv[slot][0]+swizzled,valid?key+offset:key,policy,valid);
+      Stream::WeightCopy16(s.kv[slot][1]+swizzled,valid?value+offset:value,policy,valid);
     }
     Async::CompleteCopies(full);
   }
@@ -157,8 +158,9 @@ struct Sm90DenseAttentionBody {
     int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
     auto range=Partition::Range(past,chunk,NewRowWork);
     int count=Preissued<Bytes>(past);
+    std::uint64_t const policy=Stream::WeightPolicy();
     for(int slot=0;slot<count;++slot)
-      CopyHistory(s,slot,bg,range.begin+slot*BlockKeys,min(range.end,past),key,value,state.full+slot);
+      CopyHistory(s,slot,bg,range.begin+slot*BlockKeys,min(range.end,past),key,value,state.full+slot,policy);
   }
   template<int Bytes>
   __device__ static __forceinline__ void Preissue(CUtensorMap const* key,CUtensorMap const* value,
@@ -200,7 +202,8 @@ struct Sm90DenseAttentionBody {
           Async::Wait(state.empty+slot,(phase>>slot)&1);phase^=1u<<slot;
           if(sequence<preissued)continue;
           if constexpr(CpAsync) {
-            CopyHistory(s,slot,bg,begin,min(range.end,past),p.key,p.value,state.full+slot);
+            CopyHistory(s,slot,bg,begin,min(range.end,past),p.key,p.value,state.full+slot,
+                Stream::WeightPolicy());
           }else {
             // Rows past the history bound are masked and rows past Capacity arrive as zeros.
             Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);

@@ -68,6 +68,7 @@ def main():
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--host-preparation', type=Path)
+    parser.add_argument('--private-stream', action='store_true')
     args = parser.parse_args()
 
     if not 0 < args.timeout_s + 111 < args.budget_s or args.round < 0:
@@ -189,6 +190,8 @@ def main():
              '--warmup', '1', '--repeats', '3' if timing else '1',
              '--round-index', str(args.round), '--out', '{attempt_dir}/job/measurements',
              '--system-label', 'TM-sm80', '--policy', str(policy_path)]
+    if args.private_stream:
+        child.append('--private-stream')
     if args.host_preparation:
         child.extend(('--host-preparation', str(args.host_preparation),
                       '--host-preparation-sha256', identity['host_preparation_sha256']))

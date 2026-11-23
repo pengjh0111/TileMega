@@ -239,6 +239,8 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(c.live_epilogue_rows)key += "/live_rows";
   if(c.copy_issue_group)key += "/copy"+std::to_string(c.copy_issue_group);
   if(c.residual_copy_issue)key += "/residual_copy";
+  if(c.weight_evict_first)key += "/evict_first";
+  if(c.persist_l2_eighths)key += "/persist_"+std::to_string(c.persist_l2_eighths);
   if(c.expert_page_segments)key += "/page_segments";
   if(c.expert_gu_route_bases)key += "/gu_route_bases";
   if(c.reuse_payload)key += "/payload_reuse";

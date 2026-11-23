@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>
 #include <tilemega/Codegen/executor/TensorMapTiled.h>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -71,6 +72,48 @@ struct Plan {
   GridCounter* events=nullptr;
   std::uint64_t* lm_counter=nullptr;
   TraceState trace{};
+#if TILEMEGA_SM80_PERSIST_L2_EIGHTHS
+  void* scratch_arena=nullptr;
+  std::size_t scratch_bytes=0,previous_l2_limit=0,persisting_l2_bytes=0,max_window=0;
+  cudaStream_t l2_stream=nullptr;
+  bool restore_l2_limit=false;
+  void ConfigureL2() {
+    cudaDeviceProp properties{};
+    Check(cudaGetDeviceProperties(&properties,device));
+    if(!scratch_bytes || !properties.persistingL2CacheMaxSize ||
+        !properties.accessPolicyMaxWindowSize)return;
+    auto status=cudaDeviceGetLimit(&previous_l2_limit,cudaLimitPersistingL2CacheSize);
+    if(status==cudaErrorUnsupportedLimit)return;
+    Check(status);
+    auto requested=std::min(std::size_t(properties.l2CacheSize)*TILEMEGA_SM80_PERSIST_L2_EIGHTHS/8,
+        std::size_t(properties.persistingL2CacheMaxSize));
+    status=cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize,requested);
+    if(status==cudaErrorUnsupportedLimit)return;
+    Check(status);restore_l2_limit=true;
+    Check(cudaDeviceGetLimit(&persisting_l2_bytes,cudaLimitPersistingL2CacheSize));
+    max_window=std::size_t(properties.accessPolicyMaxWindowSize);
+  }
+  cudaError_t BindL2Window(cudaStream_t stream) {
+    if(!persisting_l2_bytes || stream==l2_stream)return cudaSuccess;
+    if(!stream || stream==cudaStreamLegacy)return cudaErrorInvalidResourceHandle;
+    if(l2_stream) {
+      cudaStreamAttrValue reset{};
+      auto status=cudaStreamSetAttribute(l2_stream,cudaStreamAttributeAccessPolicyWindow,&reset);
+      if(status!=cudaSuccess)return status;
+      l2_stream=nullptr;
+    }
+    cudaStreamAttrValue attr{};
+    auto& window=attr.accessPolicyWindow;
+    window.base_ptr=scratch_arena;
+    window.num_bytes=std::min(scratch_bytes,max_window);
+    window.hitRatio=std::min(1.0f,float(persisting_l2_bytes)/float(window.num_bytes));
+    window.hitProp=cudaAccessPropertyPersisting;
+    window.missProp=cudaAccessPropertyStreaming;
+    auto status=cudaStreamSetAttribute(stream,cudaStreamAttributeAccessPolicyWindow,&attr);
+    if(status==cudaSuccess)l2_stream=stream;
+    return status;
+  }
+#endif
 #if TILEMEGA_NATIVE_KERNEL_SEQUENCE
   NativeProgram::Binding* sequence_bindings=nullptr;
   SequenceState* sequence_state=nullptr;
@@ -89,6 +132,14 @@ struct Plan {
   std::vector<int> boundary_slot_pasts;
 #endif
   ~Plan() {
+#if TILEMEGA_SM80_PERSIST_L2_EIGHTHS
+    if(l2_stream) {
+      cudaStreamAttrValue reset{};
+      cudaStreamSetAttribute(l2_stream,cudaStreamAttributeAccessPolicyWindow,&reset);
+      cudaCtxResetPersistingL2Cache();
+    }
+    if(restore_l2_limit)cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize,previous_l2_limit);
+#endif
 #if TILEMEGA_NATIVE_KERNEL_SEQUENCE
     if(sequence_exec)cudaGraphExecDestroy(sequence_exec);
     if(sequence_graph)cudaGraphDestroy(sequence_graph);
@@ -201,6 +252,10 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
   if constexpr(kNativeTp>1)if(!p.tp_bound)return -1;
   DeviceScope scope(p.device);
   if(!scope.ok)return -1;
+#if TILEMEGA_SM80_PERSIST_L2_EIGHTHS
+  auto l2_status=p.BindL2Window(static_cast<cudaStream_t>(stream));
+  if(l2_status!=cudaSuccess)return int(l2_status);
+#endif
   dim3 const threads(NativeProgram::kThreads,RoleLaunch::kY,RoleLaunch::kZ);
   cudaError_t status=cudaSuccess;
   if constexpr(NativeProgram::kCluster>1) {
@@ -244,6 +299,9 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
 }  // namespace tilemega::codegen::native_dense
 
 extern "C" int tm_plan_static_dense_abi() {return 1;}
+#if TILEMEGA_SM80_PERSIST_L2_EIGHTHS
+extern "C" unsigned tm_plan_persist_l2_eighths() {return TILEMEGA_SM80_PERSIST_L2_EIGHTHS;}
+#endif
 extern "C" unsigned tm_plan_pdl_enabled(void*) {return 0;}
 extern "C" unsigned tm_plan_cluster_dim() {
   return tilemega::codegen::native_dense::NativeProgram::kCluster;
@@ -323,13 +381,36 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
         throw std::invalid_argument("native cluster grid exceeds the co-resident clusters");
     }
 #endif
+#if TILEMEGA_SM80_PERSIST_L2_EIGHTHS
+    // Bind all internal scratch buffers in one cache-window extent.
+    auto align256=[](std::uint64_t bytes) {
+      return epilogue_contract::Add(bytes,255)&~std::uint64_t(255);
+    };
+    for(auto const& buffer:metadata)if(buffer.role==TM_BUFFER_INTERNAL) {
+      auto bytes=epilogue_contract::Multiply(epilogue_contract::Elements(buffer,batch),
+          buffer.dtype==TM_DTYPE_BF16?2:4);
+      plan->scratch_bytes=epilogue_contract::Add(plan->scratch_bytes,align256(bytes));
+    }
+    if(plan->scratch_bytes) {
+      Check(cudaMalloc(&plan->scratch_arena,plan->scratch_bytes));
+      plan->owned.push_back(plan->scratch_arena);
+      plan->ConfigureL2();
+    }
+    std::size_t scratch_offset=0;
+#endif
     for(unsigned i=0;i<kNativeBuffers.size();++i) {
       auto const& desc=kNativeBuffers[i];
       auto* pointer=epilogue_contract::BindBuffer(metadata[i],batch,required[i],
           desc.role==TM_BUFFER_EXTERNAL?external[i]:nullptr,
           [&](std::size_t bytes) {
+#if TILEMEGA_SM80_PERSIST_L2_EIGHTHS
+            auto* allocation=static_cast<char*>(plan->scratch_arena)+scratch_offset;
+            scratch_offset+=align256(bytes);
+            return static_cast<void*>(allocation);
+#else
             void* allocation=nullptr;Check(cudaMalloc(&allocation,bytes));
             plan->owned.push_back(allocation);return allocation;
+#endif
           },[&](void* allocation,std::size_t bytes) {Check(cudaMemset(allocation,0,bytes));});
       if(pointer && reinterpret_cast<std::uintptr_t>(pointer)%16)
         throw std::invalid_argument("native dense buffers require 16-byte alignment");

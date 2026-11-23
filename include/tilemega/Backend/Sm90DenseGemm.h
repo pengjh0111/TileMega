@@ -31,6 +31,7 @@ template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
+  using Stream=Sm90DenseStreamT<CpAsync>;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
   static constexpr int kTasks=(N+TN-1)/TN;
   static_assert(Batch>0 && Batch<=16 && TN%8==0 && TK%64==0 && K%TK==0);
@@ -112,11 +113,22 @@ struct Sm90DenseGemm {
       Async::Copy16(destination+i,source+i);
   }
 
+  __device__ static __forceinline__ void WeightSpanHint(Element* destination,
+      Element const* source,int count,std::uint64_t policy) {
+#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
+    for(int i=ProducerLane()*8;i<count;i+=Producers*8)
+#else
+    for(int i=(threadIdx.x&31)*8;i<count;i+=32*8)
+#endif
+      Stream::WeightCopy16(destination+i,source+i,policy);
+  }
+
   template<int Count>
-  __device__ static __forceinline__ void CopyWeightSpan(Element* destination,Element const* source) {
+  __device__ static __forceinline__ void CopyWeightSpan(Element* destination,Element const* source,
+      std::uint64_t policy) {
     constexpr int group=TILEMEGA_SM80_COPY_ISSUE_GROUP;
     static_assert(Count%8==0 && (group==0 || group==4 || group==8));
-    if constexpr(group==0)CopySpan(destination,source,Count);
+    if constexpr(group==0)WeightSpanHint(destination,source,Count,policy);
     else {
 #if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       constexpr int warp_elements=Producers*8;
@@ -133,11 +145,11 @@ struct Sm90DenseGemm {
         #pragma unroll
         for(int i=0;i<group;++i) {
           int offset=base+i*warp_elements;
-          Async::Copy16(destination+offset,source+offset);
+          Stream::WeightCopy16(destination+offset,source+offset,policy);
         }
       }
       if constexpr(grouped<Count)
-        CopySpan(destination+grouped,source+grouped,Count-grouped);
+        WeightSpanHint(destination+grouped,source+grouped,Count-grouped,policy);
     }
   }
 
@@ -161,7 +173,7 @@ struct Sm90DenseGemm {
         if constexpr(CpAsync) {
           // Every lane publishes its pending prefix together with A and the
           // remaining B bytes when it reaches this slot in the next stage.
-          CopySpan(b+slot*TN*TK,source,part/2);
+          WeightSpanHint(b+slot*TN*TK,source,part/2,Stream::WeightPolicy());
         }else {
           Async::ExpectTx(state.full+slot,kSlotBytes);
           Async::Bulk(b+slot*TN*TK,source,part,state.full+slot);
@@ -181,6 +193,7 @@ struct Sm90DenseGemm {
     Sm90DenseRoles::Producer();
     int lane=threadIdx.x&31;
 #endif
+    std::uint64_t const policy=Stream::WeightPolicy();
     Sm80DenseService service;
     if constexpr(kResidual)
       for(int local=0;local<tasks;++local) {
@@ -227,13 +240,13 @@ struct Sm90DenseGemm {
       auto* weight_slot=b+slot*TN*TK;
 #ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
       if constexpr(Prefix==0 && kResidual && !kAllReduce)
-        CopyWeightSpan<TN*TK>(weight_slot,weight);
+        CopyWeightSpan<TN*TK>(weight_slot,weight,policy);
       else
 #endif
       if constexpr(Prefix==0 && Op==ServingEpilogueOp::kSwiGLU)
-        CopyWeightSpan<TN*TK>(weight_slot,weight);
+        CopyWeightSpan<TN*TK>(weight_slot,weight,policy);
       else
-        CopySpan(weight_slot+prefix,weight+prefix,TN*TK-prefix);
+        WeightSpanHint(weight_slot+prefix,weight+prefix,TN*TK-prefix,policy);
       // MMA reads a padded activation panel. Clear its inactive rows on the
       // first use of each slot. Consumers only read this panel, so subsequent
       // tiles of this invocation can reuse the zeros until the stage tail.

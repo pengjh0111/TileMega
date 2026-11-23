@@ -394,6 +394,7 @@ struct Sm90DenseMoeGemm {
       RegisterStages,false,2,CpAsync>;
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
+  using Stream=Sm90DenseStreamT<CpAsync>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
 #if defined(TILEMEGA_SM80_PADDED_GATE)
   static constexpr int kTiles=Core::kTasks,kIterations=K/TK,kRows=Core::kRows,kThreads=Core::kThreads;
@@ -462,15 +463,16 @@ struct Sm90DenseMoeGemm {
 #if defined(TILEMEGA_SM80_MOE_PAGE_SEGMENTS)
   template<class Span>
   __device__ static __forceinline__ void CopyPageSpan(
-      Element* destination,Element const* tiles,int tile,int panel) {
+      Element* destination,Element const* tiles,int tile,int panel,std::uint64_t policy) {
     Core::template CopyWeightSpan<Span::kElements>(
-        destination+Span::Destination(panel),tiles+Span::Source(tile,panel));
+        destination+Span::Destination(panel),tiles+Span::Source(tile,panel),policy);
   }
 
   template<class Pages,std::size_t... I>
   __device__ static __forceinline__ void CopyPagePanel(
-      Element* destination,Element const* tiles,int tile,int panel,std::index_sequence<I...>) {
-    (CopyPageSpan<typename Pages::template Span<I>>(destination,tiles,tile,panel),...);
+      Element* destination,Element const* tiles,int tile,int panel,std::uint64_t policy,
+      std::index_sequence<I...>) {
+    (CopyPageSpan<typename Pages::template Span<I>>(destination,tiles,tile,panel,policy),...);
   }
 #endif
 
@@ -478,6 +480,7 @@ struct Sm90DenseMoeGemm {
   template<int Phase=-1>
   __device__ static __forceinline__ void CopyWeights(Element* destination,Element const* tiles,int t,
       int tile,std::uint64_t* barrier) {
+    std::uint64_t const policy=Stream::WeightPolicy();
 #if defined(TILEMEGA_SM80_PADDED_GATE)
     if constexpr(Phase==-2) {
       // The decode geometry shares prefill's unpadded 64x64 weight pages.
@@ -486,7 +489,7 @@ struct Sm90DenseMoeGemm {
         int panel=i/(TN*64),row=first+(i/64)%TN;
         bool valid=row<N;
         int offset=(row/64*(K/64)+tile*(TK/64)+panel)*4096+(row%64)*64+i%64;
-        Async::Copy16(destination+i,valid?tiles+offset:tiles,valid);
+        Stream::WeightCopy16(destination+i,valid?tiles+offset:tiles,policy,valid);
       }
     }else
 #endif
@@ -495,16 +498,14 @@ struct Sm90DenseMoeGemm {
       using Pages=Sm80MoePageSegments<TN,K,TK,Phase>;
       #pragma unroll
       for(int panel=0;panel<Pages::kPanels;++panel)
-        CopyPagePanel<Pages>(destination,tiles,tile,panel,std::make_index_sequence<Pages::kSegments>{});
+        CopyPagePanel<Pages>(destination,tiles,tile,panel,policy,std::make_index_sequence<Pages::kSegments>{});
     }else
 #endif
     {
       // E1: the expert stack is the layer's largest read-once stream.
-      std::uint64_t policy=0;
-      if constexpr(!CpAsync)policy=Sm90DenseStream::WeightPolicy();
       if constexpr(!Page) {
         auto* source=tiles+std::size_t(tile)*TN*TK;
-        if constexpr(CpAsync)Core::template CopyWeightSpan<TN*TK>(destination,source);
+        if constexpr(CpAsync)Core::template CopyWeightSpan<TN*TK>(destination,source,policy);
         else Sm90DenseStream::WeightBulk(destination,source,2*TN*TK,barrier,policy);
       }
       else {
@@ -518,7 +519,7 @@ struct Sm90DenseMoeGemm {
             int end=min(first+TN,(row/64+1)*64);
             auto* target=destination+512*((row-first)/8+(TN/8)*panel);
             auto* source=tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8);
-            if constexpr(CpAsync)Core::CopySpan(target,source,(end-row)*64);
+            if constexpr(CpAsync)Core::WeightSpanHint(target,source,(end-row)*64,policy);
             else Sm90DenseStream::WeightBulk(target,source,2*(end-row)*64,barrier,policy);
             row=end;
           }
@@ -548,7 +549,8 @@ struct Sm90DenseMoeGemm {
           if constexpr(!CpAsync)Async::ExpectTx(state.full+slot,kSlotBytes);
           if constexpr(Page)CopyWeights<decltype(page_phase)::value>(
               b+slot*TN*TK,tile_base,t,slot,state.full+slot);
-          else if constexpr(CpAsync)Core::CopySpan(b+slot*TN*TK,tile_base+std::size_t(slot)*TN*TK,part/2);
+          else if constexpr(CpAsync)Core::WeightSpanHint(b+slot*TN*TK,
+              tile_base+std::size_t(slot)*TN*TK,part/2,Stream::WeightPolicy());
           else Async::Bulk(b+slot*TN*TK,tile_base+std::size_t(slot)*TN*TK,part,state.full+slot);
         }
       }
@@ -702,7 +704,8 @@ struct Sm90DenseMoeGemm {
             if constexpr(Page) {
               if(!prefix)CopyWeights<decltype(page_phase)::value>(destination,tile_base,t,tile,state.full+slot);
             }else if constexpr(Prefix==0)CopyWeights(destination,tile_base,t,tile,state.full+slot);
-            else Core::CopySpan(destination+prefix,tile_base+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix);
+            else Core::WeightSpanHint(destination+prefix,
+                tile_base+std::size_t(tile)*TN*TK+prefix,TN*TK-prefix,Stream::WeightPolicy());
             auto* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
             if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(t/kTiles)*16*K;
             // Dynamic records can shrink when the task changes. Establish
@@ -1029,6 +1032,7 @@ template<int Batch,int NGateUp,int NDown,int Hidden,int TNGu,int TKGu,int TNDn,i
 struct Sm90DenseMoeFusedGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<std::conditional_t<CpAsync,arch::Sm80,arch::Sm90>>;
+  using Stream=Sm90DenseStreamT<CpAsync>;
   using Schedule=Sm90DenseMoeSchedule<Experts>;
   // The experts' intermediate width: gate_up emits the two interleaved halves.
   static constexpr int kIntermediate=NGateUp/2;
@@ -1147,12 +1151,13 @@ struct Sm90DenseMoeFusedGemm {
             // Task and K-tile offsets select whole aligned pages. Their
             // panel order is the same as the generic partial-page traversal.
             auto* dst=b+slot*kWeightSlot;
+            auto const policy=Stream::WeightPolicy();
           #pragma unroll
             for(int panel=0;panel<Pages::kPanels;++panel) {
             #pragma unroll
               for(int page=0;page<Pages::kPages;++page)
-                Gu::Core::CopySpan(dst+Pages::Destination(panel,page),
-                    tile_base+Pages::Source(tile,panel,page),Pages::kElements);
+                Gu::Core::WeightSpanHint(dst+Pages::Destination(panel,page),
+                    tile_base+Pages::Source(tile,panel,page),Pages::kElements,policy);
             }
           }else
 #endif

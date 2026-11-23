@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--hf-positions', type=int)
     parser.add_argument('--host-preparation', type=Path)
     parser.add_argument('--host-preparation-sha256')
+    parser.add_argument('--private-stream', action='store_true')
     # Megatron tensor parallel: the plan is one rank's, run on every card of the
     # claimed group (CUDA_VISIBLE_DEVICES lists them; local devices 0..tp-1).
     parser.add_argument('--tp', type=int, choices=(1, 2, 4, 8), default=1)
@@ -102,6 +103,8 @@ def main():
         host_preparation = json.loads(raw)
         metadata['host_preparation_sha256'] = args.host_preparation_sha256
     metadata['tp'] = args.tp
+    if args.private_stream:
+        metadata['private_stream'] = True
     def engine(mode, loop):
         if args.tp > 1:
             from .tp_engine import TpServingEngine
@@ -113,7 +116,7 @@ def main():
         return ServingEngine(args.model, prefill, args.decode, int(args.batch),
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode,
-            host_preparation=host_preparation)
+            host_preparation=host_preparation, private_stream=args.private_stream)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
     reuse_step_loop = (args.check_step_loop and not args.check_executors and
                        args.tp == 1 and args.mode == 'L1' and args.max_tokens > 1)

@@ -103,6 +103,8 @@ struct Sm90DenseCoordinates {
   bool argmax_stage=false;
   bool live_epilogue_rows=false;
   bool reuse_payload=false;
+  bool weight_evict_first=false;
+  int persist_l2_eighths=0;
   bool wide_producer=false;
   int copy_issue_group=0;
   bool residual_copy_issue=false;
@@ -196,6 +198,9 @@ struct Sm90DenseCoordinates {
       throw std::invalid_argument("SM80 weight copy issue group must be 4 or 8");
     if(copy_issue_group && weight_stream)
       throw std::invalid_argument("explicit weight copy issue groups require a nonstreamed plan");
+    if(persist_l2_eighths!=0 && persist_l2_eighths!=1 &&
+       persist_l2_eighths!=2 && persist_l2_eighths!=4)
+      throw std::invalid_argument("invalid SM80 persisting L2 fraction");
     if(residual_copy_issue && (!copy_issue_group || tp!=1))
       throw std::invalid_argument("grouped residual copies require a TP1 copy group");
     if(expert_page_segments && (!moe || gemms[6].tile_n%32 || gemms[7].tile_n%32))
@@ -288,7 +293,8 @@ struct Sm90DenseCoordinates {
     // R3/R4 coordinate file and its hash are unchanged.
     bool const explicit_body=live_epilogue_rows || reuse_payload || wide_producer || copy_issue_group || residual_copy_issue ||
         expert_page_segments || expert_gu_route_bases || expert_slot_padding ||
-        expert_aligned_gate_pages>=0 || attention.compact_workspace;
+        expert_aligned_gate_pages>=0 || attention.compact_workspace ||
+        weight_evict_first || persist_l2_eighths;
     json::Value attention_json=json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
         {"slots",attention.slots},{"new_row_work",attention.new_row_work},
         {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}};
@@ -301,6 +307,8 @@ struct Sm90DenseCoordinates {
     if(explicit_body || tp>1 || argmax_stage || attention.merge_stage || GlobalRoute() || combine_stage)result.emplace_back("tp",tp);
     if(live_epilogue_rows)result.emplace_back("epilogue_rows","live");
     if(reuse_payload)result.emplace_back("payload","reuse");
+    if(weight_evict_first)result.emplace_back("weight_evict_first",true);
+    if(persist_l2_eighths)result.emplace_back("persist_l2_eighths",persist_l2_eighths);
     if(wide_producer)result.emplace_back("producer_warps",2);
     if(copy_issue_group)result.emplace_back("copy_issue_group",copy_issue_group);
     if(residual_copy_issue)result.emplace_back("residual_copy_issue",true);
@@ -346,7 +354,8 @@ struct Sm90DenseCoordinates {
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload",
           "producer_warps","copy_issue_group","residual_copy_issue","expert_page_copy","expert_gu_routes",
-          "expert_slot_padding","expert_aligned_gate_pages","route","combine"});
+          "expert_slot_padding","expert_aligned_gate_pages","route","combine",
+          "weight_evict_first","persist_l2_eighths"});
     else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
@@ -401,7 +410,12 @@ struct Sm90DenseCoordinates {
         result.expert_slot_padding=padding->AsBool("expert slot padding");
       if(auto const* aligned=value.Find("expert_aligned_gate_pages"))
         result.expert_aligned_gate_pages=aligned->AsBool("aligned expert gate pages");
-      if(!result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
+      if(auto const* evict=value.Find("weight_evict_first"))
+        result.weight_evict_first=evict->AsBool("weight evict first");
+      if(value.Find("persist_l2_eighths"))
+        result.persist_l2_eighths=integer(value,"persist_l2_eighths");
+      if(!result.weight_evict_first && !result.persist_l2_eighths &&
+          !result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
           !result.expert_page_segments && !result.expert_gu_route_bases &&
           !result.expert_slot_padding && result.expert_aligned_gate_pages<0 &&
           !value.At("attention").Find("compact_workspace"))
