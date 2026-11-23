@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--decode', type=Path, required=True)
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--round', type=int, required=True)
+    parser.add_argument('--hf-reference', action='store_true')
     parser.add_argument('--budget-s', type=int, default=840)
     parser.add_argument('--timeout-s', type=int, default=600)
     parser.add_argument('--prefill-mode', choices=('L1', 'L2'), default='L1')
@@ -75,6 +76,9 @@ def main():
         parser.error('reserve time for strict admission and child cleanup, and use a nonnegative round')
     if args.seed_suite != 'vllm' and not args.expected_checkpoint_sha256:
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
+    if args.hf_reference and args.stage != 'correctness':
+        parser.error('teacher-forced reference is a correctness process')
+    check_hf = args.stage == 'correctness' and (args.round == 0 or args.hf_reference)
     diagnostic = args.stage == 'diagnose'
     tuning = args.stage in ('tune-prefill', 'tune-decode')
     independent = args.stage in ('measure', 'candidate-timing')
@@ -165,7 +169,7 @@ def main():
     if args.mode == 'plan':
         print(json.dumps(dict(identity, **description, prefill=str(prefill), decode=str(decode),
                               calibration_uuid=target['device_provenance']['uuid'],
-                              timeout_s=args.timeout_s, max_tokens=tokens, step=name,
+                              timeout_s=args.timeout_s, max_tokens=tokens, step=name, teacher_forced=check_hf,
                               sanitizer=str(args.sanitizer) if args.sanitizer else None,
                               cuda_gdb=str(args.cuda_gdb) if args.cuda_gdb else None), indent=2))
         return 0
@@ -197,7 +201,7 @@ def main():
                       '--host-preparation-sha256', identity['host_preparation_sha256']))
     if args.stage == 'correctness':
         child.append('--check-step-loop')
-        if args.round == 0:
+        if check_hf:
             child.extend(('--hf-check', '--hf-positions', str(tokens)))
     if args.sanitizer:
         child = [str(args.sanitizer), '--tool', 'memcheck', '--kernel-name',
@@ -246,7 +250,7 @@ def main():
         if not (c2['pass'] and c2['same_binary']
                 and {trial['decode_loop_used'] for trial in c2['checks']} == {False, True}):
             return 1
-        if args.round == 0:
+        if check_hf:
             hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
             if not hf_pass:
                 return 1

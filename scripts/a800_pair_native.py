@@ -46,6 +46,8 @@ def main():
                         help='an updated calibration for the same physical hardware class')
     parser.add_argument('--formal-trial', action='store_true',
                         help='independently time a solver winner after five correctness processes')
+    parser.add_argument('--fresh-correctness', action='store_true',
+                        help='run five new correctness processes in this allocation before timing')
     parser.add_argument('--budget-s', type=int, default=810)
     parser.add_argument('--process-timeout-s', type=int, default=125)
     args = parser.parse_args()
@@ -67,6 +69,8 @@ def main():
     if len(variants) > 16 or (len(variants) > 2 and
                              (args.formal_trial or args.trial_target or args.trial_preparation)):
         parser.error('multi-arm trials share one target and use independent screening')
+    if args.fresh_correctness and not args.formal_trial:
+        parser.error('fresh correctness belongs to a formal paired trial')
     if args.formal_trial and phase != 'decode':
         parser.error('formal trial timing requires a solver-selected decode artifact')
     options = ['--model', args.model, '--batch', str(args.batch),
@@ -96,7 +100,18 @@ def main():
     for label in libraries:
         path = getattr(args, f'{label}_preparation', None)
         preparations[label] = ['--host-preparation', str(path.resolve(strict=True))] if path else []
+    def correctness(index, budget, run, teacher_forced):
+        command = [*runner, 'run' if run else 'plan', *options, '--stage', 'correctness',
+                   '--round', str(index), '--decode', str(args.trial),
+                   '--target', str(targets['trial']), '--budget-s', str(budget), *preparations['trial']]
+        if teacher_forced:
+            command.append('--hf-reference')
+        subprocess.run(command, check=True, timeout=budget)
+
     if args.mode == 'plan':
+        if args.fresh_correctness:
+            for round_index in range(1_000_008, 1_000_013):
+                correctness(round_index, args.budget_s, False, round_index == 1_000_008)
         for label in libraries:
             library = variants[label]
             subprocess.run([*runner, 'plan', *options, '--stage', stages[label], '--round', '0', f'--{phase}',
@@ -108,15 +123,21 @@ def main():
     if os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800':
         parser.error('paired tuning requires the ordinary single-GPU allocation')
     deadline = time.monotonic() + args.budget_s
+    if args.fresh_correctness:
+        for repeat in range(5):
+            correctness(job * 16 + 8 + repeat, max(1, int(deadline - time.monotonic())),
+                        True, repeat == 0)
     if args.formal_trial:
         pair = dict(decode_sha256=libraries['trial'], target_sha256=sha(targets['trial']),
                     prefill_sha256='prompt' if prompt_mode else sha(shared_library))
         checks = [json.loads(path.read_text()) for path in (RUN/'native').glob(
             f'*/{args.model}/B{args.batch}/*/correctness-*.json')]
-        accepted = [r for r in checks if r['pass'] and all(r[k] == v for k, v in pair.items())]
+        accepted = [r for r in checks if r['pass'] and all(r[k] == v for k, v in pair.items())
+                    and (not args.fresh_correctness or str(r['job']) == str(job))]
         if (len({r['round'] for r in accepted}) < 5 or len({r['tokens_sha256'] for r in accepted}) != 1
-                or not any(r['hf_pass'] for r in accepted) or any(r['job'] == str(job) for r in accepted)):
-            raise ValueError('formal paired timing needs five prior independent correctness processes and full HF')
+                or not any(r['hf_pass'] for r in accepted)
+                or (not args.fresh_correctness and any(str(r['job']) == str(job) for r in accepted))):
+            raise ValueError('formal paired timing needs five independent correctness processes and full HF')
     out = RUN/'optimization'/f'{phase}-pairs'/str(job)
     out.mkdir(parents=True, exist_ok=False)
     order = tuple(variants)
