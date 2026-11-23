@@ -109,6 +109,73 @@ def router_arms(anchor, families):
         yield f'router-tn{width}', trial
 
 
+def prepare_options(args, source, target, folder, prefill, anchor):
+    seeded = None
+    if anchor['model'] == 'moe':
+        page = schema10(deepcopy(anchor))
+        page['expert_page_copy'] = 'segments'
+        page.pop('expert_aligned_gate_pages', None)
+        seeded = folder / 'page-segments.anchors.json'
+        if not seeded.exists():
+            write_json(seeded, {'required_anchors': [page]})
+        elif read(seeded) != {'required_anchors': [page]}:
+            raise ValueError('the page-segments anchor changed')
+    linked, rejected = {}, {}
+    scenarios = [('enum', None)]
+    if seeded:
+        scenarios.append(('seed', seeded))
+    for label, seed in scenarios:
+        output = folder / f'{label}.so'
+        evidence = Path(str(output) + '.search') / 'prepared.json'
+        cmd = [sys.executable, str(ROOT/'scripts/a800_solve.py'), 'prepare',
+               '--model', args.model, '--batch', str(args.batch), '--export', str(source),
+               '--target', target, '--prefill', prefill, '--cli', str(args.cli.resolve()),
+               '--compile-jobs', '1', '--top', '2', '--search-budget-ms', '600000',
+               '--timeout-s', '2600', '--out', str(output)]
+        if seed:
+            cmd.extend(('--seed-coordinates', str(seed)))
+        if not evidence.is_file():
+            with (folder / f'{label}.search.log').open('w') as log:
+                checked = subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                                         timeout=2660)
+            if checked.returncode:
+                rejected[label] = {'exit_code': checked.returncode, 'receipt': str(evidence)}
+                continue
+        abi = read(evidence.parent/'weight-abi.json')
+        expected = {row['binary_sha256'] for row in abi['candidates']}
+        document = read(evidence)
+        receipt = document['receipt']
+        if document['scope']['compiler_sha256'] != sha(args.cli) or not expected:
+            raise ValueError('the solver shortlist predates this compiler')
+        for candidate in receipt['candidates']:
+            if candidate['status'] != 'compiled':
+                continue
+            lib = candidate['binary']
+            _, identity, _ = artifact(Path(lib))
+            rank = candidate['rank']
+            if (identity['binary_sha256'] != candidate['binary_sha256'] or
+                    identity['binary_sha256'] not in expected):
+                raise ValueError('the shortlist does not match the validated weight packing')
+            linked[f'{label}-{rank}'] = lib
+    if seeded and 'seed' in rejected:
+        # A rejected solver price cannot eliminate the experimental body. Link
+        # the same coordinates directly and keep the solver error as evidence.
+        trial = read(seeded)['required_anchors'][0]
+        try:
+            linked['seed-fixed'] = str(build(args, source, target, folder, 'seed-fixed', trial))
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
+            rejected['seed-fixed'] = str(error)
+    # A required anchor and unseeded search can select the same coordinates.
+    distinct = {json.dumps(anchor, sort_keys=True): 'control'}
+    for label, lib in linked.items():
+        _, _, manifest = artifact(Path(lib))
+        fingerprint = json.dumps(manifest['native_dense'], sort_keys=True)
+        equal = distinct.setdefault(fingerprint, label)
+        if equal != label:
+            rejected[label] = {'same_coordinates_as': equal}
+    return {label: linked[label] for label in distinct.values() if label != 'control'}, rejected
+
+
 def build(args, source, target, folder, label, coordinates):
     lib = folder / f'{label}.so'
     config = folder / f'{label}.coordinates.json'
@@ -133,13 +200,15 @@ def build(args, source, target, folder, label, coordinates):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('phase', choices=('splitk', 'mainloop', 'router'))
+    parser.add_argument('phase', choices=('options', 'splitk', 'mainloop', 'router'))
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--batch', type=int, choices=BATCHES, required=True)
     parser.add_argument('--catalog', type=Path, required=True)
     parser.add_argument('--export', type=Path, required=True)
     parser.add_argument('--cli', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--e1-selection', type=Path,
+                        help='accepted cache policy coordinates keyed by model/Bn')
     args = parser.parse_args()
     if os.environ.get('SLURM_JOB_ID') or os.environ.get('CUDA_VISIBLE_DEVICES') != '':
         parser.error('prepare these artifacts on the login node with CUDA devices hidden')
@@ -150,13 +219,21 @@ def main():
     record = read(args.catalog)[key]
     prefill, manifest, families, checkpoint = archive(record)
     target = manifest['runtime_target']
-    anchor = manifest['native_dense']
+    anchor = deepcopy(manifest['native_dense'])
+    if args.e1_selection:
+        cache = read(args.e1_selection)[key]
+        if not set(cache) <= {'weight_evict_first', 'persist_l2_eighths'}:
+            parser.error('the E1 receipt can change only the two cache policy coordinates')
+        if cache:
+            schema10(anchor).update(cache)
     if args.phase == 'splitk':
         arms = split_arms(anchor, families, read(target)['resources']['num_sms'])
     elif args.phase == 'mainloop':
         arms = mainloop_arms(anchor)
-    else:
+    elif args.phase == 'router':
         arms = router_arms(anchor, families)
+    else:
+        arms = (('control', anchor),)
     folder = args.out.resolve()
     folder.mkdir(parents=True, exist_ok=True)
     plan = folder / 'plan.json'
@@ -170,6 +247,10 @@ def main():
             if label == 'control':
                 raise
             rejected[label] = str(error)
+    if args.phase == 'options':
+        candidates, excluded = prepare_options(args, source, target, folder, prefill, anchor)
+        linked.update(candidates)
+        rejected.update(excluded)
     if 'control' not in linked or len(linked) < 2:
         write_json(folder / 'prepare-rejected.json', dict(
             phase=args.phase, model=args.model, batch=args.batch, rejected=rejected,
