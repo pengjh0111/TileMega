@@ -101,6 +101,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('inventory', 'results', 'campaign', 'out'):
         parser.add_argument(f'--{name}', type=Path, required=True)
+    scope = {f'{model}/B{batch}': (model, batch) for model in MODELS for batch in BATCHES}
+    parser.add_argument('--cell', choices=scope, action='append', help='prepare cells with completed screens')
     args = parser.parse_args()
     if args.out.exists():
         parser.error('retain the previous seed and screening bindings')
@@ -112,16 +114,15 @@ def main():
     wins = sum(sample.get('winner') == 'multistage' for sample in samples['mainloop'].values())
     measured = sum('multistage' in sample.get('arms', {}) for sample in samples['mainloop'].values())
     bindings = {}
-    for model in MODELS:
-        for batch in BATCHES:
-            seed, alternatives, proofs = receipt(catalog, samples, args.campaign, model, batch)
-            cell = f'{model}/B{batch}'
-            folder = args.out/cell
-            folder.mkdir(parents=True, exist_ok=False)
-            path = folder/'seed-coordinates.json'
-            write_json(path, seed)
-            write_json(folder/'alternative-anchors.json', alternatives)
-            bindings[cell] = dict(seed=str(path), seed_sha256=sha(path), paired_evidence=proofs)
+    for cell in dict.fromkeys(args.cell or scope):
+        model, batch = scope[cell]
+        seed, alternatives, proofs = receipt(catalog, samples, args.campaign, model, batch)
+        folder = args.out/cell
+        folder.mkdir(parents=True, exist_ok=False)
+        path = folder/'seed-coordinates.json'
+        write_json(path, seed)
+        write_json(folder/'alternative-anchors.json', alternatives)
+        bindings[cell] = dict(seed=str(path), seed_sha256=sha(path), paired_evidence=proofs)
     write_json(args.out/'selection.json', dict(cells=bindings, inventory_sha256=sha(args.inventory),
                screened={phase: sha(path) for phase, path in files.items()},
                multistage={'wins': wins, 'measured': measured,
