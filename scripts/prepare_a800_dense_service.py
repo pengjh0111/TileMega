@@ -45,6 +45,8 @@ def main():
     parser.add_argument('--reserve-program-shared', action='store_true')
     parser.add_argument('--residency', type=int, choices=(1, 2))
     parser.add_argument('--producers', type=int, choices=(32,64), default=32)
+    parser.add_argument('--split-k', type=int, choices=(1, 2, 4), default=1)
+    parser.add_argument('--multistage', action='store_true')
     parser.add_argument('--width-scan', action='store_true',
                         help='measure stage span by active CTA boundaries with cold weights')
     parser.add_argument('--sample-stride', type=int, choices=(1, 8, 16, 32), default=1,
@@ -61,6 +63,10 @@ def main():
         parser.error('--width-scan does not sample role or epilogue clocks')
     if args.producers != 32 and not args.width_scan:
         parser.error('expanded producer calibration uses the uninstrumented width probe')
+    if args.multistage and args.producers != 32:
+        parser.error('multistage has four cooperative warps and no dedicated producer')
+    if args.split_k > 1 and (not args.width_scan or any(f not in ('qkv', 'o', 'down') for f in args.families)):
+        parser.error('split-K probes measure uninstrumented dense projection spans')
     if args.role_clock:
         if args.epilogue_clock or args.sample_stride not in (1, 16):
             parser.error('--role-clock requires sparse role sampling')
@@ -127,14 +133,14 @@ def main():
             partial_n |= bool(n % tn)
             if tn % (8 * wn):
                 raise ValueError(f'{family} has unaligned N tile {tn}')
-            if k % tk or tk % 64 or tk < 16 * wk * g['register_stages']:
+            if k % (tk * args.split_k) or tk % 64 or tk < 16 * wk * g['register_stages']:
                 raise ValueError(f'{family} has unaligned K tile {tk}')
             for u in (args.u or (packed_u,)) if family == 'gate_up' else (16,):
                 if family == 'gate_up' and tn % (2*u):
                     continue
                 live = args.live and batch < 16 and (family == 'gate_up' or wk > 1)
                 copy = args.copy if family == 'gate_up' or (args.residual_copy and family in ('o', 'down')) else 0
-                side = max(2, (tasks + grid-1)//grid) if epilogue == 'residual' else 0
+                side = max(2, (tasks * args.split_k + grid-1)//grid) if epilogue == 'residual' else 0
                 if side > 3:
                     raise ValueError('residual stage exceeds three tasks per CTA')
                 name = f'{suffix}-{family}-u{u}-rows{int(live)}-copy{copy}'
@@ -168,6 +174,9 @@ def main():
                f'-DTILEMEGA_SM80_ACTIVE_EPILOGUE={int(args.live)}',
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
                f'-DTILEMEGA_DENSE_SERVICE_PRODUCERS={args.producers}',
+               *(['-DTILEMEGA_SM80_MULTISTAGE=1'] if args.multistage else []),
+               *(['-DTILEMEGA_SM80_SPLIT_K=1', f'-DTILEMEGA_DENSE_SERVICE_SPLIT_K={args.split_k}']
+                 if args.split_k > 1 else []),
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
                *(['-DTILEMEGA_SM80_DENSE_ROLE_CLOCK=1'] if args.role_clock else []),
@@ -180,6 +189,11 @@ def main():
     listing = subprocess.check_output(['/usr/local/cuda-12.8/bin/cuobjdump', '--list-elf', str(binary)], text=True)
     if 'sm_80' not in listing:
         raise ValueError('probe has no linked SM80 image')
+    headers = list(HEADERS)
+    if args.multistage:
+        headers.append('Backend/Sm80CpAsyncMainloop.cuh')
+    if args.split_k > 1:
+        headers.append('Codegen/tasks/GemmSplitKTaskBody.h')
     contract = ('sm80-dense-width-scan-v1' if args.width_scan else
                 'sm80-dense-role-scan-v1' if args.role_clock else 'sm80-dense-gemm-service-v1')
     (out/'probe.identity.json').write_text(json.dumps(dict(
@@ -187,10 +201,11 @@ def main():
         source_sha=subprocess.check_output(
             ['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         anchor_sha256=sha(args.anchor), source_file_sha256=sha(ROOT/'scripts/a800_dense_service_probe.cu'),
-        command=command, architecture='sm_80', roles=[args.producers,128],
+        command=command, architecture='sm_80', roles=[0 if args.multistage else args.producers,128],
+        split_k=args.split_k, multistage=args.multistage,
         reserved_program_shared=reserve,
         cases=list(cases), geometry_by_case=cases, binary_sha256=sha(binary),
-        body_headers={name: sha(ROOT/'include/tilemega'/name) for name in HEADERS}), indent=2)+'\n')
+        body_headers={name: sha(ROOT/'include/tilemega'/name) for name in headers}), indent=2)+'\n')
 
 
 if __name__ == '__main__':

@@ -615,6 +615,7 @@ struct Sm90DenseGemm {
       int slice=work/kOutputTiles;
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       float squares[2]={0,0};
+      Sm80DenseService::Tick wait_begin=0;
       Sm80CpAsyncMainloop::Run<Slots>(kIterations,[&](int slot,int iteration) {
         auto stamp=Sm80DenseService::Tick(0);
         if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();
@@ -655,6 +656,12 @@ struct Sm90DenseGemm {
           else MmaSlice<3>(sa,sb,accum,squares);
         }
         if constexpr(ServiceProbe)if(tid==0)service.consumer_mma+=Sm80DenseService::Now()-stamp;
+      },[&](bool begin) {
+        if constexpr(ServiceProbe)if(tid==0) {
+          auto now=Sm80DenseService::Now();
+          if(begin)wait_begin=now;
+          else service.consumer_wait+=now-wait_begin;
+        }
       });
       auto stamp=Sm80DenseService::Tick(0);
       if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();

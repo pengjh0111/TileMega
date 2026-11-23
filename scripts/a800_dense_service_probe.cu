@@ -38,6 +38,12 @@ static __host__ __device__ constexpr bool SampleBlock(unsigned block) {
 #ifndef TILEMEGA_DENSE_SERVICE_PRODUCERS
 #define TILEMEGA_DENSE_SERVICE_PRODUCERS 32
 #endif
+#ifndef TILEMEGA_DENSE_SERVICE_SPLIT_K
+#define TILEMEGA_DENSE_SERVICE_SPLIT_K 1
+#endif
+#ifndef TILEMEGA_SM80_MULTISTAGE
+#define TILEMEGA_SM80_MULTISTAGE 0
+#endif
 
 static void Check(cudaError_t code) {
   if(code!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(code));
@@ -62,8 +68,10 @@ struct Case {
   static constexpr bool kNorm=InputNorm,kGate=Op==ServingEpilogueOp::kSwiGLU;
   static constexpr bool kResidual=Op==ServingEpilogueOp::kResidual;
   static constexpr bool kHead=Op==ServingEpilogueOp::kArgmaxPartial;
-  static constexpr int kProducers=TILEMEGA_DENSE_SERVICE_PRODUCERS,kThreads=128+kProducers;
+  static constexpr int kProducers=TILEMEGA_SM80_MULTISTAGE?0:TILEMEGA_DENSE_SERVICE_PRODUCERS;
+  static constexpr int kThreads=128+kProducers,kSlices=TILEMEGA_DENSE_SERVICE_SPLIT_K;
   static constexpr int kPaddedN=(N+TN-1)/TN*TN;
+  static constexpr int kOutputTiles=kPaddedN/TN,kTasks=kOutputTiles*kSlices;
   using Padded=Case<Batch,kPaddedN,K,TN,TK,Slots,R,Residency,WN,Op,U,InputNorm>;
   static constexpr int CopyGroup() {
 #ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
@@ -74,20 +82,27 @@ struct Case {
   static constexpr char const* Epilogue() {
     return kGate?"swiglu":kResidual?"residual":"store";
   }
-  static constexpr int kSide=kResidual?Sm90DenseLayout::ResidualTiles(kPaddedN/TN,108*Residency):0;
+  static constexpr int kSide=kResidual?Sm90DenseLayout::ResidualTiles(kTasks,108*Residency):0;
   template<bool Probe> using Body=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,kWK,Op,U,InputNorm,
+      R,false,kSide,true,Probe
 #if TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
-      R,false,kSide,true,Probe,kProducers>;
-#else
-      R,false,kSide,true,Probe>;
+      ,kProducers
 #endif
+#if TILEMEGA_SM80_SPLIT_K
+      ,kSlices
+#endif
+      >;
 };
 
 template<class C,bool Probe>
 __global__ __launch_bounds__(C::kThreads,C::kResidency)
 void Run(Element const* a,Element const* b,Element const* residual,Element* output,
          Sm80DenseService* service,BodySpan* span,int* indices=nullptr,
-         unsigned long long* arrivals=nullptr) {
+         unsigned long long* arrivals=nullptr
+#if TILEMEGA_SM80_SPLIT_K
+         ,float* partials=nullptr,std::uint64_t* split_counters=nullptr
+#endif
+         ) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);
 #if TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
@@ -114,13 +129,21 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
     observed.body_begin_cycles=Sm80DenseService::Cycles();
 #endif
   }
+  auto gemm=[&](auto instrumented) {
+    C::template Body<decltype(instrumented)::value>::Run(args,shared,&ring,Sm90DenseNoTail{},true,
+        Sm90DenseNoFinish{},nullptr
+#if TILEMEGA_SM80_SPLIT_K
+        ,partials,split_counters
+#endif
+        );
+  };
   if constexpr(Probe) {
-    if(SampleBlock(blockIdx.x))C::template Body<true>::Run(args,shared,&ring);
-    else C::template Body<false>::Run(args,shared,&ring);
+    if(SampleBlock(blockIdx.x))gemm(std::true_type{});
+    else gemm(std::false_type{});
   }else if constexpr(C::kHead)
     C::template Body<false>::Run(args,shared,&ring,Sm90DenseNoTail{},false,
         Sm90DenseHeadPartialFinish<C::kBatch>{});
-  else C::template Body<false>::Run(args,shared,&ring);
+  else gemm(std::false_type{});
   if(threadIdx.x==0) {
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
     observed.end_cycles=Sm80DenseService::Cycles();
@@ -257,6 +280,12 @@ int Profile(cudaDeviceProp const& p) {
 #endif
   Device<Sm80DenseService> service(grid);
   Device<BodySpan> span(grid);
+#if TILEMEGA_SM80_SPLIT_K
+  using Reduction=tilemega::codegen::Sm80SplitKTaskBody<C::kOutputTiles,C::kSlices,16,TN,C::kNorm>;
+  Device<float> partials(Reduction::kValues);
+  Device<std::uint64_t> split_counters(C::kOutputTiles);
+  Check(cudaMemset(split_counters.address,0,C::kOutputTiles*sizeof(std::uint64_t)));
+#endif
 #ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
   Device<unsigned long long> arrived(1);
 #endif
@@ -267,7 +296,11 @@ int Profile(cudaDeviceProp const& p) {
     Check(cudaMemset(arrivals,0,sizeof(unsigned long long)));
 #endif
     void* args[]={&a.address,&b.address,&residual_address,&output,&service.address,
-                  &span.address,&indices.address,&arrivals};
+                  &span.address,&indices.address,&arrivals
+#if TILEMEGA_SM80_SPLIT_K
+                  ,&partials.address,&split_counters.address
+#endif
+                  };
 #ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
     Check(cudaLaunchCooperativeKernel(reinterpret_cast<void const*>(kernel),grid,C::kThreads,args,shared));
 #else
@@ -310,14 +343,13 @@ int Profile(cudaDeviceProp const& p) {
   std::vector<BodySpan> times(grid);
 #ifdef TILEMEGA_DENSE_SERVICE_WIDTH_SCAN
   std::vector<Tick> spans;
-  constexpr int tiles=C::kPaddedN/TN;
+  constexpr int tiles=C::kTasks;
   int active=std::min(grid,tiles),min_overlapping=p.multiProcessorCount;
   int evict_elements=3*p.l2CacheSize/int(sizeof(Element));
   Device<Element> evict(evict_elements);
   for(int trial=0;trial<7;++trial) {
     Fill<<<p.multiProcessorCount*4,256>>>(evict.address,evict_elements);
-    Run<C,false><<<grid,C::kThreads,shared>>>(a.address,b.address,residual.address,out.address,
-                                    service.address,span.address,indices.address);
+    launch(plain,residual.address,out.address);
     span.Read(times);
     spans.push_back(StageSpan(times,active));
     min_overlapping=std::min(min_overlapping,OverlappingSms(times,active));
@@ -332,11 +364,11 @@ int Profile(cudaDeviceProp const& p) {
               "\"slots\":%d,\"grid\":%d,\"requested_residency\":%d,\"plain_residency\":%d,"
               "\"dynamic_shared\":%d,\"active_ctas\":%d,\"overlapping_sms\":%d,"
               "\"logical_weight_bytes\":%lld,\"l2_eviction_bytes\":%d,\"stage_span_ns\":%.3f,"
-              "\"effective_gbps\":%.3f,\"producers\":%d,\"output_fingerprint\":\"%016llx\","
+              "\"effective_gbps\":%.3f,\"producers\":%d,\"split_k\":%d,\"output_fingerprint\":\"%016llx\","
               "\"padded_n\":%d,\"clipped_output_bitwise_equal\":%s}\n",
               N,K,M,TN,TK,C::kSlots,grid,Residency,plain_capacity,shared,active,min_overlapping,
               2ll*N*K,evict_elements*int(sizeof(Element)),elapsed,2.0*N*K/elapsed,
-              C::kProducers,static_cast<unsigned long long>(fingerprint),
+              C::kProducers,C::kSlices,static_cast<unsigned long long>(fingerprint),
               C::kPaddedN,N==C::kPaddedN || C::kHead?"null":"true");
 #else
   std::vector<Sm80DenseService> rows(grid);
@@ -351,7 +383,7 @@ int Profile(cudaDeviceProp const& p) {
 #endif
   std::vector<Tick> plain_ns,traced_ns;
   int min_overlapping=p.multiProcessorCount;
-  constexpr int tiles=C::kPaddedN/TN;
+  constexpr int tiles=C::kTasks;
   for(int trial=0;trial<7;++trial) {
 #ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
     Fill<<<p.multiProcessorCount*4,256>>>(evict.address,evict_elements);

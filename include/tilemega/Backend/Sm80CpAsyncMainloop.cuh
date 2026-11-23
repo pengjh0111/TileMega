@@ -4,6 +4,10 @@
 namespace tilemega::backend {
 
 struct Sm80CpAsyncMainloop {
+  struct NoObserver {
+    __device__ void operator()(bool) const {}
+  };
+
   template<int Pending>
   __device__ static __forceinline__ void Wait(int groups) {
     if(groups>=Pending)
@@ -12,8 +16,9 @@ struct Sm80CpAsyncMainloop {
       Wait<Pending-1>(groups);
   }
 
-  template<int Slots,class Issue,class Consume>
-  __device__ static __forceinline__ void Run(int iterations,Issue issue,Consume consume) {
+  template<int Slots,class Issue,class Consume,class Observe=NoObserver>
+  __device__ static __forceinline__ void Run(int iterations,Issue issue,Consume consume,
+      Observe observe={}) {
     static_assert(Slots>=2 && Slots<=8);
     auto enqueue=[&](int iteration) {
       issue(iteration%Slots,iteration);
@@ -22,10 +27,12 @@ struct Sm80CpAsyncMainloop {
     for(int i=0;i<Slots-1 && i<iterations;++i)enqueue(i);
     for(int i=0;i<iterations;++i) {
       if(i+Slots-1<iterations)enqueue(i+Slots-1);
+      observe(true);
       Wait<Slots-1>(iterations-i-1);
       // A warp's wait retires only its own copies, while each MMA can read
       // operands supplied by every warp. Join before reading and reusing a slot.
       __syncthreads();
+      observe(false);
       consume(i%Slots,i);
       __syncthreads();
     }
