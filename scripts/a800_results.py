@@ -25,6 +25,8 @@ NATIVE_PROVENANCE = ('decode_source_commit', 'decode_source_sha256', 'decode_bod
                      'prefill_source_commit', 'prefill_artifact_id', 'runner_sha256')
 NATIVE_BODY_PREFIXES = ('include/tilemega/Backend/Sm90Dense', 'include/tilemega/Backend/Sm80Dense',
                         'include/tilemega/Backend/Sm80AttentionScratch.',
+                        'include/tilemega/Backend/Sm80CpAsyncMainloop.',
+                        'include/tilemega/Codegen/tasks/GemmSplitKTaskBody.',
                         'include/tilemega/Codegen/tasks/Sm90Dense',
                         'include/tilemega/Codegen/executor/Async')
 
