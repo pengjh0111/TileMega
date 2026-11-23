@@ -107,11 +107,16 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     // OLMoE's 64 experts of width 1024 TN in {64, 128, 256}. Validate below
     // drops any tile the shape does not divide.
     if(target.arch_tag=="sm_80") {
-      if(allow_n_tail) {
+      if(family==5) {
+        // Even TN8 cannot fill a GPU from the router's 64 or 128
+        // columns. Keep the exact and padded geometries for measurement.
+        for(int tn=8;tn<=n;tn+=8)
+          if(n%tn==0 || allow_n_tail)tiles.push_back(tn);
+      }else if(allow_n_tail) {
         int align=family==6 || experts==128?32:8;
         for(int tn=align;tn<=n;tn+=align)tiles.push_back(tn);
       }else for(int tn:{8,16,32,64,96,128,192,256}) {
-        if(n%tn==0 && (family!=5 || n/tn<grid))tiles.push_back(tn);
+        if(n%tn==0)tiles.push_back(tn);
       }
     }
     else if(family==5)tiles={8};

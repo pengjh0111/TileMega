@@ -2378,7 +2378,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
             stringField(dictionaryEntry(buffers[std::stoll(routes)],"buffers"),"dtype")=="f32";
         int page=e.family>=6?shared_expert_page:0;
         int tile_count=cfg.TaskCount(n);
-        if(n%cfg.tile_n && (!cp_async || e.family==5 || c.weight_stream))
+        if(n%cfg.tile_n && (!cp_async || c.weight_stream))
           throw std::invalid_argument("padded expert tiles require a shared SM80 payload");
         weight=name(integerField(g,"b"));
         bytes=2ull*(page?n:tile_count*cfg.tile_n)*k*(e.family==5?1:experts);
@@ -2391,7 +2391,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
           gate_up_done=c.expert_fuse && operands && operands.size()>4?operand(4):"kAbsent";
           // E2: the last CTA clears the fused stage's counters, so it must own
           // no router task of its own.
-          if(c.expert_fuse && !c.GlobalRoute() && n/cfg.tile_n>=grid)
+          if(!cp_async && c.expert_fuse && !c.GlobalRoute() && n/cfg.tile_n>=grid)
             throw std::invalid_argument("native router must leave the last CTA free (R5 E2)");
           // E2: the fused stage routes from these logits and republishes the
           // routes, so hold both the router's output and its index buffer.

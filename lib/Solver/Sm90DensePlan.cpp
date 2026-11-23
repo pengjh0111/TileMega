@@ -75,7 +75,7 @@ void NativeBoundaryContracts(mlir::ModuleOp module,bool write) {
       attribute(task,"tmexec.route_implementation",b.getStringAttr(c.RouteName()));
       attribute(task,"tmexec.route_event_extent",b.getI64IntegerAttr(1));
       attribute(task,"tmexec.route_required_count",b.getI64IntegerAttr(
-          c.route==Sm90DenseCoordinates::Route::kStage?grid:experts/c.gemms[5].tile_n));
+          c.route==Sm90DenseCoordinates::Route::kStage?grid:c.gemms[5].TaskCount(experts)));
     }
     if(d.epilogue=="moe_down" && c.combine_stage) {
       attribute(task,"tmexec.combine_implementation",b.getStringAttr("stage"));

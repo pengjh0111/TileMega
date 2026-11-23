@@ -122,7 +122,7 @@ void Contracts(mlir::ModuleOp module,dialect::GraphOp graph,bool write) {
     ++edges;auto const& p=nodes.at(edge.getSrc().str());auto const& q=nodes.at(edge.getDst().str());
     auto contract=q.contract;
     if(q.role==Role::kMoERouting && c.route==Sm90DenseCoordinates::Route::kLastArriver)
-      contract.required=p.n/c.gemms[5].tile_n;
+      contract.required=c.gemms[5].TaskCount(p.n);
     if(q.role==Role::kMoECombine && !c.combine_stage)contract.extent=c.gemms[7].TaskCount(q.n);
     if(q.role==Role::kServingFusedAttention && c.group_wait)
       contract.required=p.n/c.gemms[0].tile_n/q.groups;

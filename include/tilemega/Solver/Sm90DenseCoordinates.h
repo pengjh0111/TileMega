@@ -141,8 +141,8 @@ struct Sm90DenseCoordinates {
   }
   static constexpr bool NativeSplitFamily(unsigned f) {return f==0 || f==1 || f==3 || f==5 || f==7;}
   static constexpr bool ResidualFamily(unsigned family) {return family==1 || family==3;}
-  static constexpr bool PaddedFamily(unsigned family,int n,int tp,bool reuse_payload) {
-    return family!=5 && reuse_payload && tp==1 && n%32==0;
+  static constexpr bool PaddedFamily(unsigned,int n,int tp,bool reuse_payload) {
+    return reuse_payload && tp==1 && n%32==0;
   }
 
   // MR7: the fused stage's storage; a slot holds either task type, so each

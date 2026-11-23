@@ -414,9 +414,6 @@ struct Sm90DenseMoeGemm {
   static constexpr int kTiles=N/TN,kIterations=K/(kSlices*TK),kRows=Core::kRows,kThreads=Core::kThreads;
 #endif
   static constexpr bool kDynamic=Mode!=Sm90DenseMoeMode::kRouter;
-#if defined(TILEMEGA_SM80_PADDED_GATE)
-  static_assert(kDynamic || N%TN==0);
-#endif
   static_assert(!GlobalSchedule || kDynamic);
   using LocalSchedule=Sm90DenseLocalSchedule<Batch,Experts,TopK>;
   using LocalRoute=Sm90DenseLocalRoute<Batch,Experts,TopK,FloatWeights,SoftmaxAll>;
@@ -841,6 +838,9 @@ struct Sm90DenseMoeGemm {
       auto* logits=static_cast<float*>(p.output);
       for(int i=tid;i<Batch*TN;i+=128) {
         int row=i/TN,col=i%TN;
+#if defined(TILEMEGA_SM80_PADDED_GATE)
+        if constexpr(N%TN!=0)if(t*TN+col>=N)continue;
+#endif
         logits[row*N+t*TN+col]=float(Element(Value(tile,row,col)*Inverse(norms,row,p.epsilon)));
       }
     }else if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
