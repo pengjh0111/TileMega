@@ -14,6 +14,10 @@ namespace tilemega::solver {
 // several seeds under Eq. (8)'s PoolScore, a shortlist that keeps structural
 // variety, then Eq. (10)'s replay over the skeleton's template placement.
 struct Sm90NativePipelineOptions {
+  struct CachePolicy {
+    bool weight_evict_first;
+    int persist_l2_eighths;
+  };
   int shortlist = 6;              // continuation 1 section 3: top 6 by score
   int structural_extra = 4;       // plus the best of each unseen structural class
   int finalists = 4;              // ranked by replay
@@ -27,6 +31,7 @@ struct Sm90NativePipelineOptions {
   bool realize_aggregate = false;
   bool require_anchors = false;
   std::optional<Sm90DenseCoordinates> pinned_theta;
+  std::optional<CachePolicy> sm80_cache_policy;
   std::function<void(Sm90DenseCoordinates const&,std::string const&,bool)> audit_candidate;
 };
 

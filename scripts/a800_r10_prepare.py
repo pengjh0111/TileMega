@@ -109,18 +109,26 @@ def router_arms(anchor, families):
 
 
 def prepare_options(args, source, target, folder, prefill, anchor):
+    cache = dict(weight_evict_first=anchor.get('weight_evict_first', False),
+                 persist_l2_eighths=anchor.get('persist_l2_eighths', 0))
+    binding = folder / 'cache-policy.json'
+    if not binding.exists():
+        write_json(binding, {'cache_policy': cache})
+    elif read(binding) != {'cache_policy': cache}:
+        raise ValueError('the option control changed its cache policy')
     seeded = None
     if anchor['model'] == 'moe':
         page = schema10(deepcopy(anchor))
         page['expert_page_copy'] = 'segments'
         page.pop('expert_aligned_gate_pages', None)
         seeded = folder / 'page-segments.anchors.json'
+        contract = {'cache_policy': cache, 'required_anchors': [page]}
         if not seeded.exists():
-            write_json(seeded, {'required_anchors': [page]})
-        elif read(seeded) != {'required_anchors': [page]}:
+            write_json(seeded, contract)
+        elif read(seeded) != contract:
             raise ValueError('the page-segments anchor changed')
     linked, rejected = {}, {}
-    scenarios = [('enum', None)]
+    scenarios = [('enum', binding)]
     if seeded:
         scenarios.append(('seed', seeded))
     for label, seed in scenarios:
@@ -131,8 +139,7 @@ def prepare_options(args, source, target, folder, prefill, anchor):
                '--target', target, '--prefill', prefill, '--cli', str(args.cli.resolve()),
                '--compile-jobs', '1', '--top', '2', '--search-budget-ms', '600000',
                '--timeout-s', '2600', '--out', str(output)]
-        if seed:
-            cmd.extend(('--seed-coordinates', str(seed)))
+        cmd.extend(('--seed-coordinates', str(seed)))
         if not evidence.is_file():
             with (folder / f'{label}.search.log').open('w') as log:
                 checked = subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,

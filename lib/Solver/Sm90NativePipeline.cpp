@@ -305,6 +305,10 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     return found->second;
   };
   auto constrain=[&](Sm90DenseCoordinates& c) {
+    if(options.sm80_cache_policy) {
+      c.weight_evict_first=options.sm80_cache_policy->weight_evict_first;
+      c.persist_l2_eighths=options.sm80_cache_policy->persist_l2_eighths;
+    }
     if(options.retile_only) {c.attention.chunks=1;c.attention.dsmem=false;c.expert_fuse=false;}
     if(options.realize_aggregate) {
       c.group_wait=false;c.embed_la=false;c.argmax_stage=true;

@@ -426,11 +426,19 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::vector<solver::Sm90DenseCoordinates> seeds;
     if(!o.seed_coordinates.empty()) {
       auto file=json::ParseFile(o.seed_coordinates);
+      auto const* cache=file.Find("cache_policy");
+      if(cache) {
+        auto fraction=cache->At("persist_l2_eighths").AsNumber("persisting L2 fraction in eighths");
+        if(target.arch_tag!="sm_80" || (fraction!=0 && fraction!=1 && fraction!=2 && fraction!=4))
+          throw std::invalid_argument("cache-policy binding requires a supported SM80 window");
+        pipeline.sm80_cache_policy=solver::Sm90NativePipelineOptions::CachePolicy{
+            cache->At("weight_evict_first").AsBool("weight cache policy"),int(fraction)};
+      }
       if(auto const* anchors=file.Find("required_anchors")) {
         pipeline.require_anchors=true;
         for(auto const& anchor:anchors->AsArray("required anchors"))
           seeds.push_back(solver::Sm90DenseCoordinates::FromJson(anchor));
-      }else seeds.push_back(solver::Sm90DenseCoordinates::FromJson(file));
+      }else if(!cache)seeds.push_back(solver::Sm90DenseCoordinates::FromJson(file));
     }
     if(!o.pin_theta.empty()) {
       // AB-1: each family's geometry is fixed by a local criterion and the
