@@ -197,6 +197,56 @@ def build(args, source, target, folder, label, coordinates):
     return lib
 
 
+def prepare_probes(args, folder, libraries, target, prefill):
+    proofs, missing = {}, {}
+    if args.phase not in ('splitk', 'mainloop'):
+        return proofs, missing
+    for label, library in libraries.items():
+        lib, identity, manifest = artifact(Path(library))
+        coords = manifest['native_dense']
+        family_names = [family for family in ('qkv', 'o', 'down') if family in coords['gemms']]
+        options = ['--role-clock'] if args.phase == 'mainloop' else ['--width-scan']
+        splits = {coords['gemms'][family].get('split_k', 1) for family in family_names}
+        for slices in sorted(splits):
+            families = [f for f in family_names if coords['gemms'][f].get('split_k', 1) == slices]
+            if args.phase == 'splitk' and label != 'control' and slices == 1:
+                continue
+            stem = f'{label}-service-k{slices}'
+            out = folder / stem
+            anchor = folder / f'{stem}.anchor.json'
+            write_json(anchor, dict(model=args.model, batch=args.batch, decode=str(lib),
+                                    decode_sha256=identity['binary_sha256'], coordinates=coords,
+                                    prefill=prefill, artifact_target=target))
+            command = [sys.executable, str(ROOT/'scripts/prepare_a800_dense_service.py'),
+                       '--anchor', str(anchor), '--out', str(out), '--families', *families,
+                       '--split-k', str(slices), '--reserve-program-shared', *options]
+            if coords.get('multistage'):
+                command.append('--multistage')
+            if coords.get('epilogue_rows') == 'live':
+                command.append('--live')
+            if coords.get('copy_issue_group'):
+                command.extend(('--copy', str(coords['copy_issue_group'])))
+            if coords.get('residual_copy_issue') and any(f in ('o', 'down') for f in families):
+                command.append('--residual-copy')
+            artifact_id = out/'probe.identity.json'
+            log_path = folder / f'{stem}.log'
+            if not artifact_id.exists():
+                with log_path.open('w') as log:
+                    result = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                                            timeout=310)
+                if result.returncode:
+                    missing[stem] = {'exit_code': result.returncode, 'log': str(log_path)}
+                    continue
+            expected = read(artifact_id)
+            if (expected['anchor_sha256'] != sha(anchor) or expected['split_k'] != slices
+                    or expected['multistage'] != bool(coords.get('multistage'))):
+                raise ValueError('linked stage probe differs from its production geometry')
+            proofs[stem] = {'binary': str(out/'probe'), 'identity_sha256': sha(artifact_id),
+                            'target': target, 'target_sha256': sha(target), 'arm': label,
+                            'families': families, 'split_k': slices}
+    return proofs, missing
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('phase', choices=('options', 'splitk', 'mainloop', 'router'))
@@ -206,6 +256,8 @@ def main():
     parser.add_argument('--export', type=Path, required=True)
     parser.add_argument('--cli', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--probes', action='store_true',
+                        help='link split-K stage bandwidth and multistage role probes')
     parser.add_argument('--e1-selection', type=Path,
                         help='accepted cache policy coordinates keyed by model/Bn')
     args = parser.parse_args()
@@ -255,6 +307,7 @@ def main():
             phase=args.phase, model=args.model, batch=args.batch, rejected=rejected,
             reason='no legal trial artifact linked'))
         return 1
+    probes, missing = prepare_probes(args, folder, linked, target, prefill) if args.probes else ({}, {})
     control = linked.pop('control')
     label = next(iter(linked))
     trial = linked.pop(label)
@@ -274,6 +327,7 @@ def main():
     received.with_suffix('.tmp').replace(received)
     write_json(plan, dict(phase=args.phase, model=args.model, batch=args.batch,
                          command=command, labels={'trial': label}, rejected=rejected,
+                         probes=probes, probe_rejections=missing,
                          plan_sha256=sha(received)))
     return 0
 
