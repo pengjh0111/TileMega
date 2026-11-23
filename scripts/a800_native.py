@@ -135,7 +135,7 @@ def main():
         if (not (selected or args.stage == 'tune-decode') or not target.get('sm80_native_constants')
                 or decode_id['target_sha256'] != identity['target_sha256']):
             parser.error('timing requires the solver-selected decode and its calibrated target')
-    if independent:
+    if independent and args.mode == 'run':
         receipts = [json.loads(path.read_text()) for path in
                     native_root.glob(f'*/{relative_scope}/correctness-*.json')]
         fixed = ('decode_sha256', 'prefill_sha256', 'target_sha256')
