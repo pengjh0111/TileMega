@@ -136,7 +136,7 @@ def router_arms(anchor, families, resources, batch):
         yield (f'router-tn{width}' if depth == original_tk else f'router-tn{width}-tk{depth}'), trial
 
 
-def prepare_options(args, source, target, folder, prefill, anchor):
+def prepare_options(args, source, target, folder, prefill, anchor, families):
     cache = dict(weight_evict_first=anchor.get('weight_evict_first', False),
                  persist_l2_eighths=anchor.get('persist_l2_eighths', 0))
     binding = folder / 'cache-policy.json'
@@ -144,8 +144,13 @@ def prepare_options(args, source, target, folder, prefill, anchor):
         write_json(binding, {'cache_policy': cache})
     elif read(binding) != {'cache_policy': cache}:
         raise ValueError('the option control changed its cache policy')
+    linked, rejected = {}, {}
     seeded = None
-    if anchor['model'] == 'moe':
+    # Match NativeMoeSharedExpertPageSide in ModelPlan. OLMoE packs each
+    # expert tile for its serving geometry instead of sharing prefill pages.
+    if anchor['model'] == 'moe' and families['router'][0] != 128:
+        rejected['seed'] = {'reason': 'page segments require the shared 64x64 expert page ABI'}
+    elif anchor['model'] == 'moe':
         page = schema10(deepcopy(anchor))
         page['expert_page_copy'] = 'segments'
         page.pop('expert_aligned_gate_pages', None)
@@ -155,7 +160,6 @@ def prepare_options(args, source, target, folder, prefill, anchor):
             write_json(seeded, contract)
         elif read(seeded) != contract:
             raise ValueError('the page-segments anchor changed')
-    linked, rejected = {}, {}
     scenarios = [('enum', binding)]
     if seeded:
         scenarios.append(('seed', seeded))
@@ -334,7 +338,7 @@ def main():
                 raise
             rejected[label] = str(error)
     if args.phase == 'options':
-        candidates, excluded = prepare_options(args, source, target, folder, prefill, anchor)
+        candidates, excluded = prepare_options(args, source, target, folder, prefill, anchor, families)
         linked.update(candidates)
         rejected.update(excluded)
     if 'control' not in linked or len(linked) < 2:

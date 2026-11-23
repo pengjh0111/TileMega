@@ -2,6 +2,7 @@
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
+#include <tilemega/Frontend/ModelPlan.h>
 
 namespace tilemega::solver {
 
@@ -34,6 +35,8 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
     return false;
   if(ampere && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))
+    return false;
+  if(c.expert_page_segments && frontend::NativeMoeSharedExpertPageSide(shapes[5][0])!=64)
     return false;
   try {c.Validate(shapes,batch);}catch(std::invalid_argument const&) {return false;}
   auto budget=Sm90DenseSharedBudget(target,c.residency);
