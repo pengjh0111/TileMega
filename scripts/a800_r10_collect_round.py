@@ -102,7 +102,8 @@ def handle_cell(plan, job, state, account_code, timing, stages):
             _, identity, manifest = artifact(Path(binaries[label]))
             if identity['binary_sha256'] != base['binary_sha256']:
                 raise ValueError('router geometry changed after timing')
-            base.update(router_tn=manifest['native_dense']['gemms']['router']['tile_n'],
+            gemm = manifest['native_dense']['gemms']['router']
+            base.update(router_tn=gemm['tile_n'], router_tk=gemm['slot_bytes']//(2*gemm['tile_n']),
                         router_indices_sha256=observed['router_indices_sha256'],
                         router_proof_sha256=proof['sha256'], teacher_forced=observed['hf_pass'])
         tpot = (statistics.median(sample['n1024_seconds']) -
@@ -184,7 +185,7 @@ def main():
     fields = ('model', 'batch', 'arm', 'job', 'status', 'tpot_ms', 'improvement_pct',
               'gpu_uuid', 'binary_sha256', 'stage', 'split_k', *STAGES, 'evidence_sha256', 'reason')
     if args.phase == 'router':
-        fields += ('router_tn', 'router_indices_sha256', 'router_proof_sha256', 'teacher_forced')
+        fields += ('router_tn', 'router_tk', 'router_indices_sha256', 'router_proof_sha256', 'teacher_forced')
     with (args.out/f'A800_R10_{TABLES[args.phase]}.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fields)
         writer.writeheader()

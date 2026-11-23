@@ -95,7 +95,7 @@ def mainloop_arms(anchor):
     yield 'multistage', dict(schema10(deepcopy(control)), multistage=True)
 
 
-def router_arms(anchor, families):
+def router_arms(anchor, families, resources, batch):
     if 'router' not in families:
         return
     control = schema10(deepcopy(anchor))
@@ -106,17 +106,34 @@ def router_arms(anchor, families):
     n, k = families['router']
     original = control['gemms']['router']
     warps_n = original['warps_n']
+    original_tn = original['tile_n']
+    original_tk = original['slot_bytes'] // (2 * original_tn)
+    # Mirror the native shared-memory budget and the GEMM ring layout for
+    # these fixed experimental arms. The compiler still checks every plan.
+    shared = resources['max_smem_per_sm']
+    optin = resources['max_dynamic_smem_per_cta']
+    budget = min(optin, shared//control['residency'] - max(0, shared-optin))
+    arena = (budget-1024)//1024*1024
+    rows = 8 if batch <= 8 else 16
+    matched = set()
     for width in (24 * warps_n, 40 * warps_n):
         if width > n or not n % width:
             continue
+        scratch = 64 * original['warps_k'] * width + 512
+        ring = 2 * (rows + width) * original['slots']
+        depth_limit = min(original_tk, (arena-scratch)//ring)
+        depth = next((tk for tk in range(depth_limit//64*64, 63, -64)
+                      if k % tk == 0 and tk >= 16*original['warps_k']*original['register_stages']), 0)
+        if not depth:
+            continue
+        if depth != original_tk and depth not in matched:
+            baseline = deepcopy(control)
+            baseline['gemms']['router']['slot_bytes'] = 2 * original_tn * depth
+            yield f'router-tn{original_tn}-tk{depth}', baseline
+            matched.add(depth)
         trial = deepcopy(control)
-        tn = original['tile_n']
-        tk = original['slot_bytes'] // (2 * tn)
-        # Keep the K depth and use the same MMA instruction and output layout.
-        if k % tk:
-            raise ValueError('router coordinate uses an incomplete K tile')
-        trial['gemms']['router'].update(tile_n=width, slot_bytes=2 * width * tk)
-        yield f'router-tn{width}', trial
+        trial['gemms']['router'].update(tile_n=width, slot_bytes=2 * width * depth)
+        yield (f'router-tn{width}' if depth == original_tk else f'router-tn{width}-tk{depth}'), trial
 
 
 def prepare_options(args, source, target, folder, prefill, anchor):
@@ -300,7 +317,7 @@ def main():
     elif args.phase == 'mainloop':
         arms = mainloop_arms(anchor)
     elif args.phase == 'router':
-        arms = router_arms(anchor, families)
+        arms = router_arms(anchor, families, read(target)['resources'], args.batch)
     else:
         arms = (('control', anchor),)
     folder = args.out.resolve()
