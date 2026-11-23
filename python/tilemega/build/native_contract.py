@@ -77,7 +77,12 @@ def validate(manifest, defines):
             raise ValueError('invalid SM80 split-K coordinate')
     if bool(splits) != (defines.get('TILEMEGA_SM80_SPLIT_K') == '1'):
         raise ValueError('native split-K family differs from generated macros')
-    explicit = (evict_first or persist or splits or reuse or live_rows or issue_group
+    multistage = c.get('multistage', False)
+    if (type(multistage) is not bool or
+            multistage != (defines.get('TILEMEGA_SM80_MULTISTAGE') == '1') or
+            multistage and (wide or c.get('weight_stream'))):
+        raise ValueError('invalid native cooperative SM80 mainloop')
+    explicit = (multistage or evict_first or persist or splits or reuse or live_rows or issue_group
                 or page_segments or wide or compact_attention
                 or residual_group or route_bases or slot_padding or gate_pages is not None)
     if (c['schema'] == 10) != bool(explicit) or (c['schema'] == 10 and not ampere):

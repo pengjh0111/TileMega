@@ -29,7 +29,8 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
     return false;
   if((c.live_epilogue_rows || c.reuse_payload || c.copy_issue_group || c.expert_page_segments ||
       c.expert_gu_route_bases || c.expert_slot_padding || c.expert_aligned_gate_pages>=0 ||
-      c.attention.compact_workspace || c.weight_evict_first || c.persist_l2_eighths || c.HasSplitK()) && !ampere)
+      c.attention.compact_workspace || c.weight_evict_first || c.persist_l2_eighths ||
+      c.HasSplitK() || c.multistage) && !ampere)
     return false;
   if(ampere && (c.cluster!=1 || c.attention.dsmem || c.tp!=1 ||
       std::any_of(c.gemms.begin(),c.gemms.end(),[](auto const& g){return g.multicast;})))

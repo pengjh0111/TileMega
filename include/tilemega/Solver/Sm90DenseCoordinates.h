@@ -110,6 +110,7 @@ struct Sm90DenseCoordinates {
   bool weight_evict_first=false;
   int persist_l2_eighths=0;
   bool wide_producer=false;
+  bool multistage=false;
   int copy_issue_group=0;
   bool residual_copy_issue=false;
   bool expert_page_segments=false;
@@ -198,6 +199,8 @@ struct Sm90DenseCoordinates {
     if((GlobalRoute() || combine_stage) && !moe)throw std::invalid_argument("global MoE routing requires MoE");
     if(reuse_payload && (weight_stream || cluster!=1 || attention.dsmem))
       throw std::invalid_argument("payload reuse requires retired storage and no cross-stage preissue");
+    if(multistage && (tp!=1 || wide_producer || weight_stream || cluster!=1))
+      throw std::invalid_argument("SM80 cooperative copies require a 128-thread nonstreamed TP1 plan");
     if(wide_producer && (!reuse_payload || tp!=1))
       throw std::invalid_argument("two producer warps require an unsharded retired payload");
     if(attention.compact_workspace && (weight_stream || cluster!=1))
@@ -306,7 +309,7 @@ struct Sm90DenseCoordinates {
     bool const explicit_body=live_epilogue_rows || reuse_payload || wide_producer || copy_issue_group || residual_copy_issue ||
         expert_page_segments || expert_gu_route_bases || expert_slot_padding ||
         expert_aligned_gate_pages>=0 || attention.compact_workspace ||
-        weight_evict_first || persist_l2_eighths || HasSplitK();
+        weight_evict_first || persist_l2_eighths || HasSplitK() || multistage;
     json::Value attention_json=json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
         {"slots",attention.slots},{"new_row_work",attention.new_row_work},
         {"merge",attention.dsmem?"dsmem":attention.merge_stage?"stage":"la"}};
@@ -322,6 +325,7 @@ struct Sm90DenseCoordinates {
     if(weight_evict_first)result.emplace_back("weight_evict_first",true);
     if(persist_l2_eighths)result.emplace_back("persist_l2_eighths",persist_l2_eighths);
     if(wide_producer)result.emplace_back("producer_warps",2);
+    if(multistage)result.emplace_back("multistage",true);
     if(copy_issue_group)result.emplace_back("copy_issue_group",copy_issue_group);
     if(residual_copy_issue)result.emplace_back("residual_copy_issue",true);
     if(expert_page_segments)result.emplace_back("expert_page_copy","segments");
@@ -367,7 +371,7 @@ struct Sm90DenseCoordinates {
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","epilogue_rows","payload",
           "producer_warps","copy_issue_group","residual_copy_issue","expert_page_copy","expert_gu_routes",
           "expert_slot_padding","expert_aligned_gate_pages","route","combine",
-          "weight_evict_first","persist_l2_eighths"});
+          "weight_evict_first","persist_l2_eighths","multistage"});
     else if(schema==9)
       keys(value,{"schema","model","gemms","attention","residency","swiglu_u","weight_stream",
           "layer_loop","emb","group_wait","cluster","expert_fuse","tp","argmax","route","combine"});
@@ -422,6 +426,8 @@ struct Sm90DenseCoordinates {
         result.expert_slot_padding=padding->AsBool("expert slot padding");
       if(auto const* aligned=value.Find("expert_aligned_gate_pages"))
         result.expert_aligned_gate_pages=aligned->AsBool("aligned expert gate pages");
+      if(auto const* collective=value.Find("multistage"))
+        result.multistage=collective->AsBool("multistage");
       if(auto const* evict=value.Find("weight_evict_first"))
         result.weight_evict_first=evict->AsBool("weight evict first");
       if(value.Find("persist_l2_eighths"))
@@ -468,7 +474,7 @@ struct Sm90DenseCoordinates {
     if(schema==10 && !result.weight_evict_first && !result.persist_l2_eighths &&
         !result.live_epilogue_rows && !result.reuse_payload && !result.copy_issue_group &&
         !result.expert_page_segments && !result.expert_gu_route_bases && !result.expert_slot_padding &&
-        result.expert_aligned_gate_pages<0 && !result.HasSplitK() &&
+        result.expert_aligned_gate_pages<0 && !result.HasSplitK() && !result.multistage &&
         !value.At("attention").Find("compact_workspace"))
       throw std::invalid_argument("schema 10 requires an explicit SM80 implementation choice");
     auto const& a=value.At("attention");

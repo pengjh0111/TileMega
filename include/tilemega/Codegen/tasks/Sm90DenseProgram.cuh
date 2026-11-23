@@ -750,7 +750,10 @@ struct Program {
   static_assert(Tp==1 || Tp==2 || Tp==4 || Tp==8,"tensor parallel degree must be 1, 2, 4 or 8");
   using GroupStages=typename Group::Stages;
   template<unsigned J> using GroupStage=std::tuple_element_t<J,GroupStages>;
-#if TILEMEGA_SM80_WIDE_PRODUCER
+#if TILEMEGA_SM80_MULTISTAGE
+  static_assert(CpAsync && !TILEMEGA_SM80_WIDE_PRODUCER);
+  static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=128;
+#elif TILEMEGA_SM80_WIDE_PRODUCER
   static_assert(CpAsync && ReusePayload,"wide producers require a retired SM80 payload");
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=192;
 #else

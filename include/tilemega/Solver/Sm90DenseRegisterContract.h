@@ -10,5 +10,5 @@ struct Sm90DenseRegisterContract {
 };
 // A register-allocation upper bound for the native launch, not a proof of
 // occupancy. Final linked allocation and runtime occupancy remain mandatory.
-Sm90DenseRegisterContract NativeDenseRegisterContract(TargetSpec const&,int residency,bool wide_producer=false);
+Sm90DenseRegisterContract NativeDenseRegisterContract(TargetSpec const&,int residency,bool wide_producer=false, bool multistage=false);
 }  // namespace tilemega::solver

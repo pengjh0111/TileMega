@@ -123,7 +123,8 @@ std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
   if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast || g.split_k>1 ||
-     (coordinates && (coordinates->weight_stream || coordinates->wide_producer)))return std::nullopt;
+     (coordinates && (coordinates->weight_stream || coordinates->wide_producer ||
+                      coordinates->multistage)))return std::nullopt;
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   bool gate=family==2;
   int u=gate?(coordinates?coordinates->swiglu_u:Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)):16;
@@ -160,7 +161,8 @@ std::optional<double> Sm90DenseCostModel::GemmEpilogueService(
 std::optional<Sm80FusedExpertShape> Sm90DenseCostModel::FusedServiceShape(
     Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c) const {
   if(target_.arch_tag!="sm_80" || !work.moe || work.top_k!=8 || !c.expert_fuse ||
-     c.weight_stream || c.GlobalRoute() || c.combine_stage || c.gemms[7].split_k>1)
+     c.weight_stream || c.GlobalRoute() || c.combine_stage || c.gemms[7].split_k>1 ||
+     c.multistage)
     return std::nullopt;
   auto const& gu=c.gemms[6];
   auto const& dn=c.gemms[7];

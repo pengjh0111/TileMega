@@ -498,7 +498,11 @@ struct Sm90DenseMoeGemm {
     if constexpr(Phase==-2) {
       // The decode geometry shares prefill's unpadded 64x64 weight pages.
       constexpr int first=(kTiles-1)*TN;
+#if TILEMEGA_SM80_MULTISTAGE
+      for(int i=int(threadIdx.x)*8;i<TN*TK;i+=128*8) {
+#else
       for(int i=(threadIdx.x&31)*8;i<TN*TK;i+=32*8) {
+#endif
         int panel=i/(TN*64),row=first+(i/64)%TN;
         bool valid=row<N;
         int offset=(row/64*(K/64)+tile*(TK/64)+panel)*4096+(row%64)*64+i%64;
@@ -663,6 +667,23 @@ struct Sm90DenseMoeGemm {
       if(!clear_padding && !((plan.valid>>i)&1))continue;
 #endif
       Async::Copy16(dst+Swizzled(row,col),plan.segments[i]+tile*TK,(plan.valid>>i)&1);
+    }
+  }
+#endif
+#if TILEMEGA_SM80_MULTISTAGE
+  __device__ static __forceinline__ void CopyCollective(Element* destination,
+      Element const* source,int tile,int rows,unsigned char const* tokens,int iteration) {
+    auto* dst=reinterpret_cast<char*>(destination);
+    for(int i=int(threadIdx.x)*8;i<kRows*TK;i+=128*8) {
+      int row=i/TK,col=i%TK;
+      bool valid=row<rows;
+#ifdef TILEMEGA_SM80_MOE_SLOT_PADDING
+      if(iteration>=Slots && !valid)continue;
+#endif
+      int input_row=row;
+      if constexpr(Mode==Sm90DenseMoeMode::kGateUp)input_row=valid?tokens[row]/TopK:0;
+      Async::Copy16(dst+Swizzled(row,col),
+          valid?source+std::size_t(input_row)*K+tile*TK+col:source,valid);
     }
   }
 #endif
@@ -940,9 +961,27 @@ struct Sm90DenseMoeGemm {
       int t=work/kSlices;
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       float squares[2]={0,0};
+#if TILEMEGA_SM80_MULTISTAGE
+      int group=t/kTiles;
+      int rows=Batch,expert=0;
+      unsigned char const* tokens=nullptr;
+      if constexpr(kDynamic) {
+        rows=routing->count[group];expert=routing->expert[group];tokens=routing->rows[group];
+      }
+      auto const* source=Mode==Sm90DenseMoeMode::kGateUp?p.input:p.activation_address;
+      if constexpr(Mode==Sm90DenseMoeMode::kDown)source+=std::size_t(group)*16*K;
+      auto const* weights=TaskTiles(p.weight,expert,t);
+      WithWeightTile(weights,t,[&](auto page_phase,auto* tile_base) {
+        Sm80CpAsyncMainloop::Run<Slots>(kIterations,[&](int slot,int iteration) {
+          int tile=iteration+work%kSlices*kIterations;
+          CopyWeights<decltype(page_phase)::value>(b+slot*TN*TK,tile_base,t,tile,nullptr);
+          CopyCollective(a+slot*kRows*TK,source,tile,rows,tokens,iteration);
+        },[&](int slot,int) {
+#else
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+#endif
         if(tid==0)Sm90DenseMarkFirst(0);
         auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
         if constexpr(WK==1)Core::template MmaSlice<0>(sa,sb,accum,squares);
@@ -955,10 +994,15 @@ struct Sm90DenseMoeGemm {
           else if(split==2)Core::template MmaSlice<2>(sa,sb,accum,squares);
           else Core::template MmaSlice<3>(sa,sb,accum,squares);
         }
+#if TILEMEGA_SM80_MULTISTAGE
+        });
+      });
+#else
         // Readers fence before the async refill (see Sm90DenseGemm).
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
+#endif
       if constexpr(kInputNorm)
         #pragma unroll
         for(int r=0;r<2;++r) {
@@ -991,7 +1035,9 @@ struct Sm90DenseMoeGemm {
       codegen::executor::ComputeSync();
       if(tid==0)Sm90DenseMark(2);
     }
+#if !TILEMEGA_SM80_MULTISTAGE
     if(tid==0 && tasks)for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
+#endif
     // Every task has been consumed: the operand slots are free.
     // E2: the router stage ends at its logits. The routing itself moved into
     // the fused expert stage, where every CTA derives it from those logits, so
@@ -1039,6 +1085,14 @@ struct Sm90DenseMoeGemm {
     if(threadIdx.x>=128)first=Load(p.schedule,int(blockIdx.x)/kSlices);
     int total=TotalTasks(p);
     int tasks=total/int(gridDim.x)+(int(blockIdx.x)<total%int(gridDim.x));
+#if TILEMEGA_SM80_MULTISTAGE
+    static_assert(CpAsync && Prefix==0);
+    Consume(p,state,a,b,scratch,tasks,0,routing
+#if TILEMEGA_SM80_SPLIT_K
+        ,split_workspace,split_counters
+#endif
+        );
+#else
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,routing
 #if TILEMEGA_SM80_SPLIT_K
         ,split_workspace,split_counters
@@ -1052,6 +1106,7 @@ struct Sm90DenseMoeGemm {
       Produce<Prefix>(p,state,a,b,tasks,phase,streamed,first);
       if(CpAsync || threadIdx.x==128)tail();
     }
+#endif
     __syncthreads();
   }
 };
@@ -1390,12 +1445,35 @@ struct Sm90DenseMoeFusedGemm {
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
     auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
     float squares[2]={0,0};
+#if TILEMEGA_SM80_MULTISTAGE
+    int group=t/(Down?kTilesDn:kTilesGu);
+    auto const* weights=Body::TaskTiles(q.weight,routing.expert[group],t);
+    auto const* input=Down?q.activation_address+std::size_t(group)*16*kIntermediate:q.input;
+    int contraction=0;
+#if TILEMEGA_SM80_SPLIT_K
+    contraction=slice*Iterations;
+#endif
+    using Issue=Sm80MoeStageMarks<CpAsync,true,SampleRole>;
+    Body::WithWeightTile(weights,t,[&](auto page_phase,auto* tile_base) {
+      Sm80CpAsyncMainloop::Run<Slots>(Iterations,[&](int slot,int iteration) {
+        auto stamp=Issue::template Begin<Down?Sm90DenseMarks::kDnIssue:Sm90DenseMarks::kGuIssue>(iteration);
+        int tile=contraction+iteration;
+        Body::template CopyWeights<decltype(page_phase)::value>(b+slot*kWeightSlot,tile_base,t,tile,nullptr);
+        Body::CopyCollective(a+slot*kRows*kMaxTK,input,tile,routing.count[group],
+            routing.rows[group],iteration);
+        Issue::template End<Down?Sm90DenseMarks::kDnIssue:Sm90DenseMarks::kGuIssue>(stamp);
+      },[&](int slot,int iteration) {
+#else
     for(int iteration=0;iteration<Iterations;++iteration) {
       int slot=(sequence++)%Slots;
       auto stamp=Profile::template Begin<Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull>(iteration);
       Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
       Profile::template End<Down?Sm90DenseMarks::kDnFull:Sm90DenseMarks::kGuFull>(stamp);
+#endif
       if(tid==0)Sm90DenseMarkFirst(1);
+#if TILEMEGA_SM80_MULTISTAGE
+      auto
+#endif
       stamp=Profile::template Begin<Down?Sm90DenseMarks::kDnMma:Sm90DenseMarks::kGuMma>(iteration);
       auto* sa=a+slot*kRows*kMaxTK;auto* sb=b+slot*kWeightSlot;
       if constexpr(WK==1)Body::Core::template MmaSlice<0>(sa,sb,accum,squares);
@@ -1408,10 +1486,17 @@ struct Sm90DenseMoeFusedGemm {
         else if(split==2)Body::Core::template MmaSlice<2>(sa,sb,accum,squares);
         else Body::Core::template MmaSlice<3>(sa,sb,accum,squares);
       }
+#if !TILEMEGA_SM80_MULTISTAGE
       Async::FenceProxyAsyncShared();
       Async::Arrive(state.empty+slot);
+#endif
       Profile::template End<Down?Sm90DenseMarks::kDnMma:Sm90DenseMarks::kGuMma>(stamp);
+#if TILEMEGA_SM80_MULTISTAGE
+      });
+    });
+#else
     }
+#endif
     auto epilogue=Profile::template Begin<Down?Sm90DenseMarks::kDnEpilogue:Sm90DenseMarks::kGuEpilogue>();
     if constexpr(Body::kInputNorm)
       #pragma unroll
@@ -1459,6 +1544,11 @@ struct Sm90DenseMoeFusedGemm {
 #endif
       ) {
     auto q=DownOperands(p);
+#if TILEMEGA_SM80_MULTISTAGE
+    if(threadIdx.x==0)WaitGateUp(p.gate_up_done,task.slot);
+    __syncthreads();
+    q.activation_address=static_cast<Element const*>(p.hidden);
+#endif
     ConsumeTask<Dn,kIterDn,TNDn,TKDn,WNDn,WKDn,true>(q,state,a,b,scratch,
         task.slot*kTilesDn+task.tile,phase,sequence,flag,routing
 #if TILEMEGA_SM80_SPLIT_K
@@ -1550,6 +1640,7 @@ struct Sm90DenseMoeFusedGemm {
           ,split_workspace,split_counters
 #endif
           );
+#if !TILEMEGA_SM80_MULTISTAGE
 #if TILEMEGA_SM80_WIDE_PRODUCER
     }else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
 #else
@@ -1557,6 +1648,7 @@ struct Sm90DenseMoeFusedGemm {
 #endif
       Produce(p,state,a,b,tasks,phase,active,routing);
       if(CpAsync || threadIdx.x==128)tail();
+#endif
     }
     __syncthreads();
   }

@@ -20,7 +20,7 @@ std::string CoordinateKey(Sm90DenseCoordinates const& c) {
 
 bool RequiredDenseService(Sm90DenseWorkload const& work,Sm90DenseCoordinates const& c,unsigned family) {
   auto const& gemm=c.gemms[family];
-  if(gemm.split_k>1)return false;
+  if(gemm.split_k>1 || c.multistage)return false;
   return (c.live_epilogue_rows && work.batch<16 && (family==2 || gemm.warps_k>1)) ||
       (c.residual_copy_issue && Sm90DenseCoordinates::ResidualFamily(family)) ||
       (family==2 && (c.copy_issue_group ||
@@ -28,7 +28,7 @@ bool RequiredDenseService(Sm90DenseWorkload const& work,Sm90DenseCoordinates con
 }
 
 bool RequiredFusedService(Sm90DenseCoordinates const& c) {
-  return c.gemms[7].split_k==1 && (c.copy_issue_group || c.expert_gu_route_bases || c.reuse_payload);
+  return !c.multistage && c.gemms[7].split_k==1 && (c.copy_issue_group || c.expert_gu_route_bases || c.reuse_payload);
 }
 
 bool HasCompactAttentionService(Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,int grid) {
@@ -246,6 +246,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(c.expert_gu_route_bases)key += "/gu_route_bases";
   if(c.expert_slot_padding)key += "/slot_padding";
   if(c.wide_producer)key += "/wide_producer";
+  if(c.multistage)key += "/multistage";
   if(c.HasSplitK())for(unsigned f:c.Active())
     if(c.gemms[f].split_k>1)
       key += "/split"+std::to_string(f)+"_"+std::to_string(c.gemms[f].split_k);
@@ -607,6 +608,11 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     }
   };
   for(auto const& base:base_seeds) {
+    if(ampere && !options.pinned_theta && !base.weight_stream && !base.wide_producer) {
+      auto trial=base;trial.multistage=!base.multistage;
+      if(options.audit_candidate)options.audit_candidate(trial,"multistage",false);
+      project(trial);
+    }
     for(auto const& [trial,label]:body_neighbours(base,true))project_body(trial);
     for(auto const& trial:measured_body_seeds(base))project_body(trial);
   }

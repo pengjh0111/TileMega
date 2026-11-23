@@ -79,7 +79,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   auto target=TargetSpec::FromJson(target_path);
   if(target.arch_tag=="sm_80" && kernel_sequence)
     throw std::invalid_argument("SM80 native dense build requires persistent serving emission");
-  auto registers=solver::NativeDenseRegisterContract(target,c.residency,c.wide_producer);
+  auto registers=solver::NativeDenseRegisterContract(target,c.residency,c.wide_producer,c.multistage);
   mlir::MLIRContext context;
   auto imported=solver::ImportSm90Dense(input,c,context);
   auto module=solver::MaterializeSm90Dense(imported,c,batch,target,context,origin);

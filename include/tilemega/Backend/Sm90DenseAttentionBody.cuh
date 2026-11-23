@@ -11,6 +11,9 @@
 #include <tilemega/Backend/Sm90DenseLastArriver.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cuda_bf16.h>
+#if TILEMEGA_SM80_MULTISTAGE
+#include <tilemega/Backend/Sm80CpAsyncMainloop.cuh>
+#endif
 
 namespace tilemega::backend {
 
@@ -137,9 +140,17 @@ struct Sm90DenseAttentionBody {
       Element const* key,Element const* value,std::uint64_t* full,std::uint64_t policy) {
 #ifdef TILEMEGA_SM80_ATTN_MASKED_STRIPS
     int copied_rows=min(BlockKeys,((end-begin+15)/16)*16);
+#if TILEMEGA_SM80_MULTISTAGE
+    for(int i=int(threadIdx.x)*8;i<copied_rows*D;i+=128*8) {
+#else
     for(int i=(threadIdx.x&31)*8;i<copied_rows*D;i+=32*8) {
+#endif
+#else
+#if TILEMEGA_SM80_MULTISTAGE
+    for(int i=int(threadIdx.x)*8;i<BlockKeys*D;i+=128*8) {
 #else
     for(int i=(threadIdx.x&31)*8;i<BlockKeys*D;i+=32*8) {
+#endif
 #endif
       int row=i/D,col=i%D;
       bool valid=begin+row<end;
@@ -148,7 +159,11 @@ struct Sm90DenseAttentionBody {
       Stream::WeightCopy16(s.kv[slot][0]+swizzled,valid?key+offset:key,policy,valid);
       Stream::WeightCopy16(s.kv[slot][1]+swizzled,valid?value+offset:value,policy,valid);
     }
+#if !TILEMEGA_SM80_MULTISTAGE
     Async::CompleteCopies(full);
+#else
+    (void)full;
+#endif
   }
   template<int Bytes>
   __device__ static __forceinline__ void Preissue(Element const* key,Element const* value,
@@ -372,7 +387,10 @@ struct Sm90DenseAttentionBody {
       Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
     Sm90DenseRoles::Consumer();
     int const past=p.past;
-    int warp=threadIdx.x>>5,lane=threadIdx.x&31,sequence=0;
+    int warp=threadIdx.x>>5,lane=threadIdx.x&31;
+#if !TILEMEGA_SM80_MULTISTAGE
+    int sequence=0;
+#endif
     unsigned query=Async::Shared(s.query);
     // Q rows Q..15 and new-row panel rows 1..15 stay zero for the stage.
     for(int i=threadIdx.x;i<16*D/8;i+=128) {
@@ -405,9 +423,18 @@ struct Sm90DenseAttentionBody {
       for(int n=0;n<D/8;++n)st.o[n][0]=st.o[n][1]=st.o[n][2]=st.o[n][3]=0;
       st.maximum[0]=st.maximum[1]=-INFINITY;st.sum[0]=st.sum[1]=0;
       int bound=min(range.end,past);
+#if TILEMEGA_SM80_MULTISTAGE
+      int blocks=(max(0,bound-range.begin)+BlockKeys-1)/BlockKeys;
+      auto policy=Stream::WeightPolicy();
+      Sm80CpAsyncMainloop::Run<Slots>(blocks,[&](int slot,int iteration) {
+        CopyHistory(s,slot,bg,range.begin+iteration*BlockKeys,bound,p.key,p.value,nullptr,policy);
+      },[&](int slot,int iteration) {
+        int begin=range.begin+iteration*BlockKeys;
+#else
       for(int begin=range.begin;begin<bound;begin+=BlockKeys,++sequence) {
         int slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+#endif
         if(threadIdx.x==0)Sm90DenseMarkFirst(1);
         unsigned key=Async::Shared(s.kv[slot][0]),value=Async::Shared(s.kv[slot][1]);
 #ifdef TILEMEGA_SM80_ATTN_MASKED_STRIPS
@@ -423,10 +450,14 @@ struct Sm90DenseAttentionBody {
         for(int sub=0;sub<BlockKeys/64;++sub)
           Block<BlockKeys>(query,key,value,warp*(BlockKeys/4)+sub*16,bound-begin,st);
 #endif
+#if TILEMEGA_SM80_MULTISTAGE
+      });
+#else
         // Generic reads before the async-proxy refill (see Sm90DenseGemm).
         Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
+#endif
       if(range.Contains(past) && warp==0)
         Block<16>(query,Async::Shared(TILEMEGA_ATTN_STORAGE(s,new_key,NewKey)),Async::Shared(TILEMEGA_ATTN_STORAGE(s,new_value,NewValue)),0,1,st);
       // The output aliases the new row panels. Other consumers can enter
@@ -457,7 +488,11 @@ struct Sm90DenseAttentionBody {
       }
       codegen::executor::ComputeSync();
     }
+#if !TILEMEGA_SM80_MULTISTAGE
     if(threadIdx.x==0 && tasks)for(int i=0;i<Slots;++i)state.consumer_generations[i]=(phase>>i)&1;
+#else
+    (void)phase;
+#endif
   }
 
   // Merge the four warps; S = 1 writes the context, otherwise a normalized
@@ -583,6 +618,10 @@ struct Sm90DenseAttentionBody {
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
         state.consumer_generations[i]:state.producer_generations[i])<<i;
+#if TILEMEGA_SM80_MULTISTAGE
+    static_assert(CpAsync && Prefix==0 && !Dsmem);
+    Consume(p,state,s,tasks,0);
+#else
     if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
 #if TILEMEGA_SM80_WIDE_PRODUCER
     else if(threadIdx.x<Sm90DenseRoleAbi::kThreads) {
@@ -592,6 +631,7 @@ struct Sm90DenseAttentionBody {
       Produce<Prefix>(p,state,s,tasks,phase,streamed);
       if(CpAsync || threadIdx.x==128)tail();
     }
+#endif
     __syncthreads();
   }
 };

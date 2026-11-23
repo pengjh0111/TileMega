@@ -11,6 +11,9 @@
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <cute/tensor.hpp>
+#if TILEMEGA_SM80_MULTISTAGE
+#include <tilemega/Backend/Sm80CpAsyncMainloop.cuh>
+#endif
 #if TILEMEGA_SM80_SPLIT_K
 #include <tilemega/Codegen/tasks/GemmSplitKTaskBody.h>
 #endif
@@ -130,7 +133,9 @@ struct Sm90DenseGemm {
 
   __device__ static __forceinline__ void WeightSpanHint(Element* destination,
       Element const* source,int count,std::uint64_t policy) {
-#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
+#if TILEMEGA_SM80_MULTISTAGE
+    for(int i=int(threadIdx.x)*8;i<count;i+=128*8)
+#elif TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
     for(int i=ProducerLane()*8;i<count;i+=Producers*8)
 #else
     for(int i=(threadIdx.x&31)*8;i<count;i+=32*8)
@@ -145,14 +150,18 @@ struct Sm90DenseGemm {
     static_assert(Count%8==0 && (group==0 || group==4 || group==8));
     if constexpr(group==0)WeightSpanHint(destination,source,Count,policy);
     else {
-#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
+#if TILEMEGA_SM80_MULTISTAGE
+      constexpr int warp_elements=128*8;
+#elif TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       constexpr int warp_elements=Producers*8;
 #else
       constexpr int warp_elements=32*8;
 #endif
       constexpr int grouped=Count/(warp_elements*group)*(warp_elements*group);
       #pragma unroll 1
-#if TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
+#if TILEMEGA_SM80_MULTISTAGE
+      for(int base=int(threadIdx.x)*8;base<grouped;base+=warp_elements*group) {
+#elif TILEMEGA_SM80_WIDE_PRODUCER || TILEMEGA_DENSE_SERVICE_PRODUCERS == 64
       for(int base=ProducerLane()*8;base<grouped;base+=warp_elements*group) {
 #else
       for(int base=(threadIdx.x&31)*8;base<grouped;base+=warp_elements*group) {
@@ -581,6 +590,134 @@ struct Sm90DenseGemm {
     }
   }
 
+#if TILEMEGA_SM80_MULTISTAGE
+  template<class Finish>
+  __device__ static __noinline__ void RunMultistage(Sm90DenseOperands const& p,
+      Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Element* residual,
+      int tasks,Finish finish,Sm90DenseTpOperands const* tp
+#if TILEMEGA_SM80_SPLIT_K
+      ,float* split_workspace,std::uint64_t* split_counters
+#endif
+      ) {
+    using namespace cute;
+    int tid=threadIdx.x,lane=tid%(32*WarpsN),split=tid/(32*WarpsN);
+    float* norms=scratch+WarpsK*16*TN;
+    float* best=norms+64;int* arg=reinterpret_cast<int*>(norms+80);
+    if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
+      if(tid<16) {best[tid]=-INFINITY;arg[tid]=INT_MAX;}
+    Mma mma;auto thread=mma.get_slice(lane);
+    auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
+    auto const policy=Stream::WeightPolicy();
+    Sm80DenseService service;
+    for(int local=0;local<tasks;++local) {
+      int work=int(blockIdx.x)+local*int(gridDim.x);
+      int task=work%kOutputTiles;
+      int slice=work/kOutputTiles;
+      auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
+      float squares[2]={0,0};
+      Sm80CpAsyncMainloop::Run<Slots>(kIterations,[&](int slot,int iteration) {
+        auto stamp=Sm80DenseService::Tick(0);
+        if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();
+        int tile=slice*kIterations+iteration;
+        auto* weight=p.weight+(std::size_t(task)*(K/TK)+tile)*TN*TK;
+#ifdef TILEMEGA_SM80_RESIDUAL_COPY_GROUP
+        if constexpr(kResidual)
+          CopyWeightSpan<TN*TK>(b+slot*TN*TK,weight,policy);
+        else
+#endif
+        if constexpr(Op==ServingEpilogueOp::kSwiGLU)
+          CopyWeightSpan<TN*TK>(b+slot*TN*TK,weight,policy);
+        else WeightSpanHint(b+slot*TN*TK,weight,TN*TK,policy);
+        for(int i=tid*8;i<kRows*TK;i+=128*8) {
+          int row=i/TK,col=i%TK;
+          auto* source=row<Batch?p.activation_address+std::size_t(row)*K+tile*TK+col:
+              p.activation_address;
+          Async::Copy16(a+slot*kRows*TK+LayoutA{}(row,col),source,row<Batch);
+        }
+        if constexpr(kResidual)if(iteration==0)
+          for(int i=tid*8;i<Batch*TN;i+=128*8) {
+            int col=task*TN+i%TN;
+            auto* source=col<N?p.residual+std::size_t(i/TN)*N+col:p.residual;
+            Async::Copy16(residual+i,source,col<N);
+          }
+        if constexpr(ServiceProbe)if(tid==0)service.producer_issue+=Sm80DenseService::Now()-stamp;
+      },[&](int slot,int) {
+        auto stamp=Sm80DenseService::Tick(0);
+        if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();
+        auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
+        if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum,squares);
+        else if constexpr(WarpsK==2) {
+          if(split==0)MmaSlice<0>(sa,sb,accum,squares);else MmaSlice<1>(sa,sb,accum,squares);
+        }else {
+          if(split==0)MmaSlice<0>(sa,sb,accum,squares);
+          else if(split==1)MmaSlice<1>(sa,sb,accum,squares);
+          else if(split==2)MmaSlice<2>(sa,sb,accum,squares);
+          else MmaSlice<3>(sa,sb,accum,squares);
+        }
+        if constexpr(ServiceProbe)if(tid==0)service.consumer_mma+=Sm80DenseService::Now()-stamp;
+      });
+      auto stamp=Sm80DenseService::Tick(0);
+      if constexpr(ServiceProbe)if(tid==0)stamp=Sm80DenseService::Now();
+      if(tid==0)Sm90DenseMark(1);
+      if constexpr(InputNorm)
+        #pragma unroll
+        for(int r=0;r<2;++r) {
+          squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],1);
+          squares[r]+=__shfl_xor_sync(0xffffffff,squares[r],2);
+        }
+      Element const* tile_residual=kResidual?residual:nullptr;
+      if constexpr(kRegisterEpilogue) {
+        float inv[2]={1,1};
+        if constexpr(InputNorm)
+          for(int r=0;r<2;++r)inv[r]=Epilogue::Inverse(squares[r],p.epsilon);
+        Epilogue::Registers(accum,owned,inv,tile_residual,p.output,task,tp);
+        if(tid==0)Sm90DenseMark(2);
+      }else {
+        // The shared epilogue reads only live batch rows from each K split.
+        for(int i=0;i<size(accum);++i) {
+          int row=get<0>(owned(i));
+#if defined(TILEMEGA_SM80_ACTIVE_EPILOGUE) && TILEMEGA_SM80_ACTIVE_EPILOGUE
+          if constexpr(CpAsync && Batch<16 && kSlices==1) {
+            if(row>=Batch)continue;
+          }
+#endif
+          scratch[split*16*TN+row*TN+get<1>(owned(i))]=accum(i);
+        }
+        // One warp per split publishes its rows' partial squares.
+        if constexpr(InputNorm)
+          if((tid/32)%WarpsN==0 && (tid&3)==0) {
+            int row=(tid&31)/4;
+            norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
+          }
+        codegen::executor::ComputeSync();
+#if TILEMEGA_SM80_SPLIT_K
+        if constexpr(kSlices>1) {
+          using Reduction=codegen::Sm80SplitKTaskBody<kOutputTiles,kSlices,16,TN,InputNorm>;
+          if(Reduction::template Reduce<WarpsK>(split_workspace,split_counters,task,slice,scratch,norms,
+              reinterpret_cast<int*>(norms+96)))
+            Epilogue::template Shared<1>(scratch,norms,tile_residual,p.output,p.argmax_index,
+                task,p.epsilon,tp);
+        }else
+#endif
+        if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
+          Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,
+              reinterpret_cast<Element*>(best),arg,task,p.epsilon);
+        else Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,p.output,p.argmax_index,
+            task,p.epsilon,tp);
+        codegen::executor::ComputeSync();
+        if(tid==0)Sm90DenseMark(2);
+      }
+      if constexpr(ServiceProbe)if(tid==0)service.consumer_epilogue+=Sm80DenseService::Now()-stamp;
+    }
+    if constexpr(ServiceProbe)if(tid==0)*Sm80DenseService::Output()=service;
+    if constexpr(Op==ServingEpilogueOp::kArgmaxPartial) {
+      codegen::executor::ComputeSync();
+      finish(p,state,best,arg,reinterpret_cast<char*>(a),kOperandBytes);
+    }
+    __syncthreads();
+  }
+#endif
+
   template<int Prefix=0,class Tail=Sm90DenseNoTail,class Finish=Sm90DenseNoFinish>
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true,Finish finish={},
@@ -614,6 +751,14 @@ struct Sm90DenseGemm {
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
 #endif
     if constexpr(kResidual)if(tasks>kSideTiles)asm volatile("trap;");
+#if TILEMEGA_SM80_MULTISTAGE
+    static_assert(CpAsync && Prefix==0);
+    RunMultistage(p,state,a,b,scratch,residual,tasks,finish,tp
+#if TILEMEGA_SM80_SPLIT_K
+        ,split_workspace,split_counters
+#endif
+        );
+#else
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish,tp
 #if TILEMEGA_SM80_SPLIT_K
         ,split_workspace,split_counters
@@ -629,6 +774,7 @@ struct Sm90DenseGemm {
       }
     }
     __syncthreads();
+#endif
   }
 };
 
