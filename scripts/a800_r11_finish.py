@@ -4,10 +4,13 @@ import argparse
 from collections import defaultdict
 from pathlib import Path
 
-from a100_baselines import inspect_inputs, sha
+from a100_baselines import inputs as model_inputs, inspect_inputs, sha
 from a800_baselines import INVENTORY
+from a800_native import artifact
 from a800_r11_collect_round import collect
 from a800_r11_gate import read
+from a800_r11_prepare import router_changed
+from a800_shortlist_abi import freeze_host_preparation
 from tilemega.bench.scheduler import write_json
 
 
@@ -82,14 +85,65 @@ def bind(out, incumbent, phases):
         candidates=rows, routing_export=control['export']))
 
 
+def recovered(legacy, incumbents, preparation, inputs):
+    runs = legacy.parents[1]
+    accounting = read(legacy/'legacy.accounting.json')
+    manifest = read(legacy/'legacy.rounds.json')
+    for index, item in enumerate(manifest['items']):
+        allocation = accounting.get(str(index), {})
+        job = allocation.get('job')
+        if not job or not (runs/'optimization/decode-pairs'/job/'result.json').exists():
+            continue
+        if sha(item['binding']) != item['sha256']:
+            raise ValueError('the recovered R10 trial changed after submission')
+        spec = read(item['binding'])
+        (fact, timing, _), = collect(runs, job, inputs)
+        if timing is None or fact['passed_processes'] != 5 or fact['status'] != 'faster':
+            continue
+        args = spec['args']
+        model, batch = fact['model'], fact['batch']
+        control = read(incumbents/model/f'B{batch}'/'incumbent.json')
+        path = Path(args[args.index('--trial')+1])
+        _, identity, library_plan = artifact(path)
+        if identity['binary_sha256'] != fact['decode_sha256']:
+            raise ValueError('the recovered trial does not match its fresh numeric receipt')
+        if '--trial-preparation' in args:
+            host_preparation = Path(args[args.index('--trial-preparation')+1])
+        else:
+            folder = preparation/model/f'B{batch}'
+            folder.mkdir(parents=True, exist_ok=True)
+            host_preparation = folder/'recovered.host-preparation.json'
+            prefix = () if control['prefill'] == 'prompt' else (Path(control['prefill']),)
+            freeze_host_preparation(read(model_inputs(model)[0]/'config.json'), batch,
+                                    (*prefix, path), host_preparation)
+        coords = library_plan['native_dense']
+        yield (model,batch), dict(label='recovered-r10', binary=str(path), binary_sha256=fact['decode_sha256'],
+            coordinates=coords, host_preparation=str(host_preparation),
+            host_preparation_sha256=sha(host_preparation),
+            route_check=router_changed(control['coordinates'], coords), target=library_plan['runtime_target'],
+            target_sha256=identity['target_sha256'], job=job,
+            evidence_sha256=fact['evidence'], passed_screen=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ('waves', 'runs', 'incumbents', 'out'):
         parser.add_argument(f'--{option}', required=True, type=Path)
+    parser.add_argument('--legacy', type=Path, help='include revalidated R10 arms in the final comparison')
     args = parser.parse_args()
-    cells = select(args.waves, args.runs, inspect_inputs(INVENTORY))
+    inputs = inspect_inputs(INVENTORY)
+    cells = select(args.waves, args.runs, inputs)
+    if args.legacy:
+        for cell, trial in recovered(args.legacy, args.incumbents, args.out, inputs):
+            cells[cell]['recovered'] = trial
+    rejected = {}
     for (model, batch), phases in sorted(cells.items()):
-        bind(args.out/model/f'B{batch}', args.incumbents/model/f'B{batch}'/'incumbent.json', phases)
+        try:
+            bind(args.out/model/f'B{batch}', args.incumbents/model/f'B{batch}'/'incumbent.json', phases)
+        except ValueError as error:
+            rejected[f'{model}/B{batch}'] = str(error)
+    args.out.mkdir(parents=True, exist_ok=True)
+    write_json(args.out/'final-binding-rejections.json', rejected)
 
 
 if __name__ == '__main__':
