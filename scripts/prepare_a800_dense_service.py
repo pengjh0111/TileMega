@@ -47,6 +47,10 @@ def main():
     parser.add_argument('--producers', type=int, choices=(32,64), default=32)
     parser.add_argument('--split-k', type=int, choices=(1, 2, 4), default=1)
     parser.add_argument('--multistage', action='store_true')
+    parser.add_argument('--single-join', action='store_true',
+                        help='sample the experimental cooperative mainloop with one join')
+    parser.add_argument('--weight-evict-first', action='store_true',
+                        help='enable the incumbent cache hint in a role diagnostic')
     parser.add_argument('--width-scan', action='store_true',
                         help='measure stage span by active CTA boundaries with cold weights')
     parser.add_argument('--sample-stride', type=int, choices=(1, 8, 16, 32), default=1,
@@ -65,6 +69,10 @@ def main():
         parser.error('expanded producer calibration uses the uninstrumented width probe')
     if args.multistage and args.producers != 32:
         parser.error('multistage has four cooperative warps and no dedicated producer')
+    if args.single_join and not (args.multistage and args.role_clock):
+        parser.error('the single-join option requires a cooperative role probe')
+    if args.weight_evict_first and not args.role_clock:
+        parser.error('sample cache hints with a diagnostic role probe')
     if args.split_k > 1 and (not args.width_scan or any(f not in ('qkv', 'o', 'down') for f in args.families)):
         parser.error('split-K probes measure uninstrumented dense projection spans')
     if args.role_clock:
@@ -176,6 +184,8 @@ def main():
                f'-DTILEMEGA_DENSE_SERVICE_RESERVE_SHARED={reserve}',
                f'-DTILEMEGA_DENSE_SERVICE_PRODUCERS={args.producers}',
                *(['-DTILEMEGA_SM80_MULTISTAGE=1'] if args.multistage else []),
+               *(['-DTILEMEGA_SM80_MULTISTAGE_SINGLE_JOIN=1'] if args.single_join else []),
+               *(['-DTILEMEGA_SM80_WEIGHT_EVICT_FIRST=1'] if args.weight_evict_first else []),
                *(['-DTILEMEGA_SM80_SPLIT_K=1', f'-DTILEMEGA_DENSE_SERVICE_SPLIT_K={args.split_k}']
                  if args.split_k > 1 else []),
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
@@ -203,7 +213,8 @@ def main():
             ['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
         anchor_sha256=sha(args.anchor), source_file_sha256=sha(ROOT/'scripts/a800_dense_service_probe.cu'),
         command=command, architecture='sm_80', roles=[0 if args.multistage else args.producers,128],
-        split_k=args.split_k, multistage=args.multistage,
+        split_k=args.split_k, multistage=args.multistage, single_join=args.single_join,
+        weight_evict_first=args.weight_evict_first,
         reserved_program_shared=reserve,
         cases=list(cases), geometry_by_case=cases, binary_sha256=sha(binary),
         body_headers={name: sha(ROOT/'include/tilemega'/name) for name in headers}), indent=2)+'\n')
