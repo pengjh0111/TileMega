@@ -82,9 +82,20 @@ def validate(manifest, defines):
             multistage != (defines.get('TILEMEGA_SM80_MULTISTAGE') == '1') or
             multistage and (wide or c.get('weight_stream'))):
         raise ValueError('invalid native cooperative SM80 mainloop')
+    single_join = c.get('multistage_single_join', False)
+    task_groups = c.get('task_group_wait', False)
+    preissue = c.get('l2_weight_preissue', False)
+    if (any(type(value) is not bool for value in (single_join, task_groups, preissue))
+            or single_join != (defines.get('TILEMEGA_SM80_MULTISTAGE_SINGLE_JOIN') == '1')
+            or single_join and not multistage):
+        raise ValueError('invalid cooperative single-join implementation')
+    if (preissue != (defines.get('TILEMEGA_SM80_DENSE_L2_PREFETCH') == '1')
+            or preissue and (multistage or wide or c.get('weight_stream'))):
+        raise ValueError('invalid native L2 weight preissue')
     explicit = (multistage or evict_first or persist or splits or reuse or live_rows or issue_group
                 or page_segments or wide or compact_attention
-                or residual_group or route_bases or slot_padding or gate_pages is not None)
+                or residual_group or route_bases or slot_padding or gate_pages is not None
+                or task_groups or preissue)
     if (c['schema'] == 10) != bool(explicit) or (c['schema'] == 10 and not ampere):
         raise ValueError('explicit native payload and epilogue modes require SM80 schema 10')
     if reuse and c.get('weight_stream'):
@@ -187,14 +198,24 @@ def dispatch(manifest, defines, source):
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
     head = size + 1
-    placements, group_tiles = {}, {}
-    for number, body, offset, prefix, tiles in re.findall(
-            r'using Stage_(\d+)\s*=\s*Placement<Body_(\d+),(\d+),(\d+)(?:,(\d+))?>;', source):
+    placements, group_tiles, whole_output = {}, {}, set()
+    for number, variant, body, offset, prefix, tiles in re.findall(
+            r'using Stage_(\d+)\s*=\s*(Placement|WholeOutputPlacement)'
+            r'<Body_(\d+),(\d+),(\d+)(?:,(\d+))?>;', source):
         if number != body or number in placements:
             raise ValueError('native stage placement is ambiguous')
         placements[number] = (int(offset), int(prefix))
-        if tiles:
+        if variant == 'WholeOutputPlacement':
+            if tiles:
+                raise ValueError('whole-output synchronization must use the complete task domain')
+            whole_output.add(number)
+        elif tiles:
             group_tiles[number] = int(tiles)
+    row_norm = bool(re.search(r'using Body_\d+\s*=\s*Attention<(?:\d+,){4}2,', source))
+    counted = {str(index) for index, family in enumerate(layer*per_group, 1)
+               if family in ('o', 'down') or family == 'qkv' and row_norm}
+    if whole_output != (counted if c.get('task_group_wait') else set()):
+        raise ValueError('whole-output synchronization differs from the native boundary coordinates')
     # D8: exactly each layer's qkv (typed stages 1, 1 + per layer, ...) waits
     # by KV-group counters, with one tile count.
     qkv = {str(1 + len(layer) * i) for i in range(per_group)}
