@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
         {"sampling", "Uniform mixed-radix rank over disjoint residency strata; reject after native derive and legality. First distinct accepted draws form U then four random seeds. Count trials with replacement."},
         {"wall_seconds", std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count()}};
     std::ofstream output(argv[6]);
-    if (!output || !(output << result.Dump(2) << '\n'))
+    if (!output || !(output << result.Dump(2)))
       throw std::runtime_error("failed to write space results");
   } catch (std::exception const& error) {
     std::cerr << error.what() << '\n';

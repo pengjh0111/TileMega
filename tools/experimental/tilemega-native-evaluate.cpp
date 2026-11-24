@@ -76,6 +76,13 @@ int main(int argc,char** argv) {try {
         {"constants_from_older_body",stale},{"space_hits",double(state.cache.space_hits)},
         {"space_misses",double(state.cache.space_misses)},
         {"release_hits",double(state.cache.release_hits)},{"release_misses",double(state.cache.release_misses)}};
+    if (argc==7) {
+      if (c.weight_stream) throw std::invalid_argument("SQ2 isolated scoring requires no prefetch");
+      double isolated_ns=0;
+      for (auto const& node : flow.nodes)
+        isolated_ns+=EvaluateFlow(Sm90NativeSingleStageProblem(node.price,cost,c.residency)).makespan_ns;
+      row.Set("operator_sum_ns",isolated_ns);
+    }
     if(auto const* requested=cell.Find("decompose");requested && requested->AsBool("decompose")) {
       auto decomposition=DecomposeFlow(flow.problem);
       if(decomposition.original.makespan_ns!=flow.step_ns)

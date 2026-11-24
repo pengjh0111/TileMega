@@ -8758,4 +8758,3 @@
   "sampling": "Uniform mixed-radix rank over disjoint residency strata; reject after native derive and legality. First distinct accepted draws form U then four random seeds. Count trials with replacement.",
   "wall_seconds": 13.85139914
 }
-

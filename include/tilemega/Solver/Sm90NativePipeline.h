@@ -26,6 +26,8 @@ struct Sm90NativePipelineOptions {
   // AB-4b: every coupling becomes an aggregate (V3) boundary.
   bool realize_aggregate = false;
   std::optional<Sm90DenseCoordinates> pinned_theta;
+  std::string search_profile;
+  std::vector<Sm90DenseCoordinates> extra_seeds;
 };
 
 struct Sm90NativeReplayResult {
@@ -40,6 +42,9 @@ std::vector<std::vector<int>> Sm90NativeCandidateTracks(
     FlowProblem const&,std::vector<int> const& offsets={});
 Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const&,
     std::vector<std::vector<int>> const& candidate_tracks);
+// CPU-only Eq. (5) diagnostic. The native executor only consumes its compiled
+// cyclic stripes, so this plan must not be used for device selection.
+Sm90NativeReplayResult DiagnoseSm90NativeSq2Owners(FlowProblem const&);
 
 struct Sm90NativePipelineCandidate {
   Sm90DenseCoordinates coordinates;
@@ -49,6 +54,7 @@ struct Sm90NativePipelineCandidate {
   double discovered_ms = 0;
   std::string origin;            // which seed or move produced it
   std::string structural_class;  // continuation 1 section 3's structural key
+  std::string implementation_signature;
 };
 
 struct Sm90NativePipelineResult {
@@ -61,11 +67,14 @@ struct Sm90NativePipelineResult {
   std::vector<std::vector<Sm90DenseCoordinates>> descent_coordinates;
   std::size_t memo_hits = 0, evaluations = 0;
   double seconds = 0;
+  double pooled_seconds = 0;
+  double replay_seconds = 0;
 };
 
 // Everything but the per-family geometry: the coordinates that change which
 // tasks exist or how they synchronize (continuation 1 section 3).
 std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const&);
+std::string Sm90NativeImplementationSignature(Sm90DenseCoordinates const&);
 
 std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
     Sm90DenseSearchSpace const&,Sm90DenseCoordinates const&,int actual_residency,bool operator_sum,

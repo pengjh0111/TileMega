@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <map>
+#include <deque>
+#include <limits>
 #include <queue>
 #include <set>
 #include <string>
@@ -38,8 +40,9 @@ std::vector<std::vector<int>> Sm90NativeCandidateTracks(
   return tracks;
 }
 
-Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
-    std::vector<std::vector<int>> const& tracks) {
+namespace {
+Sm90NativeReplayResult PlanSm90Native(FlowProblem const& p,
+    std::vector<std::vector<int>> const& tracks, bool choose_owner) {
   if(p.workers<=0 || tracks.size()!=p.spaces.size())
     throw std::invalid_argument("native replay lacks the singleton track contract");
   Sm90NativeReplayResult out;
@@ -73,8 +76,15 @@ Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
   }
   struct Release {int producer,consumer;double hop;std::size_t cursor=0;
     std::vector<std::pair<int,int>> endpoints;};
+  struct Requirement {int producer, prefix; double hop; bool aggregate;};
   std::vector<Release> releases;
   std::vector<std::vector<int>> outgoing(p.spaces.size());
+  std::vector<std::vector<std::vector<Requirement>>> requirements;
+  if (choose_owner) {
+    requirements.resize(p.spaces.size());
+    for (std::size_t s = 0; s < p.spaces.size(); ++s)
+      requirements[s].resize(p.spaces[s].count);
+  }
   for(auto const& edge:p.edges) {
     if(edge.producer<0 || edge.consumer<=edge.producer ||
        edge.consumer>=int(p.spaces.size()) || !edge.sorted)
@@ -86,6 +96,8 @@ Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
       if(last>=p.spaces[edge.producer].count || task<0 || task>=p.spaces[edge.consumer].count)
         throw std::invalid_argument("native replay release is outside its task space");
       release.endpoints.emplace_back(last,task);++pending[edge.consumer][task];
+      if (choose_owner) requirements[edge.consumer][task].push_back({
+          edge.producer, last, release.hop, edge.all_producer});
     }
     std::sort(release.endpoints.begin(),release.endpoints.end());
     outgoing[edge.producer].push_back(releases.size());releases.push_back(std::move(release));
@@ -97,8 +109,39 @@ Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
   }
   using Key=std::tuple<double,double,int,int>;
   std::priority_queue<Key,std::vector<Key>,std::greater<Key>> frontier;
+  auto owner = [&](int s, int t) -> std::pair<double, int> {
+    if (!choose_owner) return {std::max(ready[s][t], available[tracks[s][t]]), tracks[s][t]};
+    std::vector<bool> eligible(p.workers);
+    std::vector<double> start(p.workers);
+    for (int i = 0; i < 8; ++i)
+      eligible[(tracks[s][t] + i * p.workers / 8) % p.workers] = true;
+    for (auto const& req : requirements[s][t]) {
+      std::vector<double> local(p.workers, -1);
+      for (int i = 0; i <= req.prefix; ++i) {
+        double finish = out.estimated_finish_ns[req.producer][i];
+        if (finish < 0) throw std::logic_error("Eq. (5) ran before a predecessor was planned");
+        int w = out.placement.worker_of_task[req.producer][i];
+        eligible[w] = true;
+        local[w] = std::max(local[w], finish);
+      }
+      int slowest = int(std::max_element(local.begin(), local.end()) - local.begin());
+      double next = -1;
+      for (int w = 0; w < p.workers; ++w)
+        if (w != slowest) next = std::max(next, local[w]);
+      for (int w = 0; w < p.workers; ++w) {
+        double remote = w == slowest ? next : local[slowest];
+        double local_ready = local[w] < 0 ? 0 : local[w] + (req.aggregate ? req.hop : 0);
+        double remote_ready = remote < 0 ? 0 : remote + req.hop;
+        start[w] = std::max({start[w], local_ready, remote_ready});
+      }
+    }
+    std::pair<double, int> best{std::numeric_limits<double>::infinity(), -1};
+    for (int w = 0; w < p.workers; ++w)
+      if (eligible[w]) best = std::min(best, std::pair<double, int>{std::max(start[w], available[w]), w});
+    return best;
+  };
   auto push=[&](int s,int t) {
-    frontier.emplace(std::max(ready[s][t],available[tracks[s][t]]),-rank[s],s,t);
+    frontier.emplace(owner(s,t).first,-rank[s],s,t);
   };
   for(std::size_t s=0;s<p.spaces.size();++s)
     for(int t=0;t<p.spaces[s].count;++t)if(!pending[s][t])push(s,t);
@@ -106,11 +149,11 @@ Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
   std::size_t planned=0;
   while(!frontier.empty()) {
     auto [estimate,remaining,s,t]=frontier.top();frontier.pop();
-    int worker=tracks[s][t];
-    double start=std::max(ready[s][t],available[worker]);
+    auto [start,worker]=owner(s,t);
     if(start>estimate) {push(s,t);continue;}
     double finish=start+duration[s][t];
     out.estimated_start_ns[s][t]=start;out.estimated_finish_ns[s][t]=finish;
+    out.placement.worker_of_task[s][t]=worker;
     available[worker]=finish;out.placement.order[worker].emplace_back(s,t);++planned;
     // The oracle's scalar endpoint denotes a completed prefix. Never
     // release from a later planned task while an earlier index is unplanned.
@@ -132,6 +175,16 @@ Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
   out.replay=EvaluateFlow(p,options);
   return out;
 }
+}  // namespace
+
+Sm90NativeReplayResult RefineAndReplaySm90Native(FlowProblem const& p,
+    std::vector<std::vector<int>> const& tracks) {
+  return PlanSm90Native(p, tracks, false);
+}
+
+Sm90NativeReplayResult DiagnoseSm90NativeSq2Owners(FlowProblem const& p) {
+  return PlanSm90Native(p, Sm90NativeCandidateTracks(p), true);
+}
 
 std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
   // Program level, attention structure and the handoff choices: everything
@@ -150,6 +203,51 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c) {
   key += c.attention.merge_stage ? "/attstage" : "/attla";
   return key;
 }
+
+std::string Sm90NativeImplementationSignature(Sm90DenseCoordinates const& c) {
+  std::string signature = Sm90NativeStructuralClass(c);
+  for (unsigned family : c.Active()) {
+    auto const& g = c.gemms[family];
+    signature += "/" + std::to_string(g.tile_n) + "." + std::to_string(g.warps_n) +
+                 "." + std::to_string(g.TileK());
+  }
+  return signature;
+}
+
+namespace {
+std::vector<Sm90NativePipelineCandidate> Sq2Shortlist(
+    std::vector<Sm90NativePipelineCandidate> const& ranked) {
+  constexpr int kMin = 8, kMax = 24;
+  constexpr double kEpsilon = .015;
+  if (ranked.empty()) throw std::runtime_error("no evaluated candidate to shortlist");
+  std::vector<std::deque<std::size_t>> groups;
+  std::map<std::string, std::size_t> signature_to_group;
+  double threshold = ranked.front().pool_score_ns * (1 + kEpsilon);
+  for (std::size_t i = 0; i < ranked.size() && ranked[i].pool_score_ns <= threshold; ++i) {
+    auto inserted = signature_to_group.emplace(ranked[i].implementation_signature, groups.size());
+    if (inserted.second) groups.emplace_back();
+    groups[inserted.first->second].push_back(i);
+  }
+  std::vector<Sm90NativePipelineCandidate> selected;
+  std::set<std::size_t> indices;
+  while (selected.size() < kMax) {
+    bool changed = false;
+    for (auto& group : groups) {
+      if (group.empty()) continue;
+      std::size_t index = group.front();
+      group.pop_front();
+      indices.insert(index);
+      selected.push_back(ranked[index]);
+      changed = true;
+      if (selected.size() == kMax) break;
+    }
+    if (!changed) break;
+  }
+  for (std::size_t i = 0; selected.size() < kMin && i < ranked.size(); ++i)
+    if (indices.insert(i).second) selected.push_back(ranked[i]);
+  return selected;
+}
+}  // namespace
 
 std::optional<Sm90NativePipelineCandidate> RepriceSm90NativeResidency(
     Sm90DenseSearchSpace const& space,Sm90DenseCoordinates const& original,int actual,
@@ -176,6 +274,12 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     std::function<Sm90NativeFlowResult(Sm90DenseCoordinates const&,bool)> const& evaluate,
     std::vector<Sm90DenseCoordinates> const& seeds) {
   if(!evaluate)throw std::invalid_argument("native search requires a CTG evaluator");
+  bool sq2 = options.search_profile == "sq2";
+  if ((!options.search_profile.empty() && !sq2) ||
+      (sq2 && (!cost.CostTable() || work.batch != 1 || work.tp != 1 || work.moe ||
+               options.extra_seeds.size() != 4 || options.pinned_theta || options.retile_only ||
+               options.realize_aggregate)))
+    throw std::invalid_argument("SQ2 requires a calibrated dense B1 TP1 search and four extra seeds");
   using Clock = std::chrono::steady_clock;
   auto started = Clock::now();
   auto spent_ms = [&] {
@@ -250,6 +354,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     candidate.evaluation_ms=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
     candidate.discovered_ms=spent_ms();
     candidate.structural_class = Sm90NativeStructuralClass(c);
+    if (sq2) candidate.implementation_signature = Sm90NativeImplementationSignature(c);
     candidate.origin=origin;
     result.evaluated.push_back(std::move(candidate));
     return value;
@@ -274,6 +379,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   for (auto const& candidate : seeded.ranked)
     project(candidate.coordinates);
   for(auto const& candidate:seeded.per_structure_optima)project(candidate.coordinates);
+  for (auto const& seed : options.extra_seeds) project(seed);
   if (starts.empty())
     throw std::invalid_argument("native pipeline search found no legal seed");
   for(std::size_t i=0;i<starts.size();++i) {
@@ -363,20 +469,25 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   auto ranked = result.evaluated;
   std::stable_sort(ranked.begin(), ranked.end(),
                    [](auto const& a, auto const& b) {return a.pool_score_ns < b.pool_score_ns;});
-  std::set<std::string> classes;
-  for (auto const& candidate : ranked) {
-    if (int(result.shortlist.size()) >= options.shortlist) break;
-    result.shortlist.push_back(candidate);
-    classes.insert(candidate.structural_class);
-  }
-  int extra = 0;
-  for (auto const& candidate : ranked) {
-    if (extra >= options.structural_extra) break;
-    if (classes.insert(candidate.structural_class).second) {
+  if (sq2) {
+    result.shortlist = Sq2Shortlist(ranked);
+  } else {
+    std::set<std::string> classes;
+    for (auto const& candidate : ranked) {
+      if (int(result.shortlist.size()) >= options.shortlist) break;
       result.shortlist.push_back(candidate);
-      ++extra;
+      classes.insert(candidate.structural_class);
+    }
+    int extra = 0;
+    for (auto const& candidate : ranked) {
+      if (extra >= options.structural_extra) break;
+      if (classes.insert(candidate.structural_class).second) {
+        result.shortlist.push_back(candidate);
+        ++extra;
+      }
     }
   }
+  result.pooled_seconds = spent_ms() / 1000.0;
 
   // Lines 15-19: materialize, replay, and keep at most `per_class` finalists
   // from any one structural class so the measured set stays varied.
@@ -387,14 +498,16 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::stable_sort(by_replay.begin(), by_replay.end(),
                    [](auto const& a, auto const& b) {return a.replay_ns < b.replay_ns;});
   std::map<std::string, int> taken;
+  int finalist_limit = sq2 ? 6 : options.finalists;
+  int class_limit = sq2 ? 2 : options.per_class;
   for (auto const& candidate : by_replay) {
-    if (int(result.finalists.size()) >= options.finalists) break;
-    if (taken[candidate.structural_class] >= options.per_class) continue;
+    if (int(result.finalists.size()) >= finalist_limit) break;
+    if (taken[candidate.structural_class] >= class_limit) continue;
     ++taken[candidate.structural_class];
     result.finalists.push_back(candidate);
   }
   // Short of the quota, fill by replay time regardless of class.
-  for (auto const& candidate : by_replay) {
+  if (!sq2) for (auto const& candidate : by_replay) {
     if (int(result.finalists.size()) >= options.finalists) break;
     bool present = std::any_of(result.finalists.begin(), result.finalists.end(),
         [&](auto const& f) {return CoordinateKey(f.coordinates) ==
@@ -402,6 +515,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
     if (!present) result.finalists.push_back(candidate);
   }
   result.seconds = spent_ms() / 1000.0;
+  result.replay_seconds = result.seconds - result.pooled_seconds;
   return result;
 }
 }  // namespace tilemega::solver

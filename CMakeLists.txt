@@ -1537,6 +1537,14 @@ add_executable(tilemega-sq2-check-cost EXCLUDE_FROM_ALL experiments/search_quali
 target_link_libraries(tilemega-sq2-check-cost PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-sq2-check-cost PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-sq2-verify-owners EXCLUDE_FROM_ALL experiments/search_quality_v2/verify_owners.cpp)
+target_link_libraries(tilemega-sq2-verify-owners PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-sq2-verify-owners PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-sq2-reprice EXCLUDE_FROM_ALL experiments/search_quality_v2/reprice.cpp)
+target_link_libraries(tilemega-sq2-reprice PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-sq2-reprice PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 option(TILEMEGA_BUILD_EXPERIMENTAL "Build historical experiment tools" OFF)
 if(TILEMEGA_BUILD_EXPERIMENTAL)
   add_executable(tilemega-flow-validation tools/experimental/tilemega-flow-validation.cpp)

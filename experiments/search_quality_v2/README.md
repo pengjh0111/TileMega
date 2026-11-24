@@ -76,3 +76,35 @@ python3 "$scripts/collect_stage_calibration.py"
 The guard owns an individual physical card for one process. Queue items are
 identified by suite and replicate. Contention or interference returns the
 affected item to the queue. A successful guard receipt is retained on resume.
+
+Phase 2 builds `tilemega`, `tilemega-native-evaluate`, and
+`tilemega-sq2-check-cost` in Release mode. Generate the three reserved cost
+tables before running the development gate.
+
+```bash
+mkdir -p "$case_dir/phase2"
+for variant in overlap head-startup tail-publication; do
+  python3 "$scripts/make_cost_table.py" "$variant" "$case_dir/phase2/$variant.json"
+done
+${TILEMEGA_SQ2_PYTHON:-/workspace/llm-stack/envs/vllm/bin/python} "$scripts/rescore_dev.py"
+```
+
+The optional cost-table path is fail-closed. The solver checks exact keys for
+the fixed dense B1 TP1 workload. The calibration check compares the pooled
+body interval with the measured body interval and treats incoming stage
+synchronization separately. The development gate only reads the v1 TPOTs
+after the candidate variants and binary hashes are registered.
+
+The Phase 3 CPU diagnostic uses the existing offline terminal:
+
+```bash
+"$sq2/build-release/tools/tilemega-native-search" \
+  configs/targets/sm_90_h800_sq2.json "$PWD" "$v1/cells.json" \
+  "$case_dir/phase3/owner-audit.jsonl" \
+  --search-profile sq2 --native-cost-table "$case_dir/phase2/overlap.json" \
+  --extra-seeds "$case_dir/qspace.json" --diagnose-owners 1
+```
+
+`--diagnose-owners` compares a CPU Eq. (5) assignment against the implemented
+template. Its hypothetical makespan is diagnostic. It does not participate
+in finalist selection.

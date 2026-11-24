@@ -33,6 +33,10 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     std::array<std::vector<Option>,8> families;
     std::vector<Option> attention;
     auto active=Sm90DenseActiveFamilies(space.moe);
+    // A measured table only covers realizable whole-program strata.
+    if (cost.CostTable() && std::any_of(active.begin(), active.end(), [&](unsigned family) {
+          return space.FamilyCandidates(family, residency).empty();
+        })) continue;
     for(unsigned f:active) {
       for(auto g:space.FamilyCandidates(f,residency)) {
         families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
