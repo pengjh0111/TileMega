@@ -8,5 +8,12 @@ int main(int argc,char** argv) {
   auto stale=tilemega::solver::Sm90NativeConstants::UnreachableAmpereProfiles(target,argv[2]);
   for(auto const& profile:stale)std::cerr<<profile<<'\n';
   std::cout<<stale.size()<<" unreachable profiles\n";
-  return stale.empty()?0:1;
+  if(!stale.empty())return 1;
+  auto constants=tilemega::solver::Sm90NativeConstants::FromTarget(target,argv[2]);
+  if(constants.AmpereDenseShapes().empty() || constants.AmpereFusedShapes().empty() ||
+      !constants.HasDenseGateService()) {
+    std::cerr<<"the native solver did not admit the refreshed service tables\n";
+    return 1;
+  }
+  return 0;
 }
