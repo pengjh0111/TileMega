@@ -14,7 +14,7 @@ from a800_r11_collect_round import collect
 from a800_r11_gate import read
 
 
-def audit(path):
+def audit(path, coordinates=None):
     with path.open() as stream:
         rows = [json.loads(line) for line in stream]
     checked = [row for row in rows if 'modeled_services' in row and 'measured_services' in row]
@@ -22,8 +22,12 @@ def audit(path):
     # candidate once while preserving the duplicated origins in raw evidence.
     unique = {json.dumps(row['coordinates'], sort_keys=True): row for row in checked}
     counts = Counter(row['status'] for row in unique.values())
-    return dict(modeled_services_count=sum(len(row['modeled_services']) for row in unique.values()),
-                measured_services_count=sum(len(row['measured_services']) for row in unique.values()),
+    primary = (unique.get(json.dumps(coordinates, sort_keys=True)) if coordinates is not None else
+               next((row for row in checked if row['origin'] == 'finalist'), None))
+    return dict(modeled_services_count=len(primary['modeled_services']) if primary is not None else '',
+                measured_services_count=len(primary['measured_services']) if primary is not None else '',
+                modeled_all_candidates=sum(len(row['modeled_services']) for row in unique.values()),
+                measured_all_candidates=sum(len(row['measured_services']) for row in unique.values()),
                 discarded_unpriced=counts['legal_missing_calibration'],
                 distinct_candidates=len(unique))
 
@@ -91,7 +95,8 @@ def main():
     coverage, counts, ranks, bias = [], [], [], defaultdict(list)
     inputs = inspect_inputs(INVENTORY) if any(cell.get('job') for cell in cells) else None
     for cell in cells:
-        old, new = (audit(Path(cell[key])) for key in ('r10_coverage', 'r11_coverage'))
+        old, new = (audit(Path(cell[f'{round}_coverage']), cell.get(f'{round}_coordinates'))
+                    for round in ('r10', 'r11'))
         coverage.append(dict(model=cell['model'], batch=cell['batch'], **new,
                              **{f'r10_{key}': value for key,value in old.items()}))
         if cell.get('job'):
@@ -102,6 +107,7 @@ def main():
                 bias[key].extend(values)
     args.out.mkdir(parents=True, exist_ok=True)
     write_csv(args.out/'A800_R11_coverage.csv', coverage)
+    print(f'{sum(row["modeled_services_count"] == 0 for row in coverage)}/{len(coverage)} cells with no modeled services')
     if ranks:
         worst = sorted(bias, key=lambda axis: statistics.median(bias[axis]), reverse=True)[:3]
         for row in ranks:
