@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--prefill-mode', choices=('L1', 'L2'))
     parser.add_argument('--decode-loop', type=int, choices=(0, 1), default=0)
     parser.add_argument('--check-executors', action='store_true')
+    parser.add_argument('--check-advertised-executors', action='store_true')
     parser.add_argument('--check-step-loop', action='store_true')
     parser.add_argument('--hf-check', action='store_true')
     parser.add_argument('--hf-positions', type=int)
@@ -55,8 +56,10 @@ def main():
     if args.hf_positions is not None and (
             not args.hf_check or not 1 <= args.hf_positions <= args.max_tokens):
         parser.error('--hf-positions requires --hf-check and must fit the generated sequence')
+    if args.check_advertised_executors and not args.check_executors:
+        parser.error('advertised executor checks require --check-executors')
     if args.routing_export and (args.tp != 1 or args.mode != 'L1' or not args.check_step_loop
-                                or not args.decode_loop or args.check_executors or args.max_tokens < 2):
+                                or not args.decode_loop or args.max_tokens < 2):
         parser.error('routing evidence belongs to the untimed single-rank step/loop check')
     args.load_format = 'auto'
     args.out.mkdir(parents=True, exist_ok=True)
@@ -64,7 +67,7 @@ def main():
     prompt_len = validate_prompts(ids, int(args.batch))
     import torch
     from .engine import ServingEngine
-    from .execution import execution_combinations
+    from .execution import advertised_execution_combinations, execution_combinations
     # §8 A3.5: 'prompt' runs the prompt positions teacher-forced on the decode plan.
     prefill = None if args.prefill == 'prompt' else Path(args.prefill)
     binaries = (('prefill', prefill), ('decode', args.decode)) if prefill else (('decode', args.decode),)
@@ -138,11 +141,13 @@ def main():
             if len(observed) % 32 == 0:
                 heartbeat('native_route_observation', position=position)
 
-    reuse_step_loop = (args.check_step_loop and not args.check_executors and
-                       args.tp == 1 and args.mode == 'L1' and args.max_tokens > 1)
+    reuse_step_loop = (args.check_step_loop and args.tp == 1 and args.mode == 'L1'
+                       and args.max_tokens > 1)
     compared = {}
     heartbeat('native_engine_initialization', batch=args.batch)
     with engine(args.mode, args.decode_loop) as current:
+        advertised = dict(supported_modes=current.decode_lib.info.modes,
+                          supported_loop_modes=current.loop_modes)
         executions=[]
         metadata['actual_execution']=executions
         def generate(rows,count):
@@ -184,9 +189,15 @@ def main():
     token_path.write_text(json.dumps(reference.tolist())+'\n')
     if args.check_executors or args.check_step_loop:
         checks = []
-        combinations = [('L1', 0), ('L1', 1)] if args.check_step_loop else execution_combinations(manifests[1].get('pg', 'off'))
+        if args.check_advertised_executors:
+            combinations = advertised_execution_combinations(advertised['supported_modes'],
+                                                               advertised['supported_loop_modes'])
+        elif args.check_step_loop:
+            combinations = [('L1', 0), ('L1', 1)]
+        else:
+            combinations = execution_combinations(manifests[-1].get('pg', 'off'))
         for mode, loop in combinations:
-            if reuse_step_loop:
+            if mode == 'L1' and bool(loop) in compared:
                 tokens, used = compared[bool(loop)], bool(loop)
             else:
                 heartbeat('native_executor_check', mode=mode, loop=loop)
@@ -204,7 +215,8 @@ def main():
             (args.out/f'tokens_{mode}_loop{loop}.json').write_text(json.dumps(tokens.tolist())+'\n')
         (args.out/'c2.json').write_text(json.dumps({'evidence': 'verified',
             'same_binary': True, 'initialization_reused': reuse_step_loop,
-            'checks': checks, 'pass': all(c['pass'] for c in checks)}, indent=2)+'\n')
+            'checks': checks, 'pass': all(c['pass'] for c in checks),
+            **(advertised if args.check_advertised_executors else {})}, indent=2)+'\n')
         if not all(c['pass'] for c in checks):
             raise AssertionError('executor token comparison failed')
     if args.hf_check:

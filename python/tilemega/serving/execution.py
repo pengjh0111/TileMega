@@ -59,6 +59,12 @@ def execution_combinations(pg, executor="measure", loop="measure"):
     return [(mode,used) for mode,used in valid
             if executor in ("measure",mode) and loop in ("measure",used)]
 
+def advertised_execution_combinations(modes, loop_modes):
+    if modes not in (1, 2, 3) or not loop_modes or loop_modes & ~modes:
+        raise ValueError('the serving ABI must advertise step and device-loop executors')
+    return [(name, loop) for mask, name in ((1, 'L1'), (2, 'L2'))
+            for loop, supported in ((0, modes), (1, loop_modes)) if supported & mask]
+
 def select_execution(candidates):
     import statistics
     if not candidates:

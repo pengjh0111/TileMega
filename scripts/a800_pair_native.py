@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--expected-checkpoint-sha256')
     parser.add_argument('--control-preparation', type=Path)
     parser.add_argument('--trial-preparation', type=Path)
+    parser.add_argument('--arm-preparation', action='append', default=[], metavar='LABEL=RECEIPT')
     parser.add_argument('--private-stream', action='store_true')
     parser.add_argument('--routing-export', type=Path,
                         help='verify identical MoE routes before measuring fixed router coordinates')
@@ -50,6 +51,8 @@ def main():
                         help='independently time a solver winner after five correctness processes')
     parser.add_argument('--fresh-correctness', action='store_true',
                         help='run five new correctness processes in this allocation before timing')
+    parser.add_argument('--numeric-gate', action='store_true',
+                        help='require C1/C2 on each trial before comparative timing')
     parser.add_argument('--budget-s', type=int, default=810)
     parser.add_argument('--process-timeout-s', type=int, default=125)
     args = parser.parse_args()
@@ -68,11 +71,13 @@ def main():
         if not equal or not path or not re.fullmatch(r'[a-z0-9_-]+', label) or label in variants:
             parser.error('additional trials require distinct labels and existing libraries')
         variants[label] = Path(path)
-    if len(variants) > 16 or (len(variants) > 2 and
+    if len(variants) > 16 or (len(variants) > 2 and not args.numeric_gate and
                              (args.formal_trial or args.trial_target or args.trial_preparation)):
         parser.error('multi-arm trials share one target and use independent screening')
-    if args.fresh_correctness and not args.formal_trial:
+    if args.fresh_correctness and not (args.formal_trial or args.numeric_gate):
         parser.error('fresh correctness belongs to a formal paired trial')
+    if args.numeric_gate and (phase != 'decode' or args.formal_trial):
+        parser.error('the numeric gate is an independent paired decode protocol')
     if args.formal_trial and phase != 'decode':
         parser.error('formal trial timing requires a solver-selected decode artifact')
     if args.routing_export and (phase != 'decode' or args.formal_trial or
@@ -89,14 +94,14 @@ def main():
               'trial': 'candidate-timing' if args.formal_trial else f'tune-{phase}'}
     stages.update((label, f'tune-{phase}') for label in variants if label not in stages)
     targets = {label: args.target for label in variants}
-    targets['trial'] = args.trial_target or args.target
     if args.trial_target:
-        control, trial = (json.loads(target.read_text()) for target in targets.values())
+        control, trial = (json.loads(target.read_text()) for target in (args.target,args.trial_target))
         fields = ('name', 'memory_mib', 'capability', 'mig', 'driver')
         if (control['arch_tag'] != trial['arch_tag'] or control['resources'] != trial['resources']
                 or any(control['device_provenance'][key] != trial['device_provenance'][key]
                        for key in fields)):
             parser.error('a paired trial must preserve the calibrated device class')
+        targets.update((label,args.trial_target) for label in variants if label!='control')
     libraries = {label: artifact(path)[1]['binary_sha256'] for label, path in variants.items()}
     if len(set(libraries.values())) != len(variants):
         parser.error('the variant libraries must be distinct')
@@ -105,23 +110,31 @@ def main():
     for label in libraries:
         path = getattr(args, f'{label}_preparation', None)
         preparations[label] = ['--host-preparation', str(path.resolve(strict=True))] if path else []
+    for spec in args.arm_preparation:
+        label,equal,path = spec.partition('=')
+        if not args.numeric_gate or not equal or label not in preparations or preparations[label]:
+            parser.error('provide one host preparation for a declared numeric-gate arm')
+        preparations[label] = ['--host-preparation',str(Path(path).resolve(strict=True))]
     def correctness(index, budget, run, teacher_forced, label='trial'):
         command = [*runner, 'run' if run else 'plan', *options, '--stage', 'correctness',
                    '--round', str(index), '--decode', str(variants[label]),
                    '--target', str(targets[label]), '--budget-s', str(budget), *preparations[label]]
         if teacher_forced:
             command.append('--hf-reference')
+        if args.numeric_gate:
+            command.append('--numeric-gate')
         if args.routing_export:
             command.extend(('--routing-export', str(args.routing_export.resolve(strict=True))))
         subprocess.run(command, check=True, timeout=budget)
 
     if args.mode == 'plan':
-        if args.fresh_correctness:
+        if args.fresh_correctness and not args.numeric_gate:
             for round_index in range(1_000_008, 1_000_013):
                 correctness(round_index, args.budget_s, False, round_index == 1_000_008)
-        if args.routing_export:
+        if args.numeric_gate or args.routing_export:
             for offset, label in enumerate(variants):
-                correctness(1_000_016 + offset, args.budget_s, False, label != 'control', label)
+                if label != 'control' or args.routing_export:
+                    correctness(1_000_016 + offset, args.budget_s, False, label != 'control', label)
         for label in libraries:
             library = variants[label]
             subprocess.run([*runner, 'plan', *options, '--stage', stages[label], '--round', '0', f'--{phase}',
@@ -133,7 +146,7 @@ def main():
     if os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800':
         parser.error('paired tuning requires the ordinary single-GPU allocation')
     deadline = time.monotonic() + args.budget_s
-    if args.fresh_correctness:
+    if args.fresh_correctness and not args.numeric_gate:
         for repeat in range(5):
             correctness(job * 16 + 8 + repeat, max(1, int(deadline - time.monotonic())),
                         True, repeat == 0)
@@ -151,13 +164,53 @@ def main():
     out = RUN/'optimization'/f'{phase}-pairs'/str(job)
     out.mkdir(parents=True, exist_ok=False)
     order = tuple(variants)
-    write_json(out/'planned.json', dict(protocol_version='a800-single-v2', kind='paired_tuning',
+    plan = dict(protocol_version='a800-single-v2', kind='paired_tuning',
         model=args.model, batch=args.batch, order=order,
         phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library),
-        target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()}))
+        target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()})
+    if args.numeric_gate:
+        plan.update(numeric_gate='sm90-c1-c2-v1', correctness_processes=5 if args.fresh_correctness else 1)
+    write_json(out/'planned.json', plan)
     rounds = []
     rejected = {}
-    if args.routing_export:
+    numeric_receipts = {}
+    numeric_proofs = {}
+    if args.numeric_gate:
+        from a800_r11_gate import INVARIANTS, verify
+
+        expected_routes = None
+        for position,label in enumerate(order):
+            if label == 'control' and not args.routing_export:
+                continue
+            count = 1 if label == 'control' else plan['correctness_processes']
+            proofs, reasons = [], []
+            for offset in range(count):
+                repeat = job*128+32+position*5+offset
+                try:
+                    correctness(repeat,max(1,int(deadline-time.monotonic())),True,True,label)
+                    [path] = list((RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/correctness-{repeat}.json'))
+                    proof = verify(path,job=job,model=args.model,batch=args.batch,identity={
+                        'decode_sha256': libraries[label], 'prefill_sha256': plan['shared_sha256'],
+                        'target_sha256': plan['targets_sha256'][label]})
+                    if args.routing_export:
+                        actual = proof['receipt']['router_indices_sha256']
+                        if label == 'control':
+                            expected_routes = actual
+                        elif actual != expected_routes:
+                            raise ValueError('router trial changed ordered expert indices')
+                    proofs.append(proof)
+                except (ValueError, OSError, subprocess.SubprocessError) as error:
+                    reasons.append({'round':repeat,'reason':str(error)})
+            numeric_receipts[label] = dict(required=count,passed=len(proofs),
+                proofs=[{key:row[key] for key in ('path','sha256')} for row in proofs],rejected=reasons)
+            numeric_proofs[label] = proofs
+            if (len(proofs) != count or len({row['pid'] for row in proofs}) != count
+                    or len({row['receipt']['tokens_sha256'] for row in proofs}) != 1):
+                rejected[label] = {'status':'rejected','fields':['numeric_gate']}
+            write_json(out/'numeric-gate.json', numeric_receipts)
+            if label == 'control' and label in rejected:
+                raise ValueError('router control failed the numeric gate')
+    elif args.routing_export:
         expected = None
         route_receipts = {}
         for offset, label in enumerate(order):
@@ -196,7 +249,7 @@ def main():
                    '--budget-s', str(remaining), *preparations[label]]
         completed = subprocess.run(command, timeout=max(1, remaining))
         if completed.returncode:
-            if label == 'control' or len(variants) == 2:
+            if label == 'control' or (len(variants) == 2 and not args.numeric_gate):
                 completed.check_returncode()
             rejected[label] = {'status': 'rejected', 'runner_exit': completed.returncode,
                                'round': round_index}
@@ -207,6 +260,7 @@ def main():
         result_path = Path(receipt['evidence'])/f'B{args.batch}'/'measurements.json'
         result = json.loads(result_path.read_text())
         if (not receipt['pass'] or receipt['job'] != str(job) or result['acceptance'] != 'strict'
+                or sha(Path(receipt['evidence'])/'reference_tokens.json') != receipt['tokens_sha256']
                 or result['configuration'][f'{phase}_sha256'] != libraries[label]
                 or result['configuration'][f'{shared_phase}_sha256'] != (
                     'prompt mode' if prompt_mode else sha(shared_library))):
@@ -228,12 +282,19 @@ def main():
         write_json(out/'rounds.json', rounds)
     invariant_fields = ('gpu_uuid', 'tokens_sha256', 'checkpoint_sha256',
                         'config_sha256', 'prompt_sha256')
-    if len(variants) > 2 or args.routing_export:
+    if args.numeric_gate:
+        invariant_fields = INVARIANTS
+    if len(variants) > 2 or args.routing_export or args.numeric_gate:
         control = rounds[0]
         comparisons = {}
         for arm in rounds[1:]:
             label = arm['arm']
             differences = [field for field in invariant_fields if arm[field] != control[field]]
+            if args.numeric_gate:
+                if any(any(proof[field] != arm[field] for field in invariant_fields)
+                       or proof['receipt']['tokens_sha256'] != arm['tokens_sha256']
+                       for proof in numeric_proofs[label]):
+                    differences.append('same_arm_correctness')
             if differences:
                 rejected[label] = {'status': 'rejected', 'fields': differences, 'round': arm['round']}
                 continue

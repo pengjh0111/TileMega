@@ -59,6 +59,8 @@ def main():
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--round', type=int, required=True)
     parser.add_argument('--hf-reference', action='store_true')
+    parser.add_argument('--numeric-gate', action='store_true',
+                        help='verify the SM90 teacher-forced and same-binary executor contract')
     parser.add_argument('--budget-s', type=int, default=840)
     parser.add_argument('--timeout-s', type=int, default=600)
     parser.add_argument('--prefill-mode', choices=('L1', 'L2'), default='L1')
@@ -79,10 +81,12 @@ def main():
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
     if args.hf_reference and args.stage != 'correctness':
         parser.error('teacher-forced reference is a correctness process')
+    if args.numeric_gate and args.stage != 'correctness':
+        parser.error('the numeric gate belongs to a correctness process')
     if args.routing_export and (args.stage != 'correctness' or args.model not in
                                 ('olmoe_1b_7b', 'qwen3_30b_a3b')):
         parser.error('routing evidence belongs to MoE correctness')
-    check_hf = args.stage == 'correctness' and (args.round == 0 or args.hf_reference)
+    check_hf = args.stage == 'correctness' and (args.round == 0 or args.hf_reference or args.numeric_gate)
     diagnostic = args.stage == 'diagnose'
     tuning = args.stage in ('tune-prefill', 'tune-decode')
     independent = args.stage in ('measure', 'candidate-timing')
@@ -173,6 +177,9 @@ def main():
         identity['host_preparation_sha256'] = hashlib.sha256(contents).hexdigest()
     name = f'native-{stage}-r{args.round}'
     tokens = 1 if diagnostic else 1024
+    hf_positions = min(256, tokens) if args.numeric_gate and args.model == 'qwen3_30b_a3b' else tokens
+    if args.numeric_gate:
+        identity.update(numeric_gate='sm90-c1-c2-v1', hf_positions=hf_positions)
     if args.mode == 'plan':
         print(json.dumps(dict(identity, **description, prefill=str(prefill), decode=str(decode),
                               calibration_uuid=target['device_provenance']['uuid'],
@@ -208,10 +215,12 @@ def main():
                       '--host-preparation-sha256', identity['host_preparation_sha256']))
     if args.stage == 'correctness':
         child.append('--check-step-loop')
+        if args.numeric_gate:
+            child.extend(('--check-executors', '--check-advertised-executors'))
         if args.routing_export:
             child.extend(('--routing-export', str(args.routing_export)))
         if check_hf:
-            child.extend(('--hf-check', '--hf-positions', str(tokens)))
+            child.extend(('--hf-check', '--hf-positions', str(hf_positions)))
     if args.sanitizer:
         child = [str(args.sanitizer), '--tool', 'memcheck', '--kernel-name',
                  f'kns=tilemega_{args.prefill_mode.lower()}_kernel', '--launch-count', '1',
@@ -255,14 +264,24 @@ def main():
         verify_request_tokens(measurement, args.batch, 3 if timing else 1)
     hf_pass = False
     if args.stage == 'correctness':
-        c2 = json.loads((evidence/'c2.json').read_text())
+        c2_path = evidence/'c2.json'
+        c2 = json.loads(c2_path.read_text())
         if not (c2['pass'] and c2['same_binary']
                 and {trial['decode_loop_used'] for trial in c2['checks']} == {False, True}):
             return 1
         if check_hf:
-            hf_pass = json.loads((evidence/'c1.json').read_text())['pass']
+            c1_path = evidence/'c1.json'
+            c1 = json.loads(c1_path.read_text())
+            hf_pass = c1['pass']
             if not hf_pass:
                 return 1
+        if args.numeric_gate:
+            from a800_r11_gate import executor_agreement
+
+            if c1['positions'] != args.batch*hf_positions or not executor_agreement(c2):
+                return 1
+            identity.update(executor_agree=True, executor_proof_sha256=sha(c2_path),
+                            hf_proof_sha256=sha(c1_path))
         if args.routing_export:
             routes = json.loads((evidence/'routing.json').read_text())
             if routes['export_sha256'] != identity['routing_export_sha256']:
