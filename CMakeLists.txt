@@ -1528,6 +1528,10 @@ add_executable(tilemega-native-domains EXCLUDE_FROM_ALL tools/experimental/tilem
 target_link_libraries(tilemega-native-domains PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-native-domains PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
+add_executable(tilemega-sq2-space EXCLUDE_FROM_ALL experiments/search_quality_v2/space.cpp)
+target_link_libraries(tilemega-sq2-space PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-sq2-space PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
 option(TILEMEGA_BUILD_EXPERIMENTAL "Build historical experiment tools" OFF)
 if(TILEMEGA_BUILD_EXPERIMENTAL)
   add_executable(tilemega-flow-validation tools/experimental/tilemega-flow-validation.cpp)
