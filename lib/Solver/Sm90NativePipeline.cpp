@@ -551,6 +551,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   std::set<std::string> start_keys;
   std::set<std::string> protected_anchors;
   std::map<std::string,Sm90DenseCoordinates> measurement_anchors;
+  bool const diverse_ampere_finalists=ampere && options.finalists>=4 &&
+      !options.pinned_theta && !options.operator_sum && !options.retile_only && !options.realize_aggregate;
   if(options.measure_unpriced_anchors && !options.require_anchors)
     throw std::invalid_argument("measurement-only finalists require explicit SM80 anchors");
   if(options.require_anchors && (!ampere || seeds.empty() || options.pinned_theta ||
@@ -590,6 +592,8 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   }
   if(int(protected_anchors.size()+measurement_anchors.size())>options.finalists)
     throw std::invalid_argument("more required anchors than the finalist budget");
+  if(diverse_ampere_finalists && int(protected_anchors.size()+measurement_anchors.size())>options.finalists-2)
+    throw std::invalid_argument("the SM80 finalist budget must leave two slots for searched candidates");
   Sm90DenseSearchOptions additive;
   additive.top = 1;
   additive.allow_empty=ampere && !starts.empty();
@@ -811,9 +815,9 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
         auto ring=std::find_if(ranked.begin(),ranked.end(),[&](auto const& candidate) {
           return ring_keys.count(CoordinateKey(candidate.coordinates));
         });
-        if(options.finalists==2) {
-          // A two-arm budget leaves one comparison. Use the same PoolScore
-          // ordering for the calibrated body and ring alternatives.
+        if(options.finalists==2 || diverse_ampere_finalists) {
+          // Reserve room for searched candidates while still measuring the
+          // strongest calibrated neighbour of the incumbent.
           auto best=std::min(body,ring);
           if(best!=ranked.end())protected_anchors.insert(CoordinateKey(best->coordinates));
         }else {
@@ -839,13 +843,31 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
                    [](auto const& a, auto const& b) {return a.replay_ns < b.replay_ns;});
   std::map<std::string, int> taken;
   int priced_slots=options.finalists-int(measurement_anchors.size());
+  if(diverse_ampere_finalists)
+    for(auto const& [_,coordinate]:measurement_anchors)
+      ++taken[Sm90NativeStructuralClass(coordinate,true)];
   for(auto const& c:by_replay)if(protected_anchors.count(CoordinateKey(c.coordinates))) {
     ++taken[c.structural_class];
     result.finalists.push_back(c);
   }
+  auto present=[&](auto const& candidate) {
+    return std::any_of(result.finalists.begin(),result.finalists.end(),[&](auto const& finalist) {
+      return CoordinateKey(finalist.coordinates)==CoordinateKey(candidate.coordinates);
+    });
+  };
+  if(diverse_ampere_finalists && taken.size()==1 && int(result.finalists.size())<priced_slots) {
+    auto distinct=std::find_if(by_replay.begin(),by_replay.end(),[&](auto const& candidate) {
+      return !taken.count(candidate.structural_class);
+    });
+    if(distinct!=by_replay.end()) {
+      ++taken[distinct->structural_class];
+      result.finalists.push_back(*distinct);
+    }
+  }
   for (auto const& candidate : by_replay) {
     if (int(result.finalists.size()) >= priced_slots) break;
     if(protected_anchors.count(CoordinateKey(candidate.coordinates)))continue;
+    if(diverse_ampere_finalists && present(candidate))continue;
     if (taken[candidate.structural_class] >= options.per_class) continue;
     ++taken[candidate.structural_class];
     result.finalists.push_back(candidate);
@@ -853,10 +875,7 @@ Sm90NativePipelineResult SolveSm90NativePipeline(
   // Short of the quota, fill by replay time regardless of class.
   for (auto const& candidate : by_replay) {
     if (int(result.finalists.size()) >= priced_slots) break;
-    bool present = std::any_of(result.finalists.begin(), result.finalists.end(),
-        [&](auto const& f) {return CoordinateKey(f.coordinates) ==
-                                   CoordinateKey(candidate.coordinates);});
-    if (!present) result.finalists.push_back(candidate);
+    if (!present(candidate)) result.finalists.push_back(candidate);
   }
   std::stable_sort(result.finalists.begin(),result.finalists.end(),
                    [](auto const& a,auto const& b){return a.replay_ns<b.replay_ns;});
