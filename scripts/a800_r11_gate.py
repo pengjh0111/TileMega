@@ -47,6 +47,15 @@ def verify(path, *, job, model, batch, identity):
     if (c1['pass'] is not True or c1['positions'] != positions*batch
             or receipt['hf_positions'] != positions or not executor_agreement(c2)):
         raise ValueError('C1/C2 uses the wrong teacher-forced window or executor order')
+    if 'routing_proof_sha256' in receipt:
+        route_path = evidence/'routing.json'
+        route = read(route_path)
+        if (receipt['routing_proof_sha256'] != sha(route_path)
+                or receipt['router_indices_sha256'] != route['indices_sha256']
+                or receipt['routing_export_sha256'] != route['export_sha256']
+                or receipt['routing_trajectory_sha256'] != route['trajectory_sha256']
+                or receipt.get('routing_tokens_sha256', receipt['tokens_sha256']) != route['trajectory_sha256']):
+            raise ValueError('ordered routes lack their bound common token sequence')
     return dict(receipt=receipt, path=str(path), sha256=sha(path), pid=result['pid'],
                 gpu_uuid=receipt['device_uuid'], checkpoint_sha256=result['checkpoint']['checkpoint_sha256'],
                 config_sha256=result['model_config_sha256'], prompt_sha256=result['prompt_ids_sha256'])

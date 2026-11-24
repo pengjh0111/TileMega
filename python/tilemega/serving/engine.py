@@ -123,15 +123,15 @@ class ServingEngine:
             raise ValueError("requested mode is not in both plan libraries")
 
     def generate(self, prompt_ids: torch.Tensor, new_tokens: int | None = None,
-                 observe_decode=None) -> Generation:
+                 observe_decode=None, *, forced_tokens: torch.Tensor | None = None) -> Generation:
         if self.stream is not None and self.stream != torch.cuda.current_stream():
             self.stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(self.stream):
-                return self._generate(prompt_ids, new_tokens, observe_decode)
-        return self._generate(prompt_ids, new_tokens, observe_decode)
+                return self._generate(prompt_ids, new_tokens, observe_decode, forced_tokens)
+        return self._generate(prompt_ids, new_tokens, observe_decode, forced_tokens)
 
     def _generate(self, prompt_ids: torch.Tensor, new_tokens: int | None,
-                  observe_decode=None) -> Generation:
+                  observe_decode=None, forced_tokens: torch.Tensor | None = None) -> Generation:
         count = new_tokens or self.max_new_tokens
         if count < 1 or count > self.max_new_tokens:
             raise ValueError("token count outside allocated step ring")
@@ -152,6 +152,10 @@ class ServingEngine:
             getattr(self.decode_lib.lib, "tm_plan_launch_steps", None))
         if use_loop and observe_decode is not None:
             raise ValueError('per-step observers require individual decode launches')
+        if forced_tokens is not None:
+            if observe_decode is None or use_loop or tuple(forced_tokens.shape) != (self.batch, count):
+                raise ValueError('forced decode requires a complete trajectory and per-step observation')
+            forced_tokens = forced_tokens.to(device=self.state.tokens.device, dtype=torch.int32)
         boundaries = [torch.cuda.Event(enable_timing=True)
                       for _ in range(1 if use_loop or not self.step_events else count)]
         final = torch.cuda.Event(enable_timing=True)
@@ -181,6 +185,8 @@ class ServingEngine:
                                          self.decode_mode, stream.cuda_stream)
         else:
             for step in range(count - 1):
+                if forced_tokens is not None:
+                    self.state.tokens[:, self.prompt_len+step].copy_(forced_tokens[:, step])
                 self.decode.launch(offset + step, self.decode_mode, stream.cuda_stream)
                 if observe_decode is not None:
                     stream.synchronize()

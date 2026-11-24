@@ -63,10 +63,14 @@ def collect(runs, job, inputs):
             raise ValueError('numeric proof must use fresh processes')
         return observations
 
+    def bound_routes(proof):
+        row = proof['receipt']
+        return row['router_indices_sha256'], row['routing_trajectory_sha256'], row['routing_export_sha256']
+
     paired_routes = None
     if 'control' in checks:
         [proof] = verify_checks('control', control_id)
-        paired_routes = proof['receipt']['router_indices_sha256']
+        paired_routes = bound_routes(proof)
     for label in binding['order'][1:]:
         artifact = dict(decode_sha256=binding['variant_sha256'][label],
                         prefill_sha256=binding['shared_sha256'], target_sha256=binding['targets_sha256'][label])
@@ -74,8 +78,10 @@ def collect(runs, job, inputs):
         proofs = verify_checks(label, artifact)
         correct = len(proofs) == count
         sample = samples.get(label)
-        routes_match = None if paired_routes is None else bool(proofs) and all(
-            row['receipt']['router_indices_sha256'] == paired_routes for row in proofs)
+        routes_match = None
+        if label in binding.get('routing_arms', []):
+            routes_match = bool(proofs) and paired_routes is not None and all(
+                bound_routes(row) == paired_routes for row in proofs)
         passed = correct and routes_match is not False and label in comparisons['arms']
         output = dict(model=model, batch=batch, arm=label, job=str(job), pass_=passed,
                       hf_pass=correct, executor_agree=correct, router_indices_match=routes_match,

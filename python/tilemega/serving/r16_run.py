@@ -37,6 +37,8 @@ def main():
     parser.add_argument('--host-preparation-sha256')
     parser.add_argument('--private-stream', action='store_true')
     parser.add_argument('--routing-export', type=Path)
+    parser.add_argument('--routing-tokens', type=Path,
+                        help='replay the paired control trajectory for ordered routing observation')
     # Megatron tensor parallel: the plan is one rank's, run on every card of the
     # claimed group (CUDA_VISIBLE_DEVICES lists them; local devices 0..tp-1).
     parser.add_argument('--tp', type=int, choices=(1, 2, 4, 8), default=1)
@@ -61,6 +63,8 @@ def main():
     if args.routing_export and (args.tp != 1 or args.mode != 'L1' or not args.check_step_loop
                                 or not args.decode_loop or args.max_tokens < 2):
         parser.error('routing evidence belongs to the untimed single-rank step/loop check')
+    if args.routing_tokens and not args.routing_export:
+        parser.error('a fixed routing trajectory requires a routing export')
     args.load_format = 'auto'
     args.out.mkdir(parents=True, exist_ok=True)
     ids = json.loads(args.prompt_ids.read_text())
@@ -169,17 +173,25 @@ def main():
             loop = not bool(args.decode_loop)
             heartbeat('native_executor_check', mode='L1', loop=int(loop))
             current.decode_loop = loop
-            alternate = current.generate(frozen, args.max_tokens, observe_decode=observer)
+            alternate = current.generate(frozen, args.max_tokens,
+                                         observe_decode=observer if not args.routing_tokens else None)
             if alternate.decode_loop_used != loop:
                 raise ValueError('C-2 requested an unavailable decode-loop mode')
             compared = {bool(args.decode_loop): reference, loop: alternate.tokens.cpu()}
             if observer is not None:
+                if args.routing_tokens:
+                    trajectory = args.routing_tokens.read_bytes()
+                    forced = torch.tensor(json.loads(trajectory), dtype=torch.int32)
+                    current.generate(frozen, args.max_tokens, observe_decode=observer, forced_tokens=forced)
+                else:
+                    trajectory = (json.dumps(reference.tolist())+'\n').encode()
                 first = prompt_len if prefill is not None else prompt_len - 1
                 if observed != list(range(first, prompt_len + args.max_tokens - 1)):
                     raise ValueError('routing observation did not cover each native decode position')
                 (args.out/'routing.json').write_text(json.dumps(dict(
                     positions=len(observed), first_position=first, last_position=observed[-1],
                     layers=len(names), top_k=top, indices_sha256=route_hash.hexdigest(),
+                    trajectory_sha256=hashlib.sha256(trajectory).hexdigest(),
                     export_sha256=hashlib.sha256(args.routing_export.read_bytes()).hexdigest()))+'\n')
     # close() releases native contexts; Python still owns the full checkpoint.
     # Drop it before loading another executor or the separate HF reference.

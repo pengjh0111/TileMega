@@ -73,6 +73,7 @@ def main():
     parser.add_argument('--host-preparation', type=Path)
     parser.add_argument('--private-stream', action='store_true')
     parser.add_argument('--routing-export', type=Path)
+    parser.add_argument('--routing-tokens', type=Path)
     args = parser.parse_args()
 
     if not 0 < args.timeout_s + 111 < args.budget_s or args.round < 0:
@@ -86,6 +87,8 @@ def main():
     if args.routing_export and (args.stage != 'correctness' or args.model not in
                                 ('olmoe_1b_7b', 'qwen3_30b_a3b')):
         parser.error('routing evidence belongs to MoE correctness')
+    if args.routing_tokens and (not args.routing_export or not args.numeric_gate):
+        parser.error('fixed routing tokens require the R11 numeric gate and export')
     check_hf = args.stage == 'correctness' and (args.round == 0 or args.hf_reference or args.numeric_gate)
     diagnostic = args.stage == 'diagnose'
     tuning = args.stage in ('tune-prefill', 'tune-decode')
@@ -131,6 +134,9 @@ def main():
     if args.routing_export:
         args.routing_export = args.routing_export.resolve(strict=True)
         identity['routing_export_sha256'] = sha(args.routing_export)
+    if args.routing_tokens:
+        args.routing_tokens = args.routing_tokens.resolve(strict=True)
+        identity['routing_tokens_sha256'] = sha(args.routing_tokens)
     if args.host_preparation:
         args.host_preparation = args.host_preparation.resolve(strict=True)
     artifact_key = hashlib.sha256(json.dumps(
@@ -219,6 +225,8 @@ def main():
             child.extend(('--check-executors', '--check-advertised-executors'))
         if args.routing_export:
             child.extend(('--routing-export', str(args.routing_export)))
+        if args.routing_tokens:
+            child.extend(('--routing-tokens', str(args.routing_tokens)))
         if check_hf:
             child.extend(('--hf-check', '--hf-positions', str(hf_positions)))
     if args.sanitizer:
@@ -284,9 +292,13 @@ def main():
                             hf_proof_sha256=sha(c1_path))
         if args.routing_export:
             routes = json.loads((evidence/'routing.json').read_text())
-            if routes['export_sha256'] != identity['routing_export_sha256']:
-                raise ValueError('routing evidence changed its model export')
+            route_inputs = (sha(args.routing_tokens) if args.routing_tokens else sha(evidence/'reference_tokens.json'))
+            if (routes['export_sha256'] != identity['routing_export_sha256']
+                    or routes['trajectory_sha256'] != route_inputs):
+                raise ValueError('routing evidence changed its model export or trajectory')
             identity['router_indices_sha256'] = routes['indices_sha256']
+            identity['routing_trajectory_sha256'] = routes['trajectory_sha256']
+            identity['routing_proof_sha256'] = sha(evidence/'routing.json')
     write_json(receipt, dict(identity, **{'pass': True}, job=os.environ['SLURM_JOB_ID'], hf_pass=hf_pass,
                process_receipt_sha256=sha(measurement) if measurement.is_file() else sha(evidence/'reference_tokens.json'),
                device=dev, device_uuid=dev['uuid'],

@@ -41,6 +41,8 @@ def main():
     parser.add_argument('--private-stream', action='store_true')
     parser.add_argument('--routing-export', type=Path,
                         help='verify identical MoE routes before measuring fixed router coordinates')
+    parser.add_argument('--routing-arm', action='append', default=[],
+                        help='verify ordered routes for this named R11 arm using the control trajectory')
     shared = parser.add_mutually_exclusive_group(required=True)
     shared.add_argument('--decode', type=Path)
     shared.add_argument('--prefill', type=Path)
@@ -83,6 +85,10 @@ def main():
     if args.routing_export and (phase != 'decode' or args.formal_trial or
                                 args.model not in ('olmoe_1b_7b', 'qwen3_30b_a3b')):
         parser.error('route bit comparison is a fixed MoE decode experiment')
+    if args.routing_arm and (not args.numeric_gate or not args.routing_export
+                            or not set(args.routing_arm) <= variants.keys()-{'control'}):
+        parser.error('routing-arm requires the numeric gate, export, and declared trial labels')
+    route_arms = {'control', *(args.routing_arm or (variants.keys()-{'control'}))} if args.routing_export else set()
     options = ['--model', args.model, '--batch', str(args.batch),
                f'--{shared_phase}', str(shared_library),
                '--timeout-s', str(args.process_timeout_s)]
@@ -115,7 +121,7 @@ def main():
         if not args.numeric_gate or not equal or label not in preparations or preparations[label]:
             parser.error('provide one host preparation for a declared numeric-gate arm')
         preparations[label] = ['--host-preparation',str(Path(path).resolve(strict=True))]
-    def correctness(index, budget, run, teacher_forced, label='trial'):
+    def correctness(index, budget, run, teacher_forced, label='trial', route_tokens=None):
         command = [*runner, 'run' if run else 'plan', *options, '--stage', 'correctness',
                    '--round', str(index), '--decode', str(variants[label]),
                    '--target', str(targets[label]), '--budget-s', str(budget), *preparations[label]]
@@ -123,8 +129,10 @@ def main():
             command.append('--hf-reference')
         if args.numeric_gate:
             command.append('--numeric-gate')
-        if args.routing_export:
+        if label in route_arms:
             command.extend(('--routing-export', str(args.routing_export.resolve(strict=True))))
+        if route_tokens:
+            command.extend(('--routing-tokens', str(route_tokens)))
         subprocess.run(command, check=True, timeout=budget)
 
     if args.mode == 'plan':
@@ -170,6 +178,8 @@ def main():
         target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()})
     if args.numeric_gate:
         plan.update(numeric_gate='sm90-c1-c2-v1', correctness_processes=5 if args.fresh_correctness else 1)
+        if route_arms:
+            plan.update(routing_arms=sorted(route_arms), routing_export_sha256=sha(args.routing_export))
     write_json(out/'planned.json', plan)
     rounds = []
     rejected = {}
@@ -179,6 +189,7 @@ def main():
         from a800_r11_gate import INVARIANTS, verify
 
         expected_routes = None
+        routing_tokens = None
         for position,label in enumerate(order):
             if label == 'control' and not args.routing_export:
                 continue
@@ -187,15 +198,18 @@ def main():
             for offset in range(count):
                 repeat = job*128+32+position*5+offset
                 try:
-                    correctness(repeat,max(1,int(deadline-time.monotonic())),True,True,label)
+                    trajectory = routing_tokens if label in route_arms else None
+                    correctness(repeat,max(1,int(deadline-time.monotonic())),True,True,label,trajectory)
                     [path] = list((RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/correctness-{repeat}.json'))
                     proof = verify(path,job=job,model=args.model,batch=args.batch,identity={
                         'decode_sha256': libraries[label], 'prefill_sha256': plan['shared_sha256'],
                         'target_sha256': plan['targets_sha256'][label]})
-                    if args.routing_export:
-                        actual = proof['receipt']['router_indices_sha256']
+                    if label in route_arms:
+                        route = proof['receipt']
+                        actual = route['router_indices_sha256'], route['routing_trajectory_sha256']
                         if label == 'control':
                             expected_routes = actual
+                            routing_tokens = Path(route['evidence'])/'reference_tokens.json'
                         elif actual != expected_routes:
                             raise ValueError('router trial changed ordered expert indices')
                     proofs.append(proof)
