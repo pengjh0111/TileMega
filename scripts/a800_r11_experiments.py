@@ -119,6 +119,8 @@ def mainloop(base):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('experiment', choices=('boundary', 'qwen', 'mainloop'))
+    parser.add_argument('--only', action='append', default=[], metavar='ARM',
+                        help='link selected arms when supplementing an existing comparison')
     for name in ('control', 'target', 'cli', 'out'):
         parser.add_argument(f'--{name}', type=Path, required=True)
     args = parser.parse_args()
@@ -144,6 +146,8 @@ def main():
     packing_prefix = () if control['prefill'] == 'prompt' else (Path(control['prefill']),)
     arms, failures = [], {}
     for name, coordinates in candidates:
+        if args.only and name not in args.only:
+            continue
         if coordinates == base:
             continue
         try:
