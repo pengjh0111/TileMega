@@ -86,14 +86,8 @@ def rank_result(prepared, runs, job, inputs):
     return output, identity, differences
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--ledger', type=Path, required=True)
-    args = parser.parse_args()
-    cells = read(args.ledger)['cells']
+def summarize(cells, out, inputs):
     coverage, counts, ranks, bias = [], [], [], defaultdict(list)
-    inputs = inspect_inputs(INVENTORY) if any(cell.get('job') for cell in cells) else None
     for cell in cells:
         old, new = (audit(Path(cell[f'{round}_coverage']), cell.get(f'{round}_coordinates'))
                     for round in ('r10', 'r11'))
@@ -105,17 +99,32 @@ def main():
             counts.append(count)
             for key, values in deviations.items():
                 bias[key].extend(values)
-    args.out.mkdir(parents=True, exist_ok=True)
-    write_csv(args.out/'A800_R11_coverage.csv', coverage)
-    print(f'{sum(row["modeled_services_count"] == 0 for row in coverage)}/{len(coverage)} cells with no modeled services')
+    out.mkdir(parents=True, exist_ok=True)
+    if coverage:
+        write_csv(out/'A800_R11_coverage.csv', coverage)
     if ranks:
         worst = sorted(bias, key=lambda axis: statistics.median(bias[axis]), reverse=True)[:3]
         for row in ranks:
             if row['rank'] == 1:
                 row['deviations'] = ' | '.join(f'{axis}: {statistics.median(bias[axis]):.4f} log ratio ({len(bias[axis])} pairs)'
                                                for axis in worst)
-        write_csv(args.out/'A800_R11_rank.csv', ranks)
-        write_csv(args.out/'A800_R11_candidates.csv', counts)
+        write_csv(out/'A800_R11_rank.csv', ranks)
+        write_csv(out/'A800_R11_candidates.csv', counts)
+    return dict(coverage_cells=len(coverage), no_modeled_services=sum(row['modeled_services_count']==0 for row in coverage),
+                rank_cells=len(counts), rank1_hits=sum(row['rank1_hit'] is True for row in ranks),
+                four_diverse_finalists=sum(row['finalists']==4 and row['distinct_structural_classes']>=2
+                                           and row['new_candidates_measured']>=2 for row in counts))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--ledger', type=Path, required=True)
+    args = parser.parse_args()
+    cells = read(args.ledger)['cells']
+    inputs = inspect_inputs(INVENTORY) if any(cell.get('job') for cell in cells) else None
+    summary = summarize(cells, args.out, inputs)
+    print(f'{summary["no_modeled_services"]}/{summary["coverage_cells"]} cells with no modeled services')
 
 
 if __name__ == '__main__':

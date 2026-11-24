@@ -110,6 +110,7 @@ def collect(runs, scope, timings, out):
                     saved_ns_per_boundary=before['critical_barrier_ns']-after['critical_barrier_ns'],
                     predicted_saving_ns=320, tpot_ms=performance.get('tpot_ms',''),
                     paired_improvement_pct=performance.get('improvement_pct',''),
+                    fresh_pass_rate=performance.get('pass_rate',''),
                     outcome=performance.get('status',''), evidence=after['trace_sha256'], **values))
     out.mkdir(parents=True, exist_ok=True)
     for name, rows in tables.items():
