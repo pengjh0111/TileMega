@@ -228,6 +228,7 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   key += "res" + std::to_string(c.residency);
   key += "/cl" + std::to_string(c.cluster);
   key += c.group_wait ? "/gw1" : "/gw0";
+  if(c.task_group_wait)key += "/task_group_wait";
   key += c.embed_la ? "/la1" : "/la0";
   key += c.argmax_stage ? "/argstage" : "/argla";
   if(c.moe)key+=std::string("/route-")+c.RouteName();
@@ -247,6 +248,8 @@ std::string Sm90NativeStructuralClass(Sm90DenseCoordinates const& c,bool ampere)
   if(c.expert_slot_padding)key += "/slot_padding";
   if(c.wide_producer)key += "/wide_producer";
   if(c.multistage)key += "/multistage";
+  if(c.multistage_single_join)key += "/single_join";
+  if(c.l2_weight_preissue)key += "/l2_weight_preissue";
   if(c.HasSplitK())for(unsigned f:c.Active())
     if(c.gemms[f].split_k>1)
       key += "/split"+std::to_string(f)+"_"+std::to_string(c.gemms[f].split_k);

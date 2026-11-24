@@ -24,18 +24,31 @@ struct Sm80CpAsyncMainloop {
       issue(iteration%Slots,iteration);
       asm volatile("cp.async.commit_group;":::"memory");
     };
-    for(int i=0;i<Slots-1 && i<iterations;++i)enqueue(i);
+#if defined(TILEMEGA_SM80_MULTISTAGE_SINGLE_JOIN)
+    // With one fewer pending group, the slot written at iteration i was
+    // last read at i-2. The preceding CTA join has retired all those reads.
+    constexpr int ahead=Slots-2;
+#else
+    constexpr int ahead=Slots-1;
+#endif
+    for(int i=0;i<ahead && i<iterations;++i)enqueue(i);
     for(int i=0;i<iterations;++i) {
-      if(i+Slots-1<iterations)enqueue(i+Slots-1);
+      if(i+ahead<iterations)enqueue(i+ahead);
       observe(true);
-      Wait<Slots-1>(iterations-i-1);
+      Wait<ahead>(iterations-i-1);
       // A warp's wait retires only its own copies, while each MMA can read
       // operands supplied by every warp. Join before reading and reusing a slot.
       __syncthreads();
       observe(false);
       consume(i%Slots,i);
+#if !defined(TILEMEGA_SM80_MULTISTAGE_SINGLE_JOIN)
       __syncthreads();
+#endif
     }
+#if defined(TILEMEGA_SM80_MULTISTAGE_SINGLE_JOIN)
+    // The epilogue and the next task can reuse the current operand arena.
+    __syncthreads();
+#endif
   }
 };
 

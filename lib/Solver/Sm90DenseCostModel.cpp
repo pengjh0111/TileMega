@@ -123,7 +123,8 @@ std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
   if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast || g.split_k>1 ||
-     (coordinates && (coordinates->weight_stream || coordinates->wide_producer)))return std::nullopt;
+     (coordinates && (coordinates->weight_stream || coordinates->wide_producer ||
+                      coordinates->multistage_single_join)))return std::nullopt;
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   bool gate=family==2;
   int u=gate?(coordinates?coordinates->swiglu_u:Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)):16;

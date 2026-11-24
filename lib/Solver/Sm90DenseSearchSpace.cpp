@@ -49,6 +49,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   // releases only the groups this CTA's own qkv tiles wrote, so the attention
   // would read groups another CTA has not finished writing.
   if(c.group_wait && qk_norm_row)return false;
+  if((c.task_group_wait || c.l2_weight_preissue) && (!ampere || tp!=1))return false;
   // Unfused experts read a schedule published by global routing.
   if(c.moe && !c.expert_fuse && !c.GlobalRoute())return false;
   // The declared degree and the coordinate's must agree, and a whole-row norm

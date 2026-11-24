@@ -181,6 +181,7 @@ struct Gemm {
 #ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
   static constexpr bool kL2WeightPrefetch=CpAsync;
   static constexpr int kWeightTaskElements=K*TN,kWeightTileElements=TK*TN;
+  static constexpr int kWeightTasks=(N+TN-1)/TN;
 #endif
   template<int Bytes>
   static constexpr auto Payload() {
@@ -246,6 +247,9 @@ template<int Batch,int Hkv,int D,int Q,int Norm,int Chunks,int Keys,int Slots,in
          bool Dsmem=false,bool StageMerge=false,bool CpAsync=false>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
+#ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
+  static constexpr bool kL2WeightPrefetch=CpAsync;
+#endif
   // A1 (RC1): mode 2 normalizes the whole projected row, so Prepare reads
   // every KV group of its token rather than only this task's group.
   static constexpr bool kRowNorm=Norm==2;
@@ -648,7 +652,7 @@ template<class Stage> inline constexpr bool
     kWideProducerStage<Stage,std::void_t<decltype(Stage::kWideProducer)>> =Stage::kWideProducer;
 #endif
 
-// GroupTiles > 0 (D8, qkv only): the boundary after this stage releases
+// GroupTiles > 0 (D8): the boundary after this stage releases
 // each computed tile's KV group (GroupTiles tiles per group) instead of the
 // grid barrier, and the attention stage after it acquires only its groups.
 template<class Stage,int Offset=0,int Prefix=0,int GroupTiles=0>
@@ -656,6 +660,7 @@ struct Placement:Stage {
   static_assert(Offset>=0 && Offset%1024==0 && Prefix>=0 && Prefix%16==0 &&
       Prefix<=Stage::kMaxPreissue && GroupTiles>=0 && (!GroupTiles || Stage::kTasks%GroupTiles==0));
   static constexpr int kOffset=Offset,kPrefix=Prefix,kGroupTiles=GroupTiles;
+  static constexpr bool kWholeOutput=false;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
@@ -670,10 +675,21 @@ struct Placement:Stage {
   }
 };
 
+// One output group retains the aggregate data dependence while excluding CTAs
+// that own no output tile from the arrival count.
+template<class Stage,int Offset,int Prefix>
+struct WholeOutputPlacement:Placement<Stage,Offset,Prefix,Stage::kTasks> {
+  static_assert(Stage::kTasks>0);
+  static constexpr bool kWholeOutput=true;
+};
+
 #ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
 template<class Stage,class=void> inline constexpr bool kL2WeightPrefetch=false;
 template<class Stage> inline constexpr bool
     kL2WeightPrefetch<Stage,std::void_t<decltype(Stage::kL2WeightPrefetch)>> =Stage::kL2WeightPrefetch;
+template<class Stage,class=void> inline constexpr bool kL2WeightSource=false;
+template<class Stage> inline constexpr bool
+    kL2WeightSource<Stage,std::void_t<decltype(Stage::kWeightTasks)>> =Stage::kL2WeightPrefetch;
 
 template<class Stage>
 struct L2WeightTail {
@@ -682,7 +698,7 @@ struct L2WeightTail {
     // At most the first 4 KiB of the next CTA task's first tile. This cache
     // hint carries no shared-memory address or ring-arrival responsibility.
     int offset=(threadIdx.x&31)*64;
-    if(blockIdx.x<Stage::kTasks && offset<Stage::kWeightTileElements)
+    if(threadIdx.x<160 && blockIdx.x<Stage::kWeightTasks && offset<Stage::kWeightTileElements)
       executor::Async<arch::Sm80>::Prefetch(
           weight+std::size_t(blockIdx.x)*Stage::kWeightTaskElements+offset,128);
   }
@@ -703,7 +719,7 @@ struct ProducerTail {
   backend::Sm90DenseRingState& next;
   __device__ __forceinline__ auto Raw() const {
 #ifdef TILEMEGA_SM80_DENSE_L2_PREFETCH
-    if constexpr(!Next::kPrefix && kL2WeightPrefetch<Current> && kL2WeightPrefetch<Next>)
+    if constexpr(!Next::kPrefix && kL2WeightPrefetch<Current> && kL2WeightSource<Next>)
       return L2WeightTail<Next>{Next::Sources(binding,layer).weight};
     else
 #endif
@@ -766,12 +782,13 @@ struct Program {
   static constexpr unsigned kGroup=Group::kSize,kPerGroup=Group::kLayers,kPerLayer=kGroup/kPerGroup;
   static constexpr unsigned kStages=2+kPerLayer*Layers+unsigned(kPostHead),kHead=1+kPerLayer*Layers;
   // D8: one monotonic counter per KV group follows the boundary counters.
-  static constexpr unsigned kGroupCounters=GroupStage<0>::kGroupTiles?
+  static constexpr unsigned kGroupCounters=GroupStage<0>::kGroupTiles && !GroupStage<0>::kWholeOutput?
       unsigned(GroupStage<0>::kTasks/GroupStage<0>::kGroupTiles):0u;
   static constexpr unsigned kCounters=kStages+kGroupCounters;
   template<unsigned... J>
   static constexpr bool SameGroupWait(std::integer_sequence<unsigned,J...>) {
-    return ((J%kPerLayer || GroupStage<J>::kGroupTiles==GroupStage<0>::kGroupTiles) && ...);
+    return ((J%kPerLayer || (GroupStage<J>::kGroupTiles==GroupStage<0>::kGroupTiles &&
+        GroupStage<J>::kWholeOutput==GroupStage<0>::kWholeOutput)) && ...);
   }
   static_assert(SameGroupWait(std::make_integer_sequence<unsigned,kGroup>{}),
       "every layer's qkv waits by the same KV-group tiles");
@@ -967,7 +984,11 @@ struct Program {
 #if TILEMEGA_SM80_FUSED_NEIGHBOR_TRACE
         trace_stage &&
 #endif
-        trace.stages && trace.slots?
+        trace.stages && trace.slots
+#if defined(TILEMEGA_SM80_STAGE_TRACE_SAMPLE_PERIOD)
+        && iteration%TILEMEGA_SM80_STAGE_TRACE_SAMPLE_PERIOD==TILEMEGA_SM80_STAGE_TRACE_SAMPLE_PERIOD-1
+#endif
+        ?
         trace.stages+(iteration%trace.slots)*kStages*gridDim.x+g*gridDim.x+blockIdx.x:nullptr;
     if(threadIdx.x==0 && record) {
       unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
@@ -1051,7 +1072,20 @@ struct Program {
       if constexpr(Next::kUsesOperandRecord)
         Next::PublishOperands(b,next_layer,past,epsilon,
             backend::Sm90DenseOperandHeader::Bank(shared,NextParity),iteration);
-      if constexpr(Body::kGroupTiles>0) {
+      if constexpr(Body::kWholeOutput) {
+        // All output tiles feed the successor, including whole-row Q/K
+        // normalization. Each writer publishes after its CTA has joined.
+        constexpr unsigned tiles=Body::kGroupTiles;
+        unsigned produced=tiles/gridDim.x+(blockIdx.x<tiles%gridDim.x);
+        auto* counter=&events[g].arrivals;
+        if(produced)
+          asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),
+              "l"(static_cast<unsigned long long>(produced)):"memory");
+        auto target=(iteration+1)*tiles;
+        unsigned long long seen;
+        do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
+        while(seen<target);
+      }else if constexpr(Body::kGroupTiles>0) {
         // D8 (prompt §7): this CTA's qkv tiles release their KV groups; its
         // attention tasks wait only for their own group's tiles of this
         // layer. The boundary after attention stays a grid barrier.

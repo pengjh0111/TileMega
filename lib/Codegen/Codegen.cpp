@@ -2045,6 +2045,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     throw std::invalid_argument("compact attention workspace requires SM80");
   if((c.multistage || c.HasSplitK()) && !cp_async)
     throw std::invalid_argument("cooperative and split-K mainloops require SM80");
+  if(c.task_group_wait && !cp_async)
+    throw std::invalid_argument("whole-output task groups require SM80");
+  if(c.l2_weight_preissue && !cp_async)
+    throw std::invalid_argument("native L2 weight preissue requires SM80");
   if((c.weight_evict_first || c.persist_l2_eighths) && !cp_async)
     throw std::invalid_argument("native L2 policy options require SM80");
   if(c.copy_issue_group && !cp_async)
@@ -2209,6 +2213,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      // program's generated source stays byte identical.
      <<(c.moe?"#define TILEMEGA_NATIVE_WEIGHT_EVICT_FIRST 1\n":"")
      <<(c.multistage?"#define TILEMEGA_SM80_MULTISTAGE 1\n":"")
+     <<(c.multistage_single_join?"#define TILEMEGA_SM80_MULTISTAGE_SINGLE_JOIN 1\n":"")
+     <<(c.l2_weight_preissue?"#define TILEMEGA_SM80_DENSE_L2_PREFETCH 1\n":"")
      <<(c.HasSplitK()?"#define TILEMEGA_SM80_SPLIT_K 1\n":"")
      <<(c.weight_evict_first?"#define TILEMEGA_SM80_WEIGHT_EVICT_FIRST 1\n":"")
      <<(c.persist_l2_eighths?"#define TILEMEGA_SM80_PERSIST_L2_EIGHTHS "+
@@ -2708,7 +2714,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         throw std::invalid_argument("native whole-row QK norm cannot follow a group-waiting qkv");
       group_tiles=int(group_columns)/tn;
     }
-    types<<"using Stage_"<<n<<"=Placement<Body_"<<n<<','<<(e.full || c.reuse_payload?0:(n%2)*arena)<<','<<prefix;
+    bool whole_output=c.task_group_wait && n>=1 && n<=group_size &&
+        (e.family==1 || e.family==3 || (e.family==0 && row_norm_attention));
+    if(whole_output && (!cp_async || tp!=1 || group_tiles))
+      throw std::invalid_argument("whole-output groups require an aggregate SM80 TP1 tile boundary");
+    types<<"using Stage_"<<n<<'='<<(whole_output?"WholeOutputPlacement":"Placement")<<"<Body_"<<n<<','
+         <<(e.full || c.reuse_payload?0:(n%2)*arena)<<','<<prefix;
     if(group_tiles)types<<','<<group_tiles;
     types<<">;\n";
   }
