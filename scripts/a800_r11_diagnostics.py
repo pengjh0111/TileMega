@@ -73,6 +73,8 @@ def measurements(runs, job, spec):
 def collect(runs, scope, timings, out):
     tables, retry = defaultdict(list), []
     for job, spec in trace_cases(scope):
+        if spec.get('scope')=='final-release':
+            continue
         key = spec['model'], spec['batch']
         arms, roles, rejected = measurements(runs, job, spec)
         retry.extend(dict(job=job, model=key[0], batch=key[1], arm=arm, reason=reason)

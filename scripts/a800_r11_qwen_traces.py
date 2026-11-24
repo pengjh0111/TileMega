@@ -30,7 +30,7 @@ def selected_arms(candidates, facts):
     return list(families.values())
 
 
-def prepare_trace(root, lock, folder, anchor):
+def prepare_trace(root, lock, folder, anchor, kind='overlap'):
     binding = folder/'anchor.json'
     folder.mkdir(parents=True, exist_ok=True)
     if binding.exists() and read(binding) != anchor:
@@ -39,16 +39,18 @@ def prepare_trace(root, lock, folder, anchor):
         write_json(binding, anchor)
     trace = folder/'trace.plan.json'
     if not trace.exists():
+        probe = ['--release-ledger', '--reuse-exact-control'] if kind == 'release' else ['--stage-overlap']
         subprocess.run([sys.executable, str(root/'scripts/a800_r9_fused_trace.py'), 'prepare',
-                        '--anchor', str(binding), '--out', str(folder), '--stage-overlap',
+                        '--anchor', str(binding), '--out', str(folder), *probe,
                         '--build-lock', str(lock)], cwd=root, check=True, timeout=1400)
     payload = read(trace)
     if (payload['original_sha256'] != anchor['decode_sha256']
-            or payload['target_sha256'] != anchor['target_sha256']):
+            or payload['target_sha256'] != anchor['target_sha256'] or payload['trace_kind'] != kind):
         raise ValueError('trace artifacts do not match their timing provenance')
     args = ['--model', anchor['model'], '--batch', str(anchor['batch']), '--prefill', anchor['prefill'],
             '--reference', payload['arms']['control']['path'], '--trace', payload['arms']['trace']['path'],
-            '--target', anchor['target'], '--timeout-s', '1080', '--independent-arms',
+            '--target', anchor['target'], '--timeout-s',
+            '1080' if anchor['model']=='qwen3_30b_a3b' else '570', '--independent-arms',
             '--expected-checkpoint-sha256', anchor['checkpoint_sha256'], '--run-label', folder.name]
     command = [sys.executable, str(root/'scripts/a800_trace_decode.py'), 'plan', *args]
     text = subprocess.check_output(command, cwd=root, timeout=110)
