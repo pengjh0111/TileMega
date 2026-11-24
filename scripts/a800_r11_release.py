@@ -85,7 +85,11 @@ def run(ledger, expected):
     if (spec['source'] != clean_head() or sha(spec['finalists']) != spec['finalists_sha256']
             or sha(spec['guard_inputs']) != spec['guard_inputs_sha256']):
         raise ValueError('the queued compiler artifacts or source changed')
-    return subprocess.run([sys.executable, str(PAIR), 'run', *spec['args']], cwd=ROOT,
+    command = [sys.executable, str(PAIR)]
+    planned = subprocess.check_output([*command, 'plan', *spec['args']], cwd=ROOT, timeout=180)
+    if planned != Path(spec['guard_inputs']).read_bytes():
+        raise ValueError('the live pair differs from the frozen receipt')
+    return subprocess.run([*command, 'run', *spec['args']], cwd=ROOT,
                           timeout=spec['budget_s']+20).returncode
 
 
