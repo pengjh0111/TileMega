@@ -21,7 +21,8 @@ def clean_head():
 def plan(folder, fresh_correctness):
     final = folder/'finalists.json'
     manifest = read(final)
-    if sha(manifest['control']) != manifest['control_sha256'] or sha(manifest['prepared']) != manifest['prepared_sha256']:
+    if (sha(manifest['control']) != manifest['control_sha256'] or sha(manifest['prepared']) != manifest['prepared_sha256']
+            or sha(manifest['target']) != manifest['target_sha256']):
         raise ValueError('the frozen control or shortlist changed')
     control = read(manifest['control'])
     model, batch = manifest['model'], manifest['batch']
@@ -47,6 +48,11 @@ def plan(folder, fresh_correctness):
         else:
             args.extend(('--additional-trial', f'rank-{rank}={binary}',
                          '--arm-preparation', f'rank-{rank}={row["host_preparation"]}'))
+        if row.get('target'):
+            label = 'trial' if rank == 1 else f'rank-{rank}'
+            if sha(row['target']) != row['target_sha256']:
+                raise ValueError('a finalist calibration changed after preparation')
+            args.extend(('--arm-target', f'{label}={row["target"]}'))
     route_arms = ['trial' if row['rank'] == 1 else f'rank-{row["rank"]}'
                   for row in candidates if row.get('route_check')]
     if route_arms:

@@ -49,6 +49,8 @@ def main():
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--trial-target', type=Path,
                         help='an updated calibration for the same physical hardware class')
+    parser.add_argument('--arm-target', action='append', default=[], metavar='LABEL=TARGET',
+                        help='bind a finalist built against a different A800 calibration')
     parser.add_argument('--formal-trial', action='store_true',
                         help='independently time a solver winner after five correctness processes')
     parser.add_argument('--fresh-correctness', action='store_true',
@@ -99,15 +101,25 @@ def main():
     stages = {'control': f'tune-{phase}',
               'trial': 'candidate-timing' if args.formal_trial else f'tune-{phase}'}
     stages.update((label, f'tune-{phase}') for label in variants if label not in stages)
-    targets = {label: args.target for label in variants}
-    if args.trial_target:
-        control, trial = (json.loads(target.read_text()) for target in (args.target,args.trial_target))
+    targets = {label: args.trial_target or args.target for label in variants}
+    targets['control'] = args.target
+    overrides = set()
+    for specification in args.arm_target:
+        label, equal, path = specification.partition('=')
+        if (not args.numeric_gate or not equal or label not in variants or label == 'control'
+                or not path or label in overrides):
+            parser.error('arm-target requires a unique declared numeric-gate trial')
+        targets[label] = Path(path)
+        overrides.add(label)
+    if set(targets.values()) != {args.target}:
+        control = json.loads(args.target.read_text())
         fields = ('name', 'memory_mib', 'capability', 'mig', 'driver')
-        if (control['arch_tag'] != trial['arch_tag'] or control['resources'] != trial['resources']
-                or any(control['device_provenance'][key] != trial['device_provenance'][key]
-                       for key in fields)):
-            parser.error('a paired trial must preserve the calibrated device class')
-        targets.update((label,args.trial_target) for label in variants if label!='control')
+        for target in set(targets.values()) - {args.target}:
+            trial = json.loads(target.read_text())
+            if (control['arch_tag'] != trial['arch_tag'] or control['resources'] != trial['resources']
+                    or any(control['device_provenance'][key] != trial['device_provenance'][key]
+                           for key in fields)):
+                parser.error('a paired trial must preserve the calibrated device class')
     libraries = {label: artifact(path)[1]['binary_sha256'] for label, path in variants.items()}
     if len(set(libraries.values())) != len(variants):
         parser.error('the variant libraries must be distinct')

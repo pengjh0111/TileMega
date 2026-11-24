@@ -85,7 +85,8 @@ def collect(runs, job, inputs):
         passed = correct and routes_match is not False and label in comparisons['arms']
         output = dict(model=model, batch=batch, arm=label, job=str(job), pass_=passed,
                       hf_pass=correct, executor_agree=correct, router_indices_match=routes_match,
-                      processes=count, passed_processes=len(proofs), gpu_uuid=control['gpu_uuid'],
+                      processes=count, passed_processes=len(proofs), pass_rate=f'{len(proofs)}/{count}',
+                      gpu_uuid=control['gpu_uuid'],
                       tpot_ms='', control_tpot_ms=control_raw['tpot_ms'], improvement_pct='',
                       status='rejected', decode_sha256=artifact['decode_sha256'], evidence=sha(folder/'result.json'))
         output['pass'] = output.pop('pass_')
