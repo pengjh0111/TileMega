@@ -47,6 +47,12 @@ def plan(folder, fresh_correctness):
         else:
             args.extend(('--additional-trial', f'rank-{rank}={binary}',
                          '--arm-preparation', f'rank-{rank}={row["host_preparation"]}'))
+    route_arms = ['trial' if row['rank'] == 1 else f'rank-{row["rank"]}'
+                  for row in candidates if row.get('route_check')]
+    if route_arms:
+        args.extend(('--routing-export', manifest['routing_export']))
+        for label in route_arms:
+            args.extend(('--routing-arm', label))
     head = clean_head()
     proof = subprocess.check_output([sys.executable, str(PAIR), 'plan', *args], cwd=ROOT, text=True, timeout=180)
     guard_plan = folder/'guard-inputs.jsonl'

@@ -33,7 +33,7 @@ def prepare(args):
             or sha(sidecar(original, '.cu')) != identity['generated_source_sha256']
             or sha(sidecar(original, '.plan.json')) != identity['manifest_sha256']
             or identity['nvcc_arch'] != 'sm_80' or identity['trace']
-            or (not args.release_ledger and not plan['native_dense']['expert_fuse'])):
+            or (not args.release_ledger and not args.stage_overlap and not plan['native_dense']['expert_fuse'])):
         raise ValueError('expected a frozen SM80 decode artifact compatible with the trace')
     recorded = shlex.split(sidecar(original, '.build_command.txt').read_text())
     if '--split-compile' in recorded:
@@ -75,6 +75,9 @@ def prepare(args):
                                  limits['max_smem_per_sm']//plan['native_dense']['residency'])
                     command[1:1] = ['-DTILEMEGA_TRACE_NATIVE_RELEASE=1',
                                     f'-DTILEMEGA_NATIVE_RELEASE_SHARED_BUDGET={budget}']
+                elif args.stage_overlap:
+                    command[1:1] = ['-DTILEMEGA_TRACE_STAGE=1', '-DTILEMEGA_TRACE_STEP=1',
+                                    '-DTILEMEGA_SM80_STAGE_TRACE_SAMPLE_PERIOD=4']
                 else:
                     command[1:1] = ['-DTILEMEGA_TRACE_STAGE=2', '-DTILEMEGA_TRACE_STEP=1',
                                     '-DTILEMEGA_SM80_FUSED_PHASE_TRACE=1',
@@ -111,7 +114,7 @@ def prepare(args):
         model=anchor['model'], batch=anchor['batch'], prefill=anchor['prefill'],
         target=anchor['artifact_target'], target_sha256=anchor['target_sha256'],
         original_sha256=anchor['decode_sha256'], grid=plan['grid'], arms=arms,
-        trace_kind='release' if args.release_ledger else 'fused'))
+        trace_kind='release' if args.release_ledger else 'overlap' if args.stage_overlap else 'fused'))
 
 
 def accepted_trace(args):
@@ -313,7 +316,10 @@ def main():
     modes = p.add_subparsers(dest='mode', required=True)
     make = modes.add_parser('prepare')
     make.add_argument('--anchor', required=True, type=Path)
-    make.add_argument('--release-ledger', action='store_true')
+    kind = make.add_mutually_exclusive_group()
+    kind.add_argument('--release-ledger', action='store_true')
+    kind.add_argument('--stage-overlap', action='store_true',
+                      help='sample all CTA intervals every fourth native decode iteration')
     make.add_argument('--reuse-exact-control', action='store_true')
     make.add_argument('--build-lock', type=Path, default=Path('/tmp/tilemega_sm90r2_native_build.lock'))
     make.add_argument('--out', required=True, type=Path)

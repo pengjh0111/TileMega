@@ -12,6 +12,13 @@ from a800_r11_gate import read
 from tilemega.bench.scheduler import write_json
 
 
+def router_changed(control, trial):
+    if control['model'] != 'moe':
+        return False
+    return ((control.get('route', 'local'), control['gemms']['router']) !=
+            (trial.get('route', 'local'), trial['gemms']['router']))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', choices=MODELS, required=True)
@@ -56,6 +63,7 @@ def main():
         raise ValueError('R11 requires four distinct pipeline finalists')
     if len({row['structure'] for row in finalists}) < 2:
         raise ValueError('R11 finalist pool needs two structural classes')
+    incumbent = manifest['native_dense']
     records = []
     for candidate, finalist in zip(linked, finalists):
         rank = candidate['rank']
@@ -71,17 +79,17 @@ def main():
             coordinates=finalist['coordinates'], predicted_ns=candidate['predicted_ns'],
             binary=str(binary), binary_sha256=proof['binary_sha256'],
             host_preparation=proof['host_preparation'],
-            host_preparation_sha256=proof['host_preparation_sha256']))
+            host_preparation_sha256=proof['host_preparation_sha256'],
+            route_check=router_changed(incumbent, finalist['coordinates'])))
     if len({row['binary_sha256'] for row in records}) != 4:
         raise ValueError('R11 requires four distinct linked candidates')
-    incumbent = manifest['native_dense']
     new = sum(row['coordinates'] != incumbent for row in records)
     if new < 2:
         raise ValueError('R11 requires at least two new searched candidates')
     result = dict(model=args.model, batch=args.batch, control=str(args.control.resolve()),
         control_sha256=scope['control'], target=str(args.target.resolve()), target_sha256=scope['target'],
         prepared=str(prepared), prepared_sha256=sha(prepared), new_candidates=new,
-        candidates=records, evaluated=receipt['evaluated'])
+        candidates=records, evaluated=receipt['evaluated'], routing_export=str(args.export.resolve()))
     binding = folder/'finalists.json'
     if binding.exists() and read(binding) != result:
         raise ValueError('retain the original finalist identities')
