@@ -18,6 +18,12 @@ def accepted(profile):
             'additional_observations')) + ('measurement' in profile)
 
 
+def observed_profiles(section):
+    if section is not None and 'profiles' in section:
+        return section['profiles']
+    return service_profiles(section)
+
+
 def rebuild(reference, observations, out):
     base_sha = sha(reference)
     current = read(reference)
@@ -30,7 +36,7 @@ def rebuild(reference, observations, out):
         sample = dict(table=table, job=observation['job'], binary_sha256='', gpu_uuid='',
                       profiles=0, measurements=0, max_perturbation_pct='', status='rejected', reason='')
         prior = current[CONSTANTS].get(table)
-        prior_count = len(service_profiles(prior)) if prior is not None else 0
+        prior_count = len(observed_profiles(prior))
         reported = []
         try:
             identity = read(binary.with_suffix('.identity.json'))
@@ -59,7 +65,7 @@ def rebuild(reference, observations, out):
                 updated[CONSTANTS][table] = collector(reference, run, binary)[CONSTANTS][table]
             else:
                 raise ValueError(f'unknown service table {table}')
-            new_profiles = service_profiles(updated[CONSTANTS][table])[prior_count:]
+            new_profiles = observed_profiles(updated[CONSTANTS][table])[prior_count:]
             notes = [f'{name}: {reason}' for profile in new_profiles
                      for name, reason in profile.get('rejected', {}).items()]
             notes.extend(f'compact d{item["dim"]}-q{item["queries"]}-norm{item["norm"]}: '
