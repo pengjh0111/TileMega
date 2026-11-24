@@ -31,6 +31,7 @@ struct NativeDenseSolveOptions {
   // AB-1: pin each family's geometry to a file of locally chosen theta.
   std::string pin_theta;
   std::string seed_coordinates;
+  std::string native_cost_table;
   double search_budget_ms=600000;
 };
 int SolveNativeDense(NativeDenseSolveOptions const&);

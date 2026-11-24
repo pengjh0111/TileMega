@@ -197,6 +197,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DenseSearchSpace.cpp
   lib/Solver/Sm90DenseCostModel.cpp
   lib/Solver/Sm90NativePrices.cpp
+  lib/Solver/Sm90NativeCostTable.cpp
   lib/Solver/Sm90NativeFlow.cpp
   lib/Solver/Sm90NativeCtg.cpp
   lib/Solver/Sm90NativeWriteback.cpp
@@ -1531,6 +1532,10 @@ set_target_properties(tilemega-native-domains PROPERTIES RUNTIME_OUTPUT_DIRECTOR
 add_executable(tilemega-sq2-space EXCLUDE_FROM_ALL experiments/search_quality_v2/space.cpp)
 target_link_libraries(tilemega-sq2-space PRIVATE TileMega::tilemega)
 set_target_properties(tilemega-sq2-space PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
+
+add_executable(tilemega-sq2-check-cost EXCLUDE_FROM_ALL experiments/search_quality_v2/check_cost_table.cpp)
+target_link_libraries(tilemega-sq2-check-cost PRIVATE TileMega::tilemega)
+set_target_properties(tilemega-sq2-check-cost PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 
 option(TILEMEGA_BUILD_EXPERIMENTAL "Build historical experiment tools" OFF)
 if(TILEMEGA_BUILD_EXPERIMENTAL)

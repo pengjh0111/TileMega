@@ -258,7 +258,10 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   // them a changed header is reported, never a reason to refuse the solve.
   json::Array stale;
   for(auto const& header:constants.StaleHeaders(TILEMEGA_SOURCE_DIR))stale.emplace_back(header);
-  solver::Sm90DenseCostModel cost(target,constants);
+  if (!o.native_cost_table.empty() && !stale.empty())
+    throw std::invalid_argument("stage cost table requires current target task-body hashes");
+  auto cost_table_sha=o.native_cost_table.empty()?std::string{}:Hash(o.native_cost_table);
+  solver::Sm90DenseCostModel cost(target,constants,o.native_cost_table);
   auto bridge=frontend::ReadExportBridge(o.input);
   // Native plans (consumer RMS) are the only ones with native MoE layers.
   CheckManifestTp(o.input,o.tp);
@@ -402,6 +405,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
         {"search_ms",result.elapsed_ms},{"evaluated",double(result.evaluated)},
         {"ranked",ranked},{"candidates",candidates},{"measurement",measurement},{"winner",winner},
         {"pipeline",pipeline_record}};
+    if (!cost_table_sha.empty()) receipt.Set("native_cost_table_sha256", cost_table_sha);
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   save();
@@ -512,7 +516,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
            Hash(candidates[winner].At("binary").AsString("binary")))
       throw std::runtime_error("P-SEL result does not name a compiled candidate");
   }
-  if(Hash(o.target)!=target_sha || Hash(o.input)!=input_sha)
+  if(Hash(o.target)!=target_sha || Hash(o.input)!=input_sha ||
+     (!cost_table_sha.empty() && Hash(o.native_cost_table)!=cost_table_sha))
     throw std::runtime_error("native search inputs changed during selection");
   auto selected=fs::path(requested.string()+".tmexec.json");
   fs::copy_file(configs[winner],selected);

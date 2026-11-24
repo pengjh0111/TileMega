@@ -304,6 +304,7 @@ int RunCompile(int argc, char** argv) {
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --prompt-len N --capacity N --past-range LO:HI\n"
                  " --seed-arch legacy|native\n"
+                 " --native-cost-table FILE.json (native dense solve, SQ2)\n"
                  " --forward-seed-tile M64N128K64S2 (native DNN/prefill seed)\n"
                  " --forward-geometry FILE.json (complete indexed native DNN seed)\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
@@ -370,6 +371,7 @@ int RunCompile(int argc, char** argv) {
         search_budget_ms=0,measure_top=6;
   // Continuation 1 sections 3 and 5: the search path and the ablation arms.
   std::string native_search="pipeline",native_analysis="reuse",pin_theta,seed_coordinates;
+  std::string native_cost_table;
   bool operator_sum=false,retile_only=false,realize_aggregate=false;
     // Megatron tensor parallel degree for a native dense solve.
     int serving_tp=1;
@@ -401,6 +403,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--measure-top") measure_top=std::stoi(value);
       else if (flag=="--search") native_search=value;
+      else if (flag=="--native-cost-table") native_cost_table=value;
       else if (flag=="--analysis") {
         if(value!="reuse" && value!="rederive" && value!="materialize")
           throw std::runtime_error("--analysis takes reuse, rederive, or materialize");
@@ -691,7 +694,7 @@ int RunCompile(int argc, char** argv) {
           "--selection","--measure-cmd","--measure-top",
           "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
           "--nvcc-split-compile","--tp","--search","--analysis","--objective","--space",
-          "--realize","--pin-theta","--seed-coordinates","--search-budget-ms"};
+          "--realize","--pin-theta","--seed-coordinates","--search-budget-ms","--native-cost-table"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
       if(emit_mode!="serving" || serving_capacity!=1088 || serving_prompt_len!=64 ||
@@ -709,11 +712,14 @@ int RunCompile(int argc, char** argv) {
       native.retile_only=retile_only;native.realize_aggregate=realize_aggregate;
       native.pin_theta=pin_theta;
       native.seed_coordinates=seed_coordinates;
+      native.native_cost_table=native_cost_table;
       if(search_budget_ms>0)native.search_budget_ms=search_budget_ms;
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
       return tilemega::commands::SolveNativeDense(native);
     }
+    if (!native_cost_table.empty())
+      throw std::invalid_argument("--native-cost-table requires a native dense decode solve");
     bool has_variants=!variants_path.empty();
     bool serving=!serving_phase.empty();
     if(seed_arch!="native" && seed_arch!="legacy")

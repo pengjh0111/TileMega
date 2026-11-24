@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativeFlow.h>
+#include <tilemega/Solver/Sm90NativeCostTable.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
 #include <algorithm>
@@ -255,7 +256,8 @@ Sm90NativeFlowResult Sm90NativeCtgScore(frontend::ImportedSemantics const& impor
       node.sync=c.attention.merge_stage?Sm90SyncKind::kAggregate:Sm90SyncKind::kHandoff;
       price.hop_ns=c.attention.merge_stage?problem.hop_ns:0;
       int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
-      price.middle.fixed_ns=c.attention.dsmem?
+      price.middle.fixed_ns=cost.CostTable()?
+          cost.CostTable()->Attention(work,c.attention,c.residency).merge_ns:c.attention.dsmem?
           constants.AttentionMergeDsmem(work.head_dim,work.queries,norm,c.attention.chunks):
           constants.AttentionMerge(work.head_dim,work.queries,norm,c.attention.chunks);
     }else if(task.role==frontend::OpRole::kMoERouting) {

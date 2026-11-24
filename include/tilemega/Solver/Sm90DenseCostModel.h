@@ -4,11 +4,13 @@
 #include <tilemega/Solver/Sm90DenseWorkload.h>
 #include <tilemega/Solver/Sm90NativeConstants.h>
 #include <tilemega/Target/TargetSpec.h>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace tilemega::solver {
+class Sm90NativeCostTable;
 struct Sm90DensePrediction {
   struct Stage {
     std::string kind;
@@ -25,7 +27,8 @@ struct Sm90DensePrediction {
 // are additive; nothing here is fitted to end-to-end measurements.
 class Sm90DenseCostModel {
  public:
-  Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants);
+  Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants,
+                    std::string const& native_cost_table = {});
   // family: 0 qkv, 1 o, 2 gate_up, 3 down, 4 lm_head. pre: the stage's first
   // bytes were streamed by a fully resident predecessor (D6), hiding L_dram.
   double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
@@ -36,9 +39,11 @@ class Sm90DenseCostModel {
   int Grid(int residency) const {return target_.res.num_sms*residency;}
   Sm90NativeConstants const& Constants() const {return constants_;}
   TargetSpec const& Target() const {return target_;}
+  Sm90NativeCostTable const* CostTable() const {return table_.get();}
  private:
   double Waves(double tasks,int grid,double task_bytes) const;
   TargetSpec target_;
   Sm90NativeConstants constants_;
+  std::shared_ptr<Sm90NativeCostTable> table_;
 };
 }  // namespace tilemega::solver

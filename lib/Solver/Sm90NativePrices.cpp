@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90NativePrices.h>
 #include <tilemega/Solver/Sm90NativeMoeDomain.h>
+#include <tilemega/Solver/Sm90NativeCostTable.h>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -46,6 +47,61 @@ void Finish(Sm90NativeStagePrice& price, TaskPriceParts const& base, double epil
   price.head = head;
   price.head_and_tail = both;
 }
+
+Sm90NativeStagePrice FitMeasuredStage(Sm90NativeStagePrice price, Sm90StageCalibration const& row,
+    Sm90DenseCostModel const& cost, int residency, double traffic, bool gemm) {
+  auto const& table = *cost.CostTable();
+  auto const& constants = cost.Constants();
+  double startup = gemm && table.Variant() == "head-startup"
+      ? constants.section.At("dram_latency_single_ns").AsNumber("dram_latency_single_ns") : 0;
+  double publication = gemm && table.Variant() == "tail-publication" ? row.epilogue_ns : 0;
+  double steady = row.steady_ns.value_or(row.head_ns);
+  auto assign = [&](double scale) {
+    auto parts = [&](double measured, double fixed) {
+      TaskPriceParts p;
+      p.fixed_ns = fixed;
+      p.compute_ns = std::max(0.0, measured - fixed) * scale;
+      p.dram_bytes = traffic;
+      p.dram_rate_cap = constants.CtaDramGbps();
+      return p;
+    };
+    price.head = parts(row.head_ns, startup);
+    price.head_and_tail = parts(row.head_ns, startup + publication);
+    price.middle = parts(steady, 0);
+    price.tail = parts(steady, publication);
+  };
+  if (auto cached = table.Scale(row.id)) {
+    assign(*cached);
+    return price;
+  }
+
+  // Scale the measured per-task envelope against the same measured stage.
+  // The isolated calibration has no incoming synchronization and preserves
+  // the raw DRAM demand, including the shared bandwidth floor.
+  auto span = [&](double scale) {
+    assign(scale);
+    auto problem = Sm90NativeSingleStageProblem(price, cost, residency);
+    problem.hop_ns = 0;
+    return EvaluateFlow(problem).makespan_ns;
+  };
+  double low = 0, high = 1;
+  double floor = span(low);
+  if (floor > 1.03 * row.body_ns)
+    throw std::invalid_argument("measured stage below the modeled unscaled floor: " + row.id);
+  while (span(high) < row.body_ns && high < 128) high *= 2;
+  if (span(high) < 0.97 * row.body_ns)
+    throw std::invalid_argument("cannot reach the measured stage duration: " + row.id);
+  for (int i = 0; i < 18; ++i) {
+    double mid = (low + high) / 2;
+    if (span(mid) < row.body_ns) low = mid;
+    else high = mid;
+  }
+  auto const chosen = (low + high) / 2;
+  if (std::abs(span(chosen) / row.body_ns - 1) > .03)
+    throw std::invalid_argument("isolated stage differs from calibration by more than three percent: " + row.id);
+  table.SaveScale(row.id, chosen);
+  return price;
+}
 }  // namespace
 
 Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned family,
@@ -77,6 +133,12 @@ Sm90NativeStagePrice Sm90NativeGemmPrice(Sm90DenseWorkload const& work, unsigned
   // CTA's async stream. The stage term divides the per-CTA sum by BW_sm, so a
   // single task's share is its own tile.
   double weights = g.tile_n * k * 2.0;
+  if (cost.CostTable()) {
+    if (weight_stream || pre) throw std::invalid_argument("SQ2 requires an unprefetched GEMM stage");
+    price.ends = std::min(price.tasks, grid);
+    auto const& measured = cost.CostTable()->Gemm(work, family, g, residency);
+    return FitMeasuredStage(price, measured, cost, residency, weights, true);
+  }
   double activation = rows * k * 2.0;
   if (g.multicast) activation /= 2.0;  // :45, L2 serves each A slot once per pair
 
@@ -127,6 +189,12 @@ Sm90NativeStagePrice Sm90NativeAttentionPrice(Sm90DenseWorkload const& work,
   price.tasks = int(std::llround(tasks));
   
   price.hop_ns = c.Barrier(grid);
+
+  if (cost.CostTable()) {
+    price.ends = std::min(price.tasks, grid);
+    auto const& measured = cost.CostTable()->Attention(work, a, residency);
+    return FitMeasuredStage(price, measured, cost, residency, keys * d * 4.0, false);
+  }
 
   TaskPriceParts parts;
   // :84's per-CTA block term, per task. Appendix B puts the q preparation in

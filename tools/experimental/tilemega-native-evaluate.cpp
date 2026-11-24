@@ -19,14 +19,16 @@ struct EvaluationState {
       imported(ImportSm90Dense(graph,c,context)) {}
 };
 int main(int argc,char** argv) {try {
-  if(argc!=5) {
-    std::cerr<<"usage: tilemega-native-evaluate target.json source-root cells.json output.jsonl\n";
+  if(argc!=5 && !(argc==7 && std::string(argv[5])=="--native-cost-table")) {
+    std::cerr<<"usage: tilemega-native-evaluate target.json source-root cells.json output.jsonl [--native-cost-table FILE]\n";
     return 2;
   }
   analysis::IslContext isl;
   auto target=TargetSpec::FromJson(argv[1]);
   auto constants=Sm90NativeConstants::FromTarget(json::ParseFile(argv[1]),argv[2]);
-  Sm90DenseCostModel cost(target,constants);
+  if (argc==7 && !constants.StaleHeaders(argv[2]).empty())
+    throw std::invalid_argument("stage cost table requires current target task-body hashes");
+  Sm90DenseCostModel cost(target,constants,argc==7?argv[6]:"");
   std::map<std::string,std::unique_ptr<EvaluationState>> states;
   std::ifstream existing(argv[4]);
   if(existing)throw std::invalid_argument("retain previous evaluation output; choose a new path");

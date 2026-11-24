@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseCostModel.h>
 #include <tilemega/Solver/Sm90DenseResources.h>
+#include <tilemega/Solver/Sm90NativeCostTable.h>
 #include <algorithm>
 #include <cmath>
 
@@ -13,10 +14,12 @@ json::Value Sm90DensePrediction::ToJson() const {
   return json::Object{{"step_ns",step_ns},{"stages",rows}};
 }
 
-Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants)
+Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants,
+                                     std::string const& native_cost_table)
     :target_(std::move(target)),constants_(std::move(constants)) {
   if(target_.arch_tag!="sm_90" || target_.res.num_sms<=0)
     throw std::invalid_argument("native dense cost model requires the H800 target");
+  if (!native_cost_table.empty()) table_ = std::make_shared<Sm90NativeCostTable>(native_cost_table);
 }
 
 // MR6: a CTA with n = ceil(t / G) tasks streams its first n - 1 at the shared
@@ -31,6 +34,14 @@ double Sm90DenseCostModel::Waves(double tasks,int grid,double task_bytes) const 
 double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre) const {
   auto const& c=constants_;
+  if (table_) {
+    if (pre) throw std::invalid_argument("no calibrated GEMM entry for a prefetched stage");
+    auto const& row = table_->Gemm(work, family, g, residency);
+    double total = c.Barrier(Grid(residency)) + row.body_ns;
+    if (terms) *terms = json::Object{{"calibration_geometry", row.id}, {"isolated_body_ns", row.body_ns},
+                                    {"barrier", c.Barrier(Grid(residency))}};
+    return total;
+  }
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1],b=work.batch;
   // MoE experts (prompt §8): n_active x N/TN tasks over n_active expert
   // stacks; gate_up gathers each expert's rows, down reads R_A-row boxes.
@@ -75,6 +86,13 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
 double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
     Sm90DenseAttention const& a,int residency,json::Value* terms) const {
   auto const& c=constants_;
+  if (table_) {
+    auto const& row = table_->Attention(work, a, residency);
+    double barrier = c.Barrier(Grid(residency)) * (a.merge_stage ? 2 : 1);
+    if (terms) *terms = json::Object{{"calibration_geometry", row.id}, {"isolated_body_ns", row.body_ns},
+        {"merge_ns", row.merge_ns}, {"barrier", barrier}};
+    return barrier + row.body_ns + row.merge_ns;
+  }
   int grid=Grid(residency),d=work.head_dim,q=work.queries;
   // Attention constants are keyed by the norm mode: 0 none, 1 per head, 2 per row.
   int norm=work.qk_norm?(work.qk_norm_row?2:1):0;
