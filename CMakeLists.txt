@@ -353,6 +353,13 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(serving_residency_budget_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_residency_budget_test PRIVATE -UNDEBUG)
   add_test(NAME serving_residency_budget COMMAND serving_residency_budget_test)
+
+  add_executable(a800_service_profile_reachability_test
+    test/unit/a800_service_profile_reachability_test.cpp)
+  target_link_libraries(a800_service_profile_reachability_test PRIVATE TileMega::tilemega)
+  add_test(NAME a800_service_profile_reachability COMMAND a800_service_profile_reachability_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_80_a800_sxm4_80gb_registry.json
+    ${CMAKE_CURRENT_SOURCE_DIR})
   add_executable(cluster_split_plan_test test/unit/cluster_split_plan_test.cpp)
   target_link_libraries(cluster_split_plan_test PRIVATE TileMega::tilemega)
   target_compile_options(cluster_split_plan_test PRIVATE -UNDEBUG)

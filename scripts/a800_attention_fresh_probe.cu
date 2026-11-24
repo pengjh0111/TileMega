@@ -80,13 +80,20 @@ __global__ __launch_bounds__(160,2) void CompactBarrier(BarrierSpan* spans) {
   }
 }
 
-template<int Queries>
+template<int Queries,int Norm=0>
 void CompactWorkspaceBarrier() {
   constexpr int grid=216,shared=backend::Sm80AttentionScratch::Layout(128,Queries,1,64,2,false,true).end;
   int residency=0;
   Check(cudaFuncSetAttribute(CompactBarrier,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&residency,CompactBarrier,160,shared));
-  if(residency!=2)throw std::runtime_error("unexpected compact barrier residency");
+  if(residency!=2) {
+    cudaDeviceProp device{};
+    Check(cudaGetDeviceProperties(&device,0));
+    std::printf("{\"status\":\"resource_rejected\",\"grid\":%d,\"dynamic_shared\":%d,"
+                "\"residency\":%d,\"max_shared_per_sm\":%zu,\"dim\":128,\"queries\":%d,\"norm\":%d}\n",
+                grid,shared,residency,device.sharedMemPerMultiprocessor,Queries,Norm);
+    return;
+  }
   BarrierSpan* device=nullptr;
   Check(cudaMalloc(&device,grid*sizeof(BarrierSpan)));
   std::vector<BarrierSpan> host(grid);
@@ -108,8 +115,8 @@ void CompactWorkspaceBarrier() {
   std::sort(samples.begin(),samples.end());
   std::printf("{\"status\":\"measured\",\"grid\":%d,\"dynamic_shared\":%d,\"residency\":%d,"
               "\"overlapping_sms\":108,\"consumer_threads\":128,\"iterations\":1024,"
-              "\"samples\":%zu,\"barrier_ns\":%.3f,\"queries\":%d}\n",
-              grid,shared,residency,samples.size(),samples[samples.size()/2],Queries);
+              "\"samples\":%zu,\"barrier_ns\":%.3f,\"dim\":128,\"queries\":%d,\"norm\":%d}\n",
+              grid,shared,residency,samples.size(),samples[samples.size()/2],Queries,Norm);
 }
 
 template<int D,int Q,int Norm>
@@ -153,6 +160,9 @@ int main(int argc,char** argv) {
     CASE(128,4,0) CASE(128,8,1) CASE(64,4,0)
     if(!std::strcmp(argv[1],"compact-workspace-barrier"))CompactWorkspaceBarrier<4>();
     else if(!std::strcmp(argv[1],"compact-workspace-barrier-q3"))CompactWorkspaceBarrier<3>();
+    else if(!std::strcmp(argv[1],"compact-workspace-barrier-q1-norm2"))CompactWorkspaceBarrier<1,2>();
+    else if(!std::strcmp(argv[1],"compact-workspace-barrier-q2-norm1"))CompactWorkspaceBarrier<2,1>();
+    else if(!std::strcmp(argv[1],"compact-workspace-barrier-q8-norm1"))CompactWorkspaceBarrier<8,1>();
     else throw std::invalid_argument("unknown attention shape");
 #undef CASE
     Check(cudaDeviceReset());std::this_thread::sleep_for(std::chrono::seconds(2));

@@ -123,8 +123,7 @@ std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
     Sm90DenseWorkload const& work,unsigned family,Sm90DenseGemm const& g,int residency,
     Sm90DenseCoordinates const* coordinates) const {
   if(target_.arch_tag!="sm_80" || family>3 || (work.moe && family==2) || g.multicast || g.split_k>1 ||
-     (coordinates && (coordinates->weight_stream || coordinates->wide_producer ||
-                      coordinates->multistage)))return std::nullopt;
+     (coordinates && (coordinates->weight_stream || coordinates->wide_producer)))return std::nullopt;
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   bool gate=family==2;
   int u=gate?(coordinates?coordinates->swiglu_u:Sm90DenseSearchSpace::DefaultGateInterleave(g.tile_n)):16;
@@ -134,7 +133,7 @@ std::optional<Sm80DenseServiceShape> Sm90DenseCostModel::DenseServiceShape(
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1];
   return Sm80DenseServiceShape{gate?"swiglu":residual?"residual":"store",grid,n,k,work.batch,
       g.tile_n,g.TileK(),g.slots,g.warps_n,g.warps_k,g.register_stages,u,
-      g.ResidualTiles(residual,n,grid),!residual,live,copy};
+      g.ResidualTiles(residual,n,grid),!residual,live,copy,coordinates && coordinates->multistage};
 }
 
 std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
@@ -143,7 +142,7 @@ std::optional<Sm80DenseService> Sm90DenseCostModel::DenseService(
   auto shape=DenseServiceShape(work,family,g,residency,coordinates);
   if(!shape)return std::nullopt;
   if(auto measured=constants_.AmpereDenseService(*shape))return measured;
-  if(family==2 && !shape->live_rows && !shape->copy_issue_group)
+  if(family==2 && !shape->multistage && !shape->live_rows && !shape->copy_issue_group)
     return constants_.AmpereGateService(shape->grid,shape->n,shape->k,shape->batch,shape->tn,
         shape->tk,shape->slots,shape->warps_n,shape->register_stages,shape->u);
   return std::nullopt;

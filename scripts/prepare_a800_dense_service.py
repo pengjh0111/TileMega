@@ -154,7 +154,8 @@ def main():
                     name += f'-wn{wn}'
                 key = production_key(dict(epilogue=epilogue, grid=grid, n=n, k=k, batch=batch,
                     tn=tn, tk=tk, slots=slots, warps_n=wn, warps_k=wk, register_stages=g['register_stages'],
-                    u=u, residual_tiles=side, input_norm=norm, live_rows=live, copy_issue_group=copy))
+                    u=u, residual_tiles=side, input_norm=norm, live_rows=live, copy_issue_group=copy,
+                    multistage=args.multistage))
                 if key in cases.values():
                     raise ValueError(f'duplicate production geometry {key}')
                 cases[name] = key

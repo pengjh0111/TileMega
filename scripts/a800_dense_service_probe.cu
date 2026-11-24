@@ -475,6 +475,8 @@ int Profile(cudaDeviceProp const& p) {
 #endif
   if constexpr(N!=C::kPaddedN)
     std::printf(",\"padded_n\":%d,\"clipped_output_bitwise_equal\":true",C::kPaddedN);
+  if constexpr(TILEMEGA_SM80_MULTISTAGE)
+    std::printf(",\"multistage\":true,\"producer_warps\":0,\"consumer_warps\":4");
   if constexpr(TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE>1)
     std::printf(",\"sample_stride\":%d",TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE);
   std::printf("}\n");

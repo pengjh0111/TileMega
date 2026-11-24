@@ -89,6 +89,32 @@ bool SameAttentionProbeHeader(json::Value const& constants,json::Value const& pr
       proof->At("sass_sha256").AsString("probe instructions").size()==64 &&
       proof->At("resources_sha256").AsString("probe resources").size()==64;
 }
+bool SameFusedProbeHeader(json::Value const& constants,json::Value const& profile,
+    std::string_view header,std::string const& compiled,std::string const& expected) {
+  auto producer=DefaultProducerHeader(constants,header,compiled);
+  auto unpadded=UnpaddedBodyHeader(constants,header,producer);
+  auto current=DefaultBodyHeader(constants,header,unpadded);
+  if(compiled==expected || producer==expected || unpadded==expected || current==expected)return true;
+  std::string name(header);
+  if(auto const* body=profile.Find("production_body")) {
+    auto const* proof=body->Find("device_equivalence");
+    if(proof && proof->At("scope").AsString("device equivalence scope")=="fused stage and native caller" &&
+       proof->At("comparison_sha256").AsString("device comparison digest").size()==64 &&
+       proof->At("compiled_body_headers").At(name).AsString("equivalent compiled header")==current)
+      return true;
+  }
+  if(auto const* trace=constants.Find("fused_trace_header_equivalence"))
+    if(auto const* proof=trace->Find(name))
+      if(proof->At("disabled_macro").AsString("fused trace macro")=="TILEMEGA_SM80_FUSED_PHASE_TRACE" &&
+         proof->At("compiled_sha256").AsString("trace header")==current &&
+         proof->At("token_sha256").AsString("inactive token digest").size()==64)
+        current=proof->At("inactive_sha256").AsString("inactive trace header");
+  if(SameBodyHeader(constants,header,current,expected))return true;
+  auto const* proof=header=="Backend/Sm90DenseMoe.cuh"?profile.Find("moe_header_equivalence"):nullptr;
+  return proof && proof->At("reference_sha256").AsString("reference header")==expected &&
+      proof->At("equivalent_sha256").AsString("equivalent header")==current &&
+      proof->At("preprocessed_sha256").AsString("equivalence digest").size()==64;
+}
 double Positive(json::Value const& v,char const* what) {
   double x=v.AsNumber(what);
   if(!(x>0))throw std::invalid_argument(std::string("nonpositive native constant ")+what);
@@ -227,8 +253,16 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
             hashes.At(name).AsString("body hash")))continue;
         compatible=false;break;
       }
+      if(auto const* multistage=hashes.Find("Backend/Sm80CpAsyncMainloop.cuh")) {
+        auto const* name="Backend/Sm80CpAsyncMainloop.cuh";
+        compatible &= SameBodyHeader(s,name,FileHash(root+"/include/tilemega/"+name),
+            multistage->AsString("cooperative mainloop hash"));
+      }
       if(!compatible)continue;
       for(auto const& [key,row]:profile.At("measurements").AsObject("dense GEMM measurements")) {
+        if(auto const* cooperative=row.Find("multistage");cooperative &&
+            cooperative->AsBool("cooperative mainloop") && !hashes.Find("Backend/Sm80CpAsyncMainloop.cuh"))
+          throw std::invalid_argument("SM80 cooperative service lacks its body hash");
         if(auto const* prior=matched.Find(key);prior && prior->Dump(0)!=row.Dump(0))
           throw std::invalid_argument("conflicting compatible dense GEMM service for "+key);
         matched.Set(key,row);
@@ -251,7 +285,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
           number("grid"),number("n"),number("k"),number("batch"),number("tn"),number("tk"),
           number("slots"),number("warps_n"),number("warps_k"),number("register_stages"),
           number("u"),number("residual_tiles"),row.At("input_norm").AsBool("input norm"),
-          row.At("live_rows").AsBool("live rows"),number("copy_issue_group")};
+          row.At("live_rows").AsBool("live rows"),number("copy_issue_group"),
+          row.Find("multistage") && row.At("multistage").AsBool("cooperative mainloop")};
       if(shape.Key()!=key)throw std::invalid_argument("inconsistent SM80 production service shape");
       c.ampere_dense_shapes_.push_back(std::move(shape));
     }
@@ -267,36 +302,8 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       for(auto name:{"Backend/Sm90DenseGemm.h","Backend/Sm90DenseLayout.h","Backend/Sm90DenseMoe.cuh",
                      "Backend/Sm80MoePageOffsets.h","Backend/Sm90DenseMark.cuh",
                      "Backend/Sm90DenseRing.cuh","Backend/Sm90DenseEpilogue.h","Codegen/executor/Async.cuh"}) {
-        auto current=FileHash(root+"/include/tilemega/"+name);
-        auto expected=hashes.At(name).AsString("body hash");
-        if(current==expected)continue;
-        current=DefaultProducerHeader(s,name,current);
-        if(current==expected)continue;
-        current=UnpaddedBodyHeader(s,name,current);
-        if(current==expected)continue;
-        current=DefaultBodyHeader(s,name,current);
-        if(current==expected)continue;
-        if(auto const* body=profile.Find("production_body")) {
-          auto const* proof=body->Find("device_equivalence");
-          if(proof && proof->At("scope").AsString("device equivalence scope")=="fused stage and native caller" &&
-             proof->At("comparison_sha256").AsString("device comparison digest").size()==64 &&
-             proof->At("compiled_body_headers").At(name).AsString("equivalent compiled header")==current)
-            continue;
-        }
-        if(auto const* trace=s.Find("fused_trace_header_equivalence"))
-          if(auto const* proof=trace->Find(name))
-            if(proof->At("disabled_macro").AsString("fused trace macro")=="TILEMEGA_SM80_FUSED_PHASE_TRACE" &&
-               proof->At("compiled_sha256").AsString("trace header") == current &&
-               proof->At("token_sha256").AsString("inactive token digest").size()==64)
-              current=proof->At("inactive_sha256").AsString("inactive trace header");
-        if(SameBodyHeader(s,name,current,expected))continue;
-        // An inactive opt-in body can change the header digest without changing
-        // tokens seen by the compiler for the calibrated implementation.
-        auto const* proof=std::string_view(name)=="Backend/Sm90DenseMoe.cuh"?
-            profile.Find("moe_header_equivalence"):nullptr;
-        if(!proof || proof->At("reference_sha256").AsString("reference header")!=expected ||
-           proof->At("equivalent_sha256").AsString("equivalent header")!=current ||
-           proof->At("preprocessed_sha256").AsString("equivalence digest").size()!=64)compatible=false;
+        compatible &= SameFusedProbeHeader(s,profile,name,FileHash(root+"/include/tilemega/"+name),
+            hashes.At(name).AsString("body hash"));
       }
       if(!compatible)continue;
       auto const& row=profile.At("measurement");
@@ -426,7 +433,12 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
       auto const& row=profile.At("measurement");
       auto const* calibrated_queries=row.Find("queries");
       double queries=calibrated_queries?calibrated_queries->AsNumber("compact queries"):4;
-      if(queries!=3 && queries!=4)throw std::invalid_argument("unsupported compact attention geometry");
+      auto const* calibrated_norm=row.Find("norm");
+      double norm=calibrated_norm?calibrated_norm->AsNumber("compact norm"):0;
+      auto const* dim=row.Find("dim");
+      if(queries<1 || queries>8 || std::floor(queries)!=queries || norm<0 || norm>2 ||
+         std::floor(norm)!=norm || (dim && dim->AsNumber("compact dimension")!=128))
+        throw std::invalid_argument("unsupported compact attention geometry");
       int shared=backend::Sm80AttentionScratch::Layout(128,int(queries),1,64,2,false,true).end;
       if(row.At("grid").AsNumber("compact grid")!=2*sms ||
          row.At("residency").AsNumber("compact residency")!=2 ||
@@ -435,7 +447,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
          row.At("dynamic_shared").AsNumber("compact shared memory")!=shared)
         throw std::invalid_argument("incompatible compact attention residency");
       // Batch changes the task count, not this measured CTA rendezvous.
-      auto shape=std::array<int,4>{2*sms,128,int(queries),0};
+      auto shape=std::array<int,4>{2*sms,128,int(queries),int(norm)};
       if(!c.ampere_compact_attention_.emplace(shape,Positive(row.At("barrier_ns"),"compact attention barrier")).second)
         throw std::invalid_argument("duplicate compact attention geometry");
     }
@@ -569,6 +581,7 @@ std::string Sm80DenseServiceShape::Key() const {
   std::string key=epilogue;
   for(int v:{grid,n,k,batch,tn,tk,slots,warps_n,warps_k,register_stages,u,residual_tiles,
              int(input_norm),int(live_rows),copy_issue_group})key+=":"+std::to_string(v);
+  if(multistage)key+=":multistage";
   return key;
 }
 std::optional<Sm80DenseService> Sm90NativeConstants::AmpereDenseService(Sm80DenseServiceShape const& shape) const {
@@ -576,9 +589,12 @@ std::optional<Sm80DenseService> Sm90NativeConstants::AmpereDenseService(Sm80Dens
   if(!row)return std::nullopt;
   auto epilogue=row->At("consumer_epilogue_ns_per_task").AsNumber("dense epilogue");
   if(epilogue<0)throw std::invalid_argument("negative SM80 dense epilogue measurement");
+  double consumer=Positive(row->At("consumer_mma_ns_per_tile"),"dense consumer MMA and norm");
+  double issue=Positive(row->At("producer_issue_ns_per_tile"),"dense copy issue");
+  if(shape.multistage)
+    consumer+=issue+Positive(row->At("consumer_wait_ns_per_tile"),"cooperative mainloop wait and join");
   return Sm80DenseService{
-      Positive(row->At("producer_issue_ns_per_tile"),"dense producer issue"),
-      Positive(row->At("consumer_mma_ns_per_tile"),"dense consumer MMA and norm"),
+      shape.multistage?0:issue,consumer,
       epilogue>0?std::optional<double>(epilogue):std::nullopt};
 }
 std::optional<double> Sm90NativeConstants::AmpereResidualEpilogue(Sm80DenseServiceShape const& shape) const {
@@ -659,5 +675,45 @@ std::vector<std::string> Sm90NativeConstants::StaleHeaders(std::string const& ro
       result.push_back(item.first);
   }
   return result;
+}
+
+std::vector<std::string> Sm90NativeConstants::UnreachableAmpereProfiles(
+    json::Value const& target,std::string const& root) {
+  auto constants=target.At("sm80_native_constants");
+  AddSourceEquivalence(constants,root);
+  std::map<std::string,std::string> hashes;
+  std::vector<std::string> unreachable;
+  for(std::string service:{"dense_gemm_service","fused_expert_service","dense_gate_service",
+                           "attention_fresh_service","compact_attention_service"}) {
+    auto const* table=constants.Find(service);
+    if(!table) {
+      unreachable.push_back(service+": missing table");
+      continue;
+    }
+    auto const* registry=table->Find("profiles");
+    auto profiles=registry?registry->AsArray("service profiles"):json::Array{*table};
+    if(profiles.empty())unreachable.push_back(service+": empty table");
+    for(std::size_t index=0;index<profiles.size();++index) {
+      auto const& profile=profiles[index];
+      auto const& body=profile.At("body_headers").AsObject("service body headers");
+      std::string mismatch;
+      for(auto const& [key,value]:body) {
+        auto path=key.find('/')==std::string::npos?"Backend/"+key:key;
+        auto entry=hashes.try_emplace(path);
+        if(entry.second)entry.first->second=FileHash(root+"/include/tilemega/"+path);
+        auto const& current=entry.first->second;
+        auto const& expected=value.AsString("body hash");
+        bool reachable=!current.empty() && (service=="fused_expert_service"?
+            SameFusedProbeHeader(constants,profile,path,current,expected):
+            service=="attention_fresh_service" || service=="compact_attention_service"?
+            SameAttentionProbeHeader(constants,profile,path,current,expected):
+            SameBodyHeader(constants,path,current,expected));
+        if(!reachable)mismatch+=" "+path;
+      }
+      if(body.empty() || !mismatch.empty())
+        unreachable.push_back(service+"["+std::to_string(index)+"]:"+mismatch);
+    }
+  }
+  return unreachable;
 }
 }  // namespace tilemega::solver

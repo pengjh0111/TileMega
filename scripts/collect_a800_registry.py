@@ -69,9 +69,10 @@ def append_supplements(constants, section, path):
         if name == 'compact_attention_service':
             profiles = {}
             for profile in service_profiles(existing) + service_profiles(supplement):
-                queries = profile['measurement'].get('queries', 4)
-                if profiles.setdefault(queries, profile) != profile:
-                    raise ValueError(f'conflicting compact attention Q{queries} service in {path}')
+                sample = profile['measurement']
+                geometry = sample.get('dim', 128), sample.get('queries', 4), sample.get('norm', 0)
+                if profiles.setdefault(geometry, profile) != profile:
+                    raise ValueError(f'conflicting compact attention {geometry} service in {path}')
             constants[name] = dict(schema=2, profiles=list(map(deepcopy, profiles.values())))
             continue
         if ('profiles' not in supplement or 'profiles' not in existing

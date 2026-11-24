@@ -22,10 +22,12 @@ PRODUCTION_KEY_FIELDS = ('grid', 'n', 'k', 'batch', 'tn', 'tk', 'slots', 'warps_
 
 
 def production_key(row):
-    return ':'.join((row['epilogue'], *(str(int(row[key])) for key in PRODUCTION_KEY_FIELDS)))
+    key = ':'.join((row['epilogue'], *(str(int(row[field])) for field in PRODUCTION_KEY_FIELDS)))
+    return f'{key}:multistage' if row.get('multistage') else key
 
 
-def collect(run, target, binary, calibration_target=None, maximum_perturbation=0.25):
+def collect(run, target, binary, calibration_target=None, maximum_perturbation=0.25,
+            legacy_gate=False):
     base = read(target)
     resources = base['resources']
     if calibration_target is not None:
@@ -37,6 +39,7 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
     device = read(run/'job/physical-device-identity.json')
     policy = read(run/'policy.json')
     artifact = read(run/'artifact.json')
+    multistage = artifact.get('multistage', False)
     if (base['arch_tag'] != 'sm_80' or 'A800' not in base['device_provenance']['name']
             or guard['acceptance'] != 'strict' or guard['code'] != 0 or not guard['ownership_verified']
             or policy['gpu_uuid'] != device['nvml_uuid']
@@ -47,7 +50,7 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
             or device['registers_per_sm'] != resources['regs_per_sm']
             or device['l2_bytes'] != resources['l2_bytes']
             or artifact['binary_sha256'] != sha(binary)
-                or artifact['architecture'] != 'sm_80' or artifact['roles'] != [32, 128]):
+            or artifact['architecture'] != 'sm_80' or artifact['roles'] != [0 if multistage else 32, 128]):
         raise ValueError('calibration receipt differs from the guarded SM80 body or target')
     geometry = ('grid', 'n', 'k', 'batch', 'tn', 'tk', 'slots', 'warps_n', 'register_stages')
     metrics = ('producer_issue_ns_per_tile', 'consumer_mma_ns_per_tile',
@@ -56,8 +59,8 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
     rejected = {}
     typed = artifact.get('contract') == 'sm80-dense-gemm-service-v1'
     epilogue_only = '-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1' in artifact.get('command', [])
-    if epilogue_only and not typed:
-        raise ValueError('isolated epilogue sampling requires a production service key')
+    if (epilogue_only or multistage) and not typed:
+        raise ValueError('epilogue and cooperative probes require a production service key')
     for case in artifact['cases']:
         if Path(case).name != case:
             raise ValueError('calibration case must be a local case label')
@@ -83,11 +86,16 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
                     or not math.isfinite(sm_ghz) or sm_ghz <= 0 or not 0 < compute <= epilogue
                     or any(row[m] != 0 for m in metrics[:2])):
                 raise ValueError(f'invalid isolated epilogue service result for {case}')
+        elif multistage:
+            if (row.get('multistage') is not True or row.get('producer_warps') != 0
+                    or row.get('consumer_warps') != 4
+                    or any(not math.isfinite(row[key]) or row[key] <= 0
+                           for key in (*metrics[:2], 'consumer_wait_ns_per_tile'))):
+                raise ValueError(f'invalid cooperative mainloop service for {case}')
         elif any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics[:2]):
             raise ValueError(f'invalid mainloop service result for {case}')
         if typed:
-            if row['n'] % row['tn'] and (row['epilogue'] != 'swiglu'
-                    or row.get('padded_n') != (row['n']+row['tn']-1)//row['tn']*row['tn']
+            if row['n'] % row['tn'] and (row.get('padded_n') != (row['n']+row['tn']-1)//row['tn']*row['tn']
                     or not row.get('clipped_output_bitwise_equal')):
                 raise ValueError(f'{case} lacks a matching clipped-output reference')
             if row['dynamic_shared'] < artifact.get('reserved_program_shared', 0):
@@ -115,13 +123,20 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
             key = production_key(row)
             if key != artifact['geometry_by_case'][case]:
                 raise ValueError(f'measured implementation differs from queued shape for {case}')
-        else:
+        elif row['grid'] == device['sm_count']:
             if row['input_norm'] is not True:
                 raise ValueError('legacy gate pricing requires input normalization')
+            ratio = row['traced_span_ns'] / row['untraced_span_ns']
+            if abs(ratio-1) > maximum_perturbation:
+                rejected[case] = f'traced/untraced span {ratio:.3f}'
+                continue
             u = row.get('u') or int(row['epilogue'].removeprefix('swiglu-u'))
             if u not in (4, 8, 16):
                 raise ValueError('unknown dense gate epilogue')
             key = ':'.join(str(row[k]) for k in geometry) + f':{u}'
+        else:
+            rejected[case] = 'legacy dual residency requires a bound production arena'
+            continue
         if key in measurements:
             raise ValueError(f'duplicate service geometry {key}')
         measurements[key] = dict(row, case=case)
@@ -132,15 +147,31 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
         evidence=str(run), measurements=measurements, rejected=rejected)
     if typed:
         frozen = read(run/'frozen.json')
-        registry = constants.setdefault('dense_gemm_service', dict(
-            schema=1, reference_target_sha256=sha(target), profiles=[]))
-        known_targets = {registry['reference_target_sha256'], sha(target)}
+        known_targets = {sha(target)}
+        if previous_dense := constants.get('dense_gemm_service'):
+            known_targets.add(previous_dense['reference_target_sha256'])
         if calibration_target is not None:
             known_targets.add(sha(calibration_target))
-        if (registry['schema'] != 1 or frozen['target_sha256'] not in known_targets or
+        if (frozen['target_sha256'] not in known_targets or
                 sha(binary.with_suffix('.identity.json')) != frozen['identity_sha256'] or
                 artifact != read(binary.with_suffix('.identity.json'))):
             raise ValueError('service evidence differs from the frozen probe or reference target')
+        if legacy_gate:
+            if multistage or epilogue_only or any(row['epilogue'] != 'swiglu' or row['live_rows']
+                    or row['copy_issue_group'] for row in measurements.values()):
+                raise ValueError('legacy gate pricing requires the specialized default gate body')
+            profile['measurements'] = {':'.join(str(row[key]) for key in (*geometry, 'u')): row
+                for row in measurements.values() if row['grid'] == device['sm_count']}
+            if not profile['measurements']:
+                raise ValueError('legacy gate pricing has no accepted single-residency measurement')
+            profile['body_headers'] = {Path(name).name: digest
+                for name, digest in profile['body_headers'].items() if name.startswith('Backend/')}
+            append_service(constants, [profile])
+            return base
+        registry = constants.setdefault('dense_gemm_service', dict(
+            schema=1, reference_target_sha256=sha(target), profiles=[]))
+        if registry['schema'] != 1:
+            raise ValueError('unknown dense GEMM service schema')
         if any((profile['evidence'], profile['binary_sha256']) ==
                (previous['evidence'], previous['binary_sha256']) for previous in registry['profiles']):
             return base
@@ -181,12 +212,14 @@ if __name__ == '__main__':
     for flag in ('run', 'target', 'binary', 'out'):
         parser.add_argument(f'--{flag}', type=Path, required=True)
     parser.add_argument('--calibration-target', type=Path)
+    parser.add_argument('--legacy-gate', action='store_true',
+                        help='publish measured default single-residency gates in the legacy table')
     parser.add_argument('--maximum-perturbation', type=float, default=0.25)
     args = parser.parse_args()
     if not 0 <= args.maximum_perturbation <= 0.25:
         parser.error('choose a perturbation bound between 0 and 0.25')
     profile = collect(args.run, args.target, args.binary,
-                      args.calibration_target, args.maximum_perturbation)
+                      args.calibration_target, args.maximum_perturbation, args.legacy_gate)
     with args.out.open('x') as stream:
         json.dump(profile, stream, indent=2)
         stream.write('\n')

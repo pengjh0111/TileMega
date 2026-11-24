@@ -20,6 +20,7 @@ struct Sm80DenseServiceShape {
   int grid,n,k,batch,tn,tk,slots,warps_n,warps_k,register_stages,u,residual_tiles;
   bool input_norm,live_rows;
   int copy_issue_group;
+  bool multistage=false;
   std::string Key() const;
 };
 
@@ -48,6 +49,8 @@ struct Sm80FusedExpertShape {
 class Sm90NativeConstants {
  public:
   static Sm90NativeConstants FromTarget(json::Value const& target,std::string const& root);
+  static std::vector<std::string> UnreachableAmpereProfiles(
+      json::Value const& target,std::string const& root);
   double Barrier(int grid) const;
   double Epilogue(std::string const& family,int tile_n,int batch,int warps_k) const;
   double Embedding(int grid,int width,int batch) const;

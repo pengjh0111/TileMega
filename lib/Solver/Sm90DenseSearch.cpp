@@ -172,7 +172,10 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         c.live_epilogue_rows=true;return std::vector{c};}},
       {"wide_producer",+[](Sm90DenseCoordinates c) {
         if(c.wide_producer)return std::vector<Sm90DenseCoordinates>{};
-        c.wide_producer=true;return std::vector{c};}}
+        c.wide_producer=true;return std::vector{c};}},
+      {"multistage",+[](Sm90DenseCoordinates c) {
+        if(c.multistage || c.wide_producer || c.weight_stream)return std::vector<Sm90DenseCoordinates>{};
+        c.multistage=true;return std::vector{c};}}
     };
     auto const top=std::size_t(o.alternatives);
     std::vector<Sm90DenseCandidate> frontier{seed.second};
@@ -182,6 +185,12 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         for(auto trial:axis.neighbours(current.coordinates)) {
           if(!space.Legal(trial) || !cost.HasCalibratedMma(trial) ||
              seen.count(trial.ToJson().Dump(0)))continue;
+          if(trial.multistage) {
+            bool calibrated=false;
+            for(unsigned family:trial.Active())
+              calibrated |= cost.DenseService(work,family,trial.gemms[family],trial.residency,&trial).has_value();
+            if(!calibrated)continue;
+          }
           try {
             auto price=cost.Predict(work,trial);
             Sm90DenseCandidate row{std::move(trial),std::move(price),
