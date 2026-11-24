@@ -1,0 +1,11 @@
+{
+  "frozen_at": 1795509191.531622,
+  "variant": "overlap",
+  "cost_table": "/root/TileMega-search-quality-v2/runs/sm90_search_quality_v2/qwen3_1_7b_b1/phase2/overlap.json",
+  "cost_table_sha256": "4eb46d043981f4bedee0d7b7e4c5c0ff05c5fcf2487be880750a590397b3d531",
+  "target_sha256": "9ec91acea77c741146320ff622ca82348751a89ba68b7d9c2fa59d65ad34866d",
+  "solver_sha256": "2c0f25a471241c6b9ec507e6c1e4d8e25de5806afbc9a7599e4c9a15baf1145d",
+  "dev_gate_sha256": "d684d4b318672a47efdca4bc2e05293b21aff4057d97d97fd9e50dbbc3c70fe7",
+  "production_header_binding_sha256": "2fd8e4b00d74c5d2f85d850a60a78e5a7cdb58b3d348843b76135cfdf3568467",
+  "before_test_set_timing": true
+}

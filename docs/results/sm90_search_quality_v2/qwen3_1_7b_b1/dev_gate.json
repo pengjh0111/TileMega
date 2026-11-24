@@ -1,0 +1,213 @@
+{
+  "selected_variant": "overlap",
+  "outcomes": [
+    {
+      "variant": "overlap",
+      "physical_basis": "Measured head and steady service envelopes can overlap with the same raw DRAM work.",
+      "cost_table_sha256": "4eb46d043981f4bedee0d7b7e4c5c0ff05c5fcf2487be880750a590397b3d531",
+      "pass": true,
+      "isolated_stage_max_abs_error": 3.61288e-06,
+      "isolated_stage_geometry_count": 229,
+      "isolated_residuals_ns": {
+        "attention": {
+          "median_signed_ns": -0.010000000000218279,
+          "max_abs_ns": 0.020000000000436557
+        },
+        "down": {
+          "median_signed_ns": 0.0,
+          "max_abs_ns": 0.19999999999708962
+        },
+        "gate_up": {
+          "median_signed_ns": 0.0,
+          "max_abs_ns": 0.3000000000029104
+        },
+        "lm_head": {
+          "median_signed_ns": 0.0,
+          "max_abs_ns": 1.0
+        },
+        "o": {
+          "median_signed_ns": 0.0,
+          "max_abs_ns": 0.1000000000003638
+        },
+        "qkv": {
+          "median_signed_ns": 0.0,
+          "max_abs_ns": 0.09999999999854481
+        }
+      },
+      "status": "dev_gate_complete",
+      "spearman": 0.8265526850380659,
+      "kendall": 0.6426642667361921,
+      "regret_curve": [
+        {
+          "k": 1,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 2,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 3,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 4,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 5,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 6,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 7,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 8,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 9,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 10,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 11,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 12,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 13,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 14,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 15,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 16,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 17,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 18,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 19,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 20,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 21,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 22,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 23,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 24,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 25,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 26,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 27,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 28,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 29,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 30,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 31,
+          "regret": 0.00021387154225438465
+        },
+        {
+          "k": 32,
+          "regret": 0.00021387154225438465
+        }
+      ],
+      "top10_best_gap": 0.00021387154225438465,
+      "top1": "q000",
+      "matched_family_deltas": {
+        "qkv": {
+          "pairs": 552,
+          "median_signed_delta_residual_ms": 0.0042157153778802,
+          "median_absolute_delta_residual_ms": 0.020209448497609667,
+          "same_sign": 422
+        },
+        "o": {
+          "pairs": 306,
+          "median_signed_delta_residual_ms": -0.009898758146069768,
+          "median_absolute_delta_residual_ms": 0.020509256343694993,
+          "same_sign": 234
+        },
+        "gate_up": {
+          "pairs": 1122,
+          "median_signed_delta_residual_ms": 0.005746418418507029,
+          "median_absolute_delta_residual_ms": 0.017424123700153414,
+          "same_sign": 985
+        },
+        "down": {
+          "pairs": 169,
+          "median_signed_delta_residual_ms": -0.009802890003925209,
+          "median_absolute_delta_residual_ms": 0.026657563575972862,
+          "same_sign": 141
+        },
+        "lm_head": {
+          "pairs": 15,
+          "median_signed_delta_residual_ms": 0.003659258739286702,
+          "median_absolute_delta_residual_ms": 0.004441806986048064,
+          "same_sign": 12
+        }
+      },
+      "q079_to_q135": {
+        "pool_delta_ns": -10751.81799999997,
+        "v1_delta_ms": -0.11441944671740356,
+        "same_sign": true
+      }
+    }
+  ],
+  "completed_at": 1795509191.5310771,
+  "test_set_tpot_used": false
+}
