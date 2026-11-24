@@ -60,6 +60,21 @@ def qwen(base, manifest):
         route.update(schema=max(base['schema'], 9), route='la', combine='la',
                      argmax=base.get('argmax', 'la'), tp=base.get('tp', 1))
         yield 'router-last-arriver', route
+    router = base['gemms']['router']
+    n, k = next((row['n'], row['k']) for row in manifest['gemms'] if row['family'] == 'router')
+    router_tn = router['tile_n']
+    router_tk = router['slot_bytes']//(2*router_tn)
+    for width in (8, 32):
+        if n%width == 0 and width != router_tn:
+            trial = deepcopy(base)
+            trial['gemms']['router'].update(tile_n=width, slot_bytes=2*width*router_tk,
+                                          warps_n=1, warps_k=4)
+            if router_tk >= 64*router['register_stages']:
+                yield f'router-tn-{width}', trial
+    if router.get('split_k', 1) == 1 and k%(2*router_tk) == 0:
+        trial = schema10(deepcopy(base))
+        trial['gemms']['router']['split_k'] = 2
+        yield 'router-split-k2', trial
     if not base.get('multistage') and not base.get('producer_warps') and not base['weight_stream']:
         yield 'l2-weight-preissue', dict(schema10(deepcopy(base)), l2_weight_preissue=True)
     option = base['gemms']['o']
@@ -147,7 +162,7 @@ def main():
             route_check=router_changed(base, linked['native_dense'])))
     prepared = out/'experiment.json'
     write_json(prepared, dict(source=source_commit, phase=args.experiment, failures=failures,
-                 compiler_sha256=sha(args.cli), target_sha256=sha(target)))
+                 compiler_sha256=sha(args.cli), generator_sha256=sha(__file__), target_sha256=sha(target)))
     if not arms:
         raise ValueError(f'no linked {args.experiment} trials: {prepared}')
     write_json(out/'finalists.json', dict(model=args.model, batch=args.batch, control=str(args.control.resolve()),
