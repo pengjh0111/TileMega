@@ -1,0 +1,9 @@
+{
+  "at": 1795403058.1101344,
+  "before_TPOT": true,
+  "original_coordinates": 180,
+  "generated_programs": 180,
+  "distinct_CUDA_without_diagnostic_coordinate_literal": 180,
+  "duplicate_groups": [],
+  "rule": "Supplementary source comparison only. Actual alias key also includes full task/event IR, execution manifest and launch parameters. Capacity-calibrated children handled separately."
+}

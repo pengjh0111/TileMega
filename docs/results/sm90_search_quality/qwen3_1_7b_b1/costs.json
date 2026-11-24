@@ -1,0 +1,83 @@
+{
+  "search_pooled_plus_shortlist_replay_seconds": 123.8985478,
+  "stage_split_available": false,
+  "search_budget_ms": 600000,
+  "setup_compiler_build": "excluded from production per-case search cost",
+  "finalist_work": "finalists phase includes four candidate compiles, actual occupancy, and required repricing/recompilation; phase elapsed includes guard waits",
+  "extra_E_work": "audit-only; excluded from normal production search cost",
+  "cpu_search_compiler_sha256": "a6ff9889103d7bc5a33e96e3653c8cb546393c15719386edce67a233484aa678",
+  "materialization_compiler_sha256": "10d8cb44d27b962ce53c7de973b2303025ea9915c2138d61aab80897642e2de2",
+  "CPU_build_optimization": "Search used the initial CPU build; materialization used Release from the same HEAD. Original receipts and generated-code equivalence proof are retained. Search time is the actual initial run, not an inferred optimized time.",
+  "finalist_compile_command_work_seconds": 225.71033334732056,
+  "finalist_occupancy_guarded_wall_seconds": 31.990777015686035,
+  "finalist_compile_work_note": "Sum of per-command wall durations, including host generation and compile queue time; work sum is not parallel elapsed wall time.",
+  "finalists_phase": {
+    "started": 1795400849.8766632,
+    "ended": 1795401040.4994154,
+    "seconds": 190.6227524280548,
+    "returncode": 0,
+    "command": [
+      "python3",
+      "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123/audit.py",
+      "finalists"
+    ]
+  },
+  "all_phase": {
+    "started": 1795402095.3506546,
+    "ended": 1795404684.5456269,
+    "seconds": 2589.194972753525,
+    "returncode": 0,
+    "command": [
+      "python3",
+      "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123/audit.py",
+      "all"
+    ]
+  },
+  "audit_phase": {
+    "started": 1795450987.4598453,
+    "ended": 1795486502.5672162,
+    "seconds": 35515.10737133026,
+    "returncode": 0,
+    "command": [
+      "python3",
+      "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123/measure.py",
+      "audit"
+    ]
+  },
+  "confirm_phase": {
+    "started": 1795486502.5681956,
+    "ended": 1795486703.922776,
+    "seconds": 201.35458087921143,
+    "returncode": 0,
+    "command": [
+      "python3",
+      "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123/measure.py",
+      "confirm"
+    ]
+  },
+  "audit_interrupted_phase_records": [
+    {
+      "started": 1795404684.546584,
+      "command": [
+        "python3",
+        "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123/measure.py",
+        "audit"
+      ],
+      "status": "running"
+    }
+  ],
+  "audit_resume_gap_note": "The initial audit process stopped before its end receipt. Accepted process results were reused. The recorded resumed phase duration excludes the interrupted interval.",
+  "audit_initial_two_worker_phase": {
+    "started": 1795401040.500396,
+    "ended": 1795402087.8972588,
+    "seconds": 1047.3968632221222,
+    "returncode": -15,
+    "command": [
+      "python3",
+      "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123/audit.py",
+      "all"
+    ]
+  },
+  "audit_materialization_total_wall_seconds": 3644.0452308654785,
+  "audit_CPU_worker_note": "Initial two-worker dispatch paused until child builds completed, then resumed with four compilation workers; completed immutable artifacts were recovered without rebuilding."
+}

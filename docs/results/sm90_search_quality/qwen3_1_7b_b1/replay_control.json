@@ -1,0 +1,49 @@
+{
+  "S_pool": [
+    "2a1df8ba4f1421b8b2e15be5a287eccd92175dbb0deaa6e73bd4d043b3345e25",
+    "2d1784ba2909f75ba199172ef946b0a0ee5518631111f943bef108d346e40f01",
+    "4835d4f13ba831bc3f57f56e2f83dfa501dd251ebe5aa84cd16f3d597b37adc2",
+    "ce6edc97c676e98bb9a40f16844be445cfb0bb0fec97cbd0b1221f6e084a4816"
+  ],
+  "S_replay": [
+    "2a1df8ba4f1421b8b2e15be5a287eccd92175dbb0deaa6e73bd4d043b3345e25",
+    "2d1784ba2909f75ba199172ef946b0a0ee5518631111f943bef108d346e40f01",
+    "4835d4f13ba831bc3f57f56e2f83dfa501dd251ebe5aa84cd16f3d597b37adc2",
+    "ce6edc97c676e98bb9a40f16844be445cfb0bb0fec97cbd0b1221f6e084a4816"
+  ],
+  "same_members": true,
+  "top1_same_implementation": true,
+  "pool_top1": {
+    "kind": "S_pool_top1",
+    "original_q_id": "q079",
+    "realization_id": "f39466672626da5f59b6d9e670e7ee40b5d0e954920ac5215279f899f79e0275",
+    "tpot_ms": 1.8064986544424866,
+    "gap": 0.06762062094671961,
+    "confirmation_ms": 1.8052110048878087,
+    "confirmation_status": "valid"
+  },
+  "replay_top1": {
+    "kind": "predicted_winner",
+    "original_q_id": "q079",
+    "realization_id": "f39466672626da5f59b6d9e670e7ee40b5d0e954920ac5215279f899f79e0275",
+    "tpot_ms": 1.8064986544424866,
+    "gap": 0.06762062094671961,
+    "confirmation_ms": 1.8052110048878087,
+    "confirmation_status": "valid"
+  },
+  "pool_best_retained": {
+    "kind": "S_pool_best_retained",
+    "original_q_id": "q103",
+    "realization_id": "25c2a545557db5c2536dc7edf7795da0fe14b2e385c06cf88e39adb7e5540780",
+    "tpot_ms": 1.8006970835791036,
+    "gap": 0.06419195706568126
+  },
+  "replay_best_retained": {
+    "kind": "S_replay_best_retained",
+    "original_q_id": "q103",
+    "realization_id": "25c2a545557db5c2536dc7edf7795da0fe14b2e385c06cf88e39adb7e5540780",
+    "tpot_ms": 1.8006970835791036,
+    "gap": 0.06419195706568126
+  },
+  "extra_GPU_measurements": 0
+}

@@ -1,0 +1,24 @@
+{
+  "winner": "q079",
+  "scores": [
+    [
+      1501146.14,
+      "q079"
+    ],
+    [
+      1501146.14,
+      "q103"
+    ],
+    [
+      1501163.109,
+      "q092"
+    ],
+    [
+      1501458.811,
+      "q105"
+    ]
+  ],
+  "selected_at": 1795404684.5338035,
+  "rule": "capacity-calibrated pooled score within pre-frozen S_pool; stable pre-frozen order breaks ties",
+  "all_candidate_timing_started": false
+}

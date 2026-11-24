@@ -1,0 +1,16 @@
+{
+  "a196ad13d7bcc0de5292c1e0fcf29467e1fd95d1352614dd4aa6542cd1fe934b": {
+    "torch": "2.8.0",
+    "vllm": "0.11.0",
+    "sglang": null,
+    "tensorrt-llm": null,
+    "transformers": "4.57.1",
+    "triton": "3.4.0",
+    "flash-attn": null,
+    "flashinfer-python": null,
+    "nvidia-cuda-runtime-cu12": "12.8.90",
+    "nvidia-cudnn-cu12": "9.10.2.21",
+    "tensorrt": null,
+    "numpy": "2.2.6"
+  }
+}

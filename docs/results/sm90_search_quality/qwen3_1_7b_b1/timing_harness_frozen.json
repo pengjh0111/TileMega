@@ -1,0 +1,10 @@
+{
+  "at": 1795404684.5979187,
+  "files": {
+    "audit.py": "9c7db9f4166725655568120d899fddb7b877d9940fb4324d814f35963c85b9e5",
+    "measure.py": "39a6b044b6aa5a98653a511b091bca639fea71ea0deafc32549b60c25661b48b",
+    "guard_policy.json": "4bbf9965d2055570cf52962b6ef102bd3da7941216243479d7834b8fde5d7810"
+  },
+  "protocol": "one C1/C2 screening, two independent request-wall audit processes, seed/reverse order",
+  "GPU_timing_started": false
+}

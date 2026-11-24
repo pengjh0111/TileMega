@@ -1,0 +1,23 @@
+{
+  "criterion": "Observed two-process min/max ranges overlap the observed-best implementation range; descriptive noise indicator, not a confidence interval",
+  "implementations": [
+    {
+      "realization_id": "aab51c424b22e2736044565078ed8b594f07c1f317ed83f66fc54d00f859d8e8",
+      "median_ms": 1.692079207725083,
+      "process_min_ms": 1.6891600811405187,
+      "process_max_ms": 1.694998334309647
+    },
+    {
+      "realization_id": "6f15d2ebbc63f8f097a54651b0b47424377cc2742093119df47d91bb3cf77d68",
+      "median_ms": 1.6924410953148556,
+      "process_min_ms": 1.6891431300227193,
+      "process_max_ms": 1.6957390606069922
+    },
+    {
+      "realization_id": "d6c41d5c383d5b7479712df7dd3f86fc10d99e2a49f1d4dcae8f8ad22f8d085f",
+      "median_ms": 1.6927246128966034,
+      "process_min_ms": 1.691348389048723,
+      "process_max_ms": 1.6941008367444839
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "experiment_head": "7425a5242580af16a7ea43be742e313a6eedb351",
+  "files_sha256": {
+    "report.md": "2431759cb4efe4b0814fd578cb9b4b5219fd7207baa3330817a695f66a41282c",
+    "paper_paragraph.txt": "3283724b9d06cbf0f329a163f495cfbd8cd5bd9e74faa0a386b93aa348eddd33",
+    "frozen_search.json": "98a75dd8890f03af8e1b2beb179e65010f80b97be72fef22591f1c3cf5e56ed5",
+    "candidates.csv": "dcdd09cce55d1d1777ea418ee7e2500c090f6ed3f2a7050da020d7204ce37291",
+    "timings.csv": "c780b6f3c499f5e4bb93dcfe1139bbf59a16daf6e43e59eb418fa89350809035",
+    "stage_summary.csv": "32cb07ca5cf9b0dc005f99c9ed8cf4769f09f4699da2d8dcc6cdb656949ad1d1",
+    "selection_summary.csv": "047dc90d229a76c93f95ab361f152e6312309a741ef4ef2e76a56f1fb56e95bd",
+    "confirmation.csv": "4714b1d6235f587ca14f18c28e6e111cd0f1868d298ebe79ba1cd9a101682ee5",
+    "search_quality.pdf": "b8cedf195f428ac7e7a24a3a0475adbefb2e06fbbb2dd6a9fbe32aa3eb9d9e48",
+    "search_quality.png": "c5139429119eee79894915f71ebb5633ffb04910f2463191a0b47f3239692d35",
+    "predicted_selection.json": "f586a07cb764154f82cdf07194fa50e13283449e9b6fcb21d843cca9b1d07947",
+    "counterfactual_selection.json": "d04d1bd2036a9f0e97069fe00f9224b5c493437ae365fb17fd9283b450bceed0",
+    "replay_control.json": "2df10f88d79564be0c37070814961caa8b82666a9af2b5d16d3e41cbef02a208",
+    "measurement_order.json": "f8102bfa038a5adb5e470fe6cd7a1736847d3a1a3a651b3070ff85075d5aa72a",
+    "confirmation_selection.json": "5dd9377b2fe6f7638983e1a732e295094ad11e5d003ece3845ae309599e6d314",
+    "near_best.json": "e71b28d4d47124c5877be5cb155776f7b53ece416f05109b555e4cb3ad9e42d1",
+    "case_scope_decision.json": "ccdf6126a0037fafbe1501e0c54428785fc2a7bc65cb6ecbe83696cfd30d0ff5",
+    "generation_coverage.json": "2ba26f0bcfeb8538cb6c0ecc19e97b8038fdf4edcae842341ea72bb0b67551a4",
+    "costs.json": "16961a6abff24f2014128bb6bcc7091a2b4cb0cba7b4acb337e10781c183e718",
+    "calibration_body_binding.json": "428ccf4c66b11e819ef436bd9921836bdb873799d96236fc7d4d39e0fcdfce4d",
+    "software_identity.json": "2ada741b32022509f43cc430deee5d39871aa03362f9a762a7c716dd80c1584a",
+    "source.json": "de82e6e9d6b8f85f65e14d1dd1dc67d7e0c454f6812eb63b8552545b5dce9ce5",
+    "timing_harness_frozen.json": "c5384c715761700a99037f65b92d814a5310b6045adbc6a0edd04244218b264f"
+  },
+  "original_run_directory": "/root/TileMega-search-quality/runs/sm90_search_quality/qwen3_1_7b-B1-20261123",
+  "raw_artifacts": "Full attempt logs, generated sources, binaries and checkpoint remain in the experiment directory."
+}

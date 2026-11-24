@@ -1,0 +1,4 @@
+stage,N,valid_candidates,valid_unique,materialized_unique,failed_or_missing_candidates,median_tpot_ms,p25_ms,p75_ms,best_tpot_ms,best_retained_gap,resource_or_capacity_rejected,generation_or_compiler_failed,numerical_failed,runtime_failed
+E,180,180,180,180,0,1.780833089440186,1.7475247502385058,1.8162057778658514,1.692079207725083,0.0,0,0,0,0
+pooled shortlist Q,10,10,10,10,0,1.8067478233200869,1.80350412194914,1.8117699802076837,1.7836253201251693,0.05410273466049231,0,0,0,0
+replay finalists S,4,4,4,4,0,1.8046376234107537,1.8022567151790416,1.8070588533690524,1.8006970835791036,0.06419195706568126,0,0,0,0
