@@ -32,3 +32,47 @@ The reproduction compares `q000` and `q079` on the same physical UUID as v1.
 Each process and guard attempt has a separate directory. Guard rejection and
 interruption are recorded at that granularity, and accepted processes are
 read from their receipts on resume.
+
+Phase 1 requires `summary.json` from the Phase 0 reproduction to pass.
+Export the complete native geometry domains for each B1 case using
+`tilemega-native-domains`. Put the primary domain receipt in
+`qwen3_1_7b_b1/native-domains.jsonl` and the secondary receipt in
+`qwen3_1_7b_b1/calibration/llama-native-domains.jsonl`. Retain the original
+inputs and hashes in the case directory.
+
+Capture the production header hashes before starting any calibration. Store
+the backend and codegen header map in
+`calibration/production_source_binding.json` under `production_headers`,
+and the stage-body header map in `calibration/body_binding.json` under
+`header_sha256`. The latter includes the GEMM, epilogue and attention bodies.
+The collection checks both the compiled probe receipts and the live sources.
+
+```bash
+scripts=experiments/search_quality_v2
+calibration="$case_dir/calibration"
+python3 "$scripts/make_gemm_probes.py"
+python3 "$scripts/make_attention_probes.py"
+for kind in gemm attention; do
+  python3 "$scripts/build_calibration.py" "$kind"
+  python3 "$scripts/calibration_queue.py" --job-spec "$calibration/$kind/queue.json" \
+    --output "$calibration/$kind/measurement"
+done
+```
+
+For the legacy dense constants, compile `scripts/sm90r3_constants.cu` with
+`-std=c++20 -O3 -gencode arch=compute_90a,code=sm_90a --expt-relaxed-constexpr
+--extended-lambda -Iinclude -Ithird_party/cutlass/include -lcuda`. The
+current source provides `--sq2-base` and `--sq2-epilogue`. Save that
+executable as `calibration/legacy/constants-sq2`. The other modes can use
+the same binary at `calibration/legacy/constants` when starting a new run.
+The legacy collector only reuses a prior attention result when its exact
+command and binary hash match.
+
+```bash
+python3 "$scripts/legacy_calibration.py"
+python3 "$scripts/collect_stage_calibration.py"
+```
+
+The guard owns an individual physical card for one process. Queue items are
+identified by suite and replicate. Contention or interference returns the
+affected item to the queue. A successful guard receipt is retained on resume.

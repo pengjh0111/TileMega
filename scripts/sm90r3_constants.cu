@@ -714,7 +714,9 @@ int main(int argc,char** argv) {try {
   }
   std::printf("name,key,samples,median,p99,unit\n");
   Print("clock","",{cycles_per_ns*1e3},"MHz");
-  if(full || !std::strcmp(argv[1],"--base-only")) {
+  const bool sq2_base=!full && !std::strcmp(argv[1],"--sq2-base");
+  const bool sq2_epilogue=!full && !std::strcmp(argv[1],"--sq2-epilogue");
+  if(full || sq2_base || !std::strcmp(argv[1],"--base-only")) {
     auto* counter=Device<U64>(1);auto* stamps=Device<U64>(264*256*2);
     std::vector<U64> host(264*256*2);
     for(int grid:{128,sms,2*sms}) {
@@ -785,7 +787,7 @@ int main(int argc,char** argv) {try {
       StageCase("t_argmax_la",key(16),ArgmaxLaStage<16>,grid,values,indices,token_device,lm);
     }
     Check(cudaFree(values));Check(cudaFree(indices));Check(cudaFree(lm));
-    {
+    if(!sq2_base) {
       std::vector<float> l(16*128);for(auto& x:l)x=float(random()%100000)/1000.f;
       auto* logits=Device<float>(l.size());
       Check(cudaMemcpy(logits,l.data(),l.size()*4,cudaMemcpyHostToDevice));
@@ -816,12 +818,14 @@ int main(int argc,char** argv) {try {
   epilogue.output=Device<BF>(epilogue.copies*epilogue.out_copy*2);
   epilogue.index=Device<int>(epilogue.copies*epilogue.out_copy);
   if(full || !std::strcmp(argv[1],"--gates-only"))Gates(sms);
-  if(full || !std::strcmp(argv[1],"--epilogue-only")) {
+  if(full || sq2_epilogue || !std::strcmp(argv[1],"--epilogue-only")) {
     EpilogueTiles<ServingEpilogueOp::kStore>("qkv",std::integer_sequence<int,8,16,24,32,40,48,64,80,96,128>{});
     EpilogueTiles<ServingEpilogueOp::kResidual>("residual",std::integer_sequence<int,8,16,24,32,48,64>{});
     EpilogueTiles<ServingEpilogueOp::kSwiGLU>("gate_up",
         std::integer_sequence<int,16,24,32,48,56,64,96,112,128,192,224,256,448,512>{});
     EpilogueTiles<ServingEpilogueOp::kArgmaxPartial>("lm_head",std::integer_sequence<int,128,256>{});
+  }
+  if(full || !std::strcmp(argv[1],"--epilogue-only")) {
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kRouter,8>("router");
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,96>("expert_gate_up");
     MoeEpilogueTile<backend::Sm90DenseMoeMode::kGateUp,192>("expert_gate_up");
