@@ -55,6 +55,7 @@ def stage_rows(args):
         raise ValueError('each sampled boundary must cover every persistent CTA')
     active = {key: active_by_sm(rows) for key, rows in by_stage.items()}
     summaries = defaultdict(list)
+    steps = {step for step, _ in by_stage}
     for (step, stage), rows in sorted(by_stage.items()):
         label = labels[stage]
         working = active[step, stage]
@@ -63,9 +64,11 @@ def stage_rows(args):
         spans = [item for group in working.values() for item in group]
         body = max(row[2] for row in spans)-min(row[1] for row in spans)
         total = max(row[4] for row in rows)-min(row[2] for row in rows)
+        critical_barrier = max(row[4] for row in rows)-max(row[3] for row in rows)
         fractions = [(release-end)/(release-begin) for worker, begin, end, release in spans
                      if worker % 16 == 0 and release > begin]
-        summaries[label].append(dict(body=body, span=total, fraction=statistics.median(fractions) if fractions else None,
+        summaries[label].append(dict(body=body, span=total, critical_barrier=critical_barrier,
+            fraction=statistics.median(fractions) if fractions else None,
             own=overlap(working, working), previous=overlap(active.get((step, stage-1), {}), working),
             following=overlap(working, active.get((step, stage+1), {})),
             weight=int(stages[stage]['weight_bytes'])))
@@ -77,12 +80,13 @@ def stage_rows(args):
         measurement = dict(model=plan['model'], batch=plan['batch'], stage=label,
             body_span_ns=statistics.median(row['body'] for row in rows),
             stage_span_ns=statistics.median(row['span'] for row in rows),
+            critical_barrier_ns=statistics.median(row['critical_barrier'] for row in rows),
             grid_barrier_fraction=statistics.median(fractions) if fractions else '',
             dual_active_sms=max(row['own'] for row in rows),
             overlaps_previous_sms=max(row['previous'] for row in rows),
             overlaps_next_sms=max(row['following'] for row in rows),
             effective_gbps=(sum(row['weight'] for row in rows)/sum(row['span'] for row in rows)) if fixed else '',
-            sampled_boundaries=len(rows), trace_perturbation_pct=report['overhead_pct'],
+            sampled_boundaries=len(rows), sampled_steps=len(steps), trace_perturbation_pct=report['overhead_pct'],
             gpu_uuid=device['nvml_uuid'], trace_sha256=evidence)
         yield measurement
 
