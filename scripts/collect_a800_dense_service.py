@@ -117,7 +117,7 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
             if (row['input_norm'] != (row['epilogue'] != 'residual')
                     or row['u'] not in (4, 8, 16) or row['copy_issue_group'] not in (0, 4, 8)
                     or row['residual_tiles'] != (
-                        max(2, (row['n']//row['tn'] + row['grid']-1)//row['grid'])
+                        max(2, ((row['n']+row['tn']-1)//row['tn'] + row['grid']-1)//row['grid'])
                         if row['epilogue'] == 'residual' else 0)):
                 raise ValueError(f'inconsistent production geometry for {case}')
             key = production_key(row)
