@@ -79,12 +79,18 @@ def collect(runs, scope, timings, out):
                      for arm,reason in rejected.items())
         for label, stages in arms.items():
             if key[0] == 'qwen3_30b_a3b':
+                [binding] = [probe for probe in spec['probes'] if probe['arm']==label]
+                performance = binding.get('timing', timings.get(f'{key[0]}/B{key[1]}/{label}', {}))
+                if 'timing' in binding and (performance['job'] != spec['timing_job'] or
+                        performance['decode_sha256'] != read(binding['trace_plan'])['original_sha256']):
+                    raise ValueError('Qwen stage measurements and TPOT refer to different arms')
                 for stage, value in stages.items():
                     found = [row for case, row in roles.get(f'role-{label}', {}).items()
                              if f'-{stage}-' in case]
                     ratio = found[0]['consumer_wait_fraction'] if len(found)==1 else ''
                     tables['qwen3'].append(dict(value, arm=label, job=job, consumer_wait_fraction=ratio,
-                        timing_job=timings.get(f'{key[0]}/B{key[1]}/{label}', {}).get('job', ''),
+                        timing_job=performance.get('job', ''), tpot_ms=performance.get('tpot_ms', ''),
+                        boundaries_per_step=value['sampled_boundaries']/value['sampled_steps'],
                         same_stage_overlap_sms=value['dual_active_sms'],
                         cross_stage_overlap_sms=max(value['overlaps_previous_sms'],value['overlaps_next_sms'])))
                 continue
