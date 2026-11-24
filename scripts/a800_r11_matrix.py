@@ -46,7 +46,7 @@ def summary(rows, efficiencies=None, denominator=None):
     return result
 
 
-def write_results(out, original, matrix, adoption):
+def write_results(out, original, matrix, adoption, comparisons=None):
     out.mkdir(parents=True, exist_ok=True)
     rows = list(matrix.values())
     native = out/'A800_llm.csv'
@@ -56,15 +56,20 @@ def write_results(out, original, matrix, adoption):
                            reference/'SM90R6_hw_bound.csv',
                            ROOT/'configs/targets/sm_80_a800_sxm4_80gb_registry.json')
     floors = {(row['model'], row['batch']): row for row in efficiency}
+    comparisons = adoption if comparisons is None else comparisons
     write_csv(out/'A800_R11_llm.csv', [dict(model=row['model'], batch=row['batch'],
         scope='priority' if row['model'] in PRIORITY else 'other',
         r10_tpot_ms=original[key]['tpot_ms'], r11_tpot_ms=row['tpot_ms'],
         fastest_baseline=row['fastest_baseline'], fastest_baseline_tpot_ms=row['fastest_baseline_tpot_ms'],
         speedup=row['speedup'], efficiency=floors[key]['tilemega_efficiency'],
         baseline_efficiency=floors[key]['baseline_efficiency'],
-        same_allocation_control_ms=adoption.get(key, {}).get('control_tpot_ms', ''),
-        same_allocation_trial_ms=adoption.get(key, {}).get('tpot_ms', ''),
-        job=adoption.get(key, {}).get('job', ''), correctness=row['correctness'],
+        same_allocation_control_ms=comparisons.get(key, {}).get('control_tpot_ms', ''),
+        same_allocation_trial_ms=comparisons.get(key, {}).get('tpot_ms', ''),
+        same_allocation_result=comparisons.get(key, {}).get('status', ''),
+        paired_fresh_pass_rate=comparisons.get(key, {}).get('pass_rate', ''),
+        paired_trial_sha256=comparisons.get(key, {}).get('decode_sha256', ''),
+        paired_evidence=comparisons.get(key, {}).get('evidence', ''),
+        job=comparisons.get(key, {}).get('job', ''), correctness=row['correctness'],
         decode_sha256=row['decode_sha256'], target_sha256=row['target_sha256']) for key, row in matrix.items()])
     if adoption:
         write_csv(out/'A800_R11_adopted.csv', list(adoption.values()))
