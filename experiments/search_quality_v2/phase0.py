@@ -124,7 +124,7 @@ def timing_value(attempt, binary, spec, check):
         assert [row['warmup'] for row in runs] == [True, False, False, False]
         wall[n] = statistics.median(row['wall_seconds'] for row in runs if not row['warmup'])
     tpot = (wall[1024] - wall[1]) / 1023
-    assert math.isclose(tpot, value['tpot_seconds'], abs_tol=1e-12)
+    assert tpot > 0 and math.isclose(tpot, value['tpot_seconds'], abs_tol=1e-12)
     if check:
         c1 = read(job / 'c1.json')
         c2 = read(job / 'c2.json')
