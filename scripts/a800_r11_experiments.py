@@ -103,6 +103,24 @@ def qwen(base, manifest):
         yield 'o-split-k2', trial
 
 
+def router_recovery(base, shortlist):
+    incumbent = schema10(deepcopy(base))
+    seen = [incumbent, *(schema10(deepcopy(row['coordinates']))
+                        for row in shortlist if not router_changed(base, row['coordinates']))]
+    for row in shortlist:
+        trial = schema10(deepcopy(row['coordinates']))
+        if not router_changed(base, trial):
+            continue
+        trial['gemms']['router'] = deepcopy(base['gemms']['router'])
+        if 'route' in base:
+            trial['route'] = base['route']
+        else:
+            trial.pop('route', None)
+        if trial not in seen:
+            seen.append(trial)
+            yield f'frozen-router-rank-{row["rank"]}', trial
+
+
 def mainloop(base):
     specialized = deepcopy(base)
     remove_cooperative(specialized)
@@ -118,7 +136,8 @@ def mainloop(base):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('experiment', choices=('boundary', 'qwen', 'mainloop'))
+    parser.add_argument('experiment', choices=('boundary', 'qwen', 'mainloop', 'router-recovery'))
+    parser.add_argument('--shortlist', type=Path, help='original R11 finalists for the router recovery')
     parser.add_argument('--only', action='append', default=[], metavar='ARM',
                         help='link selected arms when supplementing an existing comparison')
     for name in ('control', 'target', 'cli', 'out'):
@@ -138,9 +157,17 @@ def main():
         raise ValueError('the experiment changed a published control or export')
     if args.experiment == 'qwen' and args.model != 'qwen3_30b_a3b':
         parser.error('use the Qwen3-30B-A3B routing and output-stage sweep')
+    if bool(args.shortlist) != (args.experiment == 'router-recovery'):
+        parser.error('router recovery requires the original finalist binding')
+    shortlist = read(args.shortlist) if args.shortlist else None
+    if shortlist and (shortlist['control_sha256'] != sha(args.control)
+            or shortlist['target_sha256'] != sha(target)
+            or base['model'] != 'moe'):
+        raise ValueError('router recovery must keep the original MoE control and calibrated target')
     config = read(inputs(args.model)[0]/'config.json')
     candidates = {'boundary': lambda: boundary(base, config), 'qwen': lambda: qwen(base, manifest),
-                  'mainloop': lambda: mainloop(base)}[args.experiment]()
+                  'mainloop': lambda: mainloop(base),
+                  'router-recovery': lambda: router_recovery(base, shortlist['candidates'])}[args.experiment]()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     packing_prefix = () if control['prefill'] == 'prompt' else (Path(control['prefill']),)
@@ -165,8 +192,11 @@ def main():
             host_preparation=str(packing), host_preparation_sha256=sha(packing),
             route_check=router_changed(base, linked['native_dense'])))
     prepared = out/'experiment.json'
-    write_json(prepared, dict(source=source_commit, phase=args.experiment, failures=failures,
-                 compiler_sha256=sha(args.cli), generator_sha256=sha(__file__), target_sha256=sha(target)))
+    preparation = dict(source=source_commit, phase=args.experiment, failures=failures,
+                       compiler_sha256=sha(args.cli), generator_sha256=sha(__file__), target_sha256=sha(target))
+    if args.shortlist:
+        preparation['shortlist_sha256'] = sha(args.shortlist)
+    write_json(prepared, preparation)
     if not arms:
         raise ValueError(f'no linked {args.experiment} trials: {prepared}')
     write_json(out/'finalists.json', dict(model=args.model, batch=args.batch, control=str(args.control.resolve()),
