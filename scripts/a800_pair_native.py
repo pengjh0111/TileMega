@@ -152,6 +152,8 @@ def main():
         if route_tokens:
             command.extend(('--routing-tokens', str(route_tokens)))
         subprocess.run(command, check=True, timeout=budget)
+        if run:
+            time.sleep(settle_s)
 
     if args.mode == 'plan':
         if args.fresh_correctness and not args.numeric_gate:
@@ -172,13 +174,17 @@ def main():
     partition = os.environ.get('SLURM_JOB_PARTITION')
     if partition not in A800_PARTITIONS:
         parser.error('paired tuning requires the ordinary single-GPU allocation')
+    policy = device_policy()
+    # The allocation spans separate scheduler invocations. Let the completed
+    # child's utilization sample expire before the next strict idle check.
+    settle_s = policy.get('own_child_settle_s', 0)
     if args.reuse_checkpoint:
         from tilemega.serving.random_checkpoint import validate_live_checkpoint
 
         checkpoint = allocation_checkpoint()
         inherited = os.environ.get('TILEMEGA_RANDOM_CHECKPOINT')
         if inherited is None:
-            device = calibrated_device(device_policy(), json.loads(args.target.read_text()))
+            device = calibrated_device(policy, json.loads(args.target.read_text()))
             config, _ = inputs(args.model)
             description = inspect_inputs(INVENTORY)[args.model]
             command = ['taskset', '--cpu-list', device['cpus'], str(ENVS/'vllm/bin/python'),
@@ -309,6 +315,8 @@ def main():
                                'round': round_index}
             write_json(out/'rejected.json', rejected)
             continue
+        if position+1 < len(order):
+            time.sleep(settle_s)
         receipts = (RUN/'native').glob(f'*/{args.model}/B{args.batch}/*/{stage}-{round_index}.json')
         receipt, = [json.loads(path.read_text()) for path in receipts]
         result_path = Path(receipt['evidence'])/f'B{args.batch}'/'measurements.json'
