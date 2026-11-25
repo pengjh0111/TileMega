@@ -72,6 +72,11 @@ def report(matrix, reports, calibration, sm90):
     lines.extend(['## R11-1 服务校准', '', '**verified** 当前校准表通过头文件可达性检查，结果为 `0 unreachable profiles`。',
                   f'服务覆盖表中，{coverage["no_modeled_services"]}/20 格的 `modeled_services_count` 为 0。'])
     table(lines, ('服务表','档案数','测量数'), [(key,*counts[key]) for key in sorted(counts)])
+    rejected = profile.get('rejected_cooperative_labels', {})
+    if rejected:
+        lines.append('**verified** 以下协作探针完成了守卫测量。校准注册表仅收录符合时钟、扰动和驻留条件的样本。')
+        table(lines, ('探针','作业','拒收依据'),
+              [(label,evidence['job'],evidence['reason']) for label,evidence in sorted(rejected.items())])
 
     lines.extend(['## R11-2 四候选选择', '', f'**verified** {coverage["four_diverse_finalists"]}/20 格完成四候选、至少两类结构和两个新候选的检查。',
                   f'首选实测命中率为 {coverage["rank1_hits"]}/20。详见 `A800_R11_candidates.csv` 和 `A800_R11_rank.csv`。'])
@@ -79,6 +84,12 @@ def report(matrix, reports, calibration, sm90):
         [first, *_] = rows(reports/'A800_R11_rank.csv')
         if first['deviations']:
             lines.append(f'**inferred** 预测比值偏差最大的坐标轴为 {first["deviations"].replace(" | ", "、")}。')
+    projection_pairs = reports/'A800_R11_projection_pairs.csv'
+    if projection_pairs.exists():
+        lines.append('**verified** 匹配几何的冷权重探针独立验证了 Split-K 与分块参数对阶段时间的影响。')
+        table(lines, ('模型','B','阶段','测试臂','作业','阶段 ns','GB/s','活动 CTA'),
+              [(r['model'],r['batch'],r['family'],r['arm'],r['job'],r['stage_span_ns'],
+                r['effective_gbps'],r['active_ctas']) for r in rows(projection_pairs)])
 
     lines.extend(['', '## R11-3 数值门', '', '**verified** 各臂使用 teacher-forced 与同一二进制执行器一致性。路由实验同时校验有序专家索引。'])
     table(lines, ('模型','B','作业','新进程通过率','配对结果'),
