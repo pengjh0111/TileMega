@@ -36,13 +36,19 @@ def prepare(args, rows, covered):
     for key, row in rows.items():
         if key in covered or row['model'] not in MODELS:
             continue
-        binding = args.final/'prepared'/key/'finalists.json'
-        spec = read(binding)
+        spec = read(args.final/'prepared'/key/'finalists.json')
         if sha(spec['control']) != spec['control_sha256']:
             raise ValueError(f'{key} release trace has a different R10 control')
         anchor = read(spec['control'])
         if anchor['decode_sha256'] != row['decode_sha256']:
-            [winner] = [arm for arm in spec['candidates'] if arm['binary_sha256']==row['decode_sha256']]
+            candidates = spec['candidates']
+            fallback = args.final/'fallback'/key/'finalists.json'
+            if fallback.is_file():
+                alternate = read(fallback)
+                if alternate['control_sha256'] != spec['control_sha256']:
+                    raise ValueError(f'{key} fallback uses another R10 control')
+                candidates = [*candidates, *alternate['candidates']]
+            [winner] = [arm for arm in candidates if arm['binary_sha256']==row['decode_sha256']]
             target = winner.get('target', spec['target'])
             anchor = dict(anchor, decode=winner['binary'], decode_sha256=winner['binary_sha256'],
                           coordinates=winner['coordinates'], artifact_target=target, target=target,

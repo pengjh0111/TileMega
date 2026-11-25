@@ -131,10 +131,10 @@ def combined_arms(out, control, phases, cli, failures):
 def bind(out, incumbent, phases, cli=None):
     control = read(incumbent)
     chosen = [row for name, row in sorted(phases.items()) if row['passed_screen'] or name == 'recovered']
-    if not chosen and 'pipeline' in phases:
+    if not any(row['passed_screen'] for row in phases.values()) and 'pipeline' in phases:
         # Retest the best eligible solver finalist against the incumbent even
-        # when the first timing found a tie or loss.
-        chosen = [phases['pipeline']]
+        # when another retained arm only qualifies as a legacy recheck.
+        chosen.append(phases['pipeline'])
     out.mkdir(parents=True, exist_ok=True)
     failures = {}
     if cli:
