@@ -4,11 +4,14 @@ import argparse
 import math
 from pathlib import Path
 
-from a100_baselines import sha, inspect_inputs
+from a100_baselines import ROOT, sha, inspect_inputs
 from a100_results import guarded_measurement, write_csv
 from a800_baselines import INVENTORY, hardware_class
 from a800_r11_gate import GATE, INVARIANTS, read, verify
 from a800_results import native_provenance
+
+
+TARGET = ROOT/'configs/targets/sm_80_a800_sxm4_80gb_registry.json'
 
 
 def timing(runs, job, model, batch, sample, artifact, inputs):
@@ -35,7 +38,8 @@ def timing(runs, job, model, batch, sample, artifact, inputs):
     return raw, native_provenance(raw, receipt)
 
 
-def collect(runs, job, inputs):
+def collect(runs, job, models):
+    inputs = dict(device=read(TARGET)['device_provenance'], models=models)
     folder = runs/'optimization/decode-pairs'/str(job)
     binding = read(folder/'planned.json')
     if (binding['protocol_version'], binding['numeric_gate'], binding['phase']) != ('a800-single-v2', GATE, 'decode'):
