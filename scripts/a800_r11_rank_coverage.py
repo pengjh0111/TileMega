@@ -103,7 +103,10 @@ def summarize(cells, out, inputs):
         if cell.get('job'):
             runs = Path(cell['runs'])
             rows, count, deviations = rank_result(Path(cell['finalists']), runs, cell['job'], inputs)
-            recovered = list(recovery_result(cell['recovery'], runs, inputs)) if cell.get('recovery') else []
+            specs = cell.get('recoveries', ())
+            if cell.get('recovery'):
+                specs = (*specs, cell['recovery'])
+            recovered = [row for spec in specs for row in recovery_result(spec, runs, inputs)]
             recoveries.extend(recovered)
             measured = {row['decode_sha256'] for row in rows if row['eligible'] and row['new_candidate']}
             supplementary = {row['decode_sha256'] for row in recovered if row['measured']} - measured

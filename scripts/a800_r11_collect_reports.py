@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Collect the R11 numeric gate, coverage, rank, and stage tables."""
 import argparse
+from collections import defaultdict
 import csv
 from pathlib import Path
 
@@ -38,7 +39,7 @@ def coverage_cells(scope, old, pipeline_jobs, recovery_jobs):
                    r10_coverage=str(old_search/'candidate-coverage.jsonl'),
                    r11_coverage=str(Path(spec['prepared']).parent/'candidate-coverage.jsonl'),
                    r11_coordinates=spec['candidates'][0]['coordinates'],
-                   job=pipeline_jobs.get((model, batch)), recovery=recovery_jobs.get((model, batch)))
+                   job=pipeline_jobs.get((model, batch)), recoveries=recovery_jobs.get((model, batch), ()))
 
 
 def gate_rows(legacy, inputs):
@@ -86,7 +87,7 @@ def report(scope, legacy, old, out):
     pairs = (completed(waves) if (waves/'accounting.json').exists() else ())
     timings = {}
     pipeline_jobs = {}
-    recovery_jobs = {}
+    recovery_jobs = defaultdict(list)
     mainloop_ready = False
     for phase, plan, job in pairs:
         if not (runs/'optimization/decode-pairs'/job/'result.json').exists():
@@ -97,8 +98,8 @@ def report(scope, legacy, old, out):
         if phase == 'pipeline':
             pipeline_jobs[plan['model'], plan['batch']] = job
             continue
-        if phase == 'routerfix':
-            recovery_jobs[plan['model'], plan['batch']] = dict(job=job, finalists=binding)
+        if phase in ('routerfix', 'routerextra'):
+            recovery_jobs[plan['model'], plan['batch']].append(dict(job=job, finalists=binding))
             continue
         if phase == 'mainloop':
             mainloop_ready = True
