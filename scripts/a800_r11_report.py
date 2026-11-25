@@ -138,6 +138,19 @@ def report(matrix, reports, calibration, sm90):
     table(lines, ('B','阶段','测试臂','作业','GB/s','consumer 等待占比','相邻阶段重叠 SM'),
           [(r['batch'],r['stage'],r['arm'],r['job'],r['effective_gbps'],r['consumer_wait_fraction'],
             r['cross_stage_overlap_sms']) for r in qwen])
+    router = [r for r in qwen if r['stage']=='router' and r['arm']=='control']
+    if router:
+        lines.append('**inferred** 以实测字节数和阶段时间计算 150 GB/s 的单层时间预算。'
+                     '假设只消除测得的关键路径 grid barrier，其余阶段成本按原样计入。')
+        budgets = []
+        for r in router:
+            span = float(r['stage_span_ns'])
+            barrier = float(r['critical_barrier_ns'])
+            measured_bytes = float(r['effective_gbps'])*span
+            if span > barrier:
+                budgets.append((r['batch'],r['job'],f'{span:.0f}',f'{barrier:.0f}',
+                                f'{measured_bytes/(span-barrier):.1f}',f'{measured_bytes/150:.0f}'))
+        table(lines, ('B','作业','阶段 ns','关键路径 barrier ns','移除 barrier 后 GB/s','150 GB/s 预算 ns'), budgets)
     priority_qwen = [row for row in selected if row['model']=='qwen3_30b_a3b' and int(row['batch'])>1]
     if priority_qwen:
         wins = sum(float(row['speedup']) >= 1 for row in priority_qwen)
@@ -152,6 +165,11 @@ def report(matrix, reports, calibration, sm90):
     table(lines, ('模型','B','作业','所选测试臂','线程数','寄存器数','TPOT ms'),
           [(r['model'],r['batch'],r['job'],r['arm'],r['threads'],r['linked_registers'],r['tpot_ms'])
            for r in winning.values()])
+    for batch in ('1','16'):
+        evidence = [r for (model,b),r in winning.items() if batch==b]
+        if evidence:
+            cooperative = sum(r['multistage']=='True' for r in evidence)
+            lines.append(f'**verified** B{batch} 有 {cooperative}/{len(evidence)} 个模型在同卡流水对照中选择协作路径。')
     single_join = {(r['model'],r['batch'],r['job']):r for r in mainloops
                    if r['single_join']=='True' and int(r.get('correctness_processes') or 0)>=5}
     if single_join:
