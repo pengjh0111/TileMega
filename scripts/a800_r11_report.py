@@ -4,6 +4,7 @@ import argparse
 from collections import defaultdict
 import csv
 from pathlib import Path
+from statistics import median
 
 from a100_baselines import sha
 from a800_r11_gate import read
@@ -90,12 +91,32 @@ def report(matrix, reports, calibration, sm90):
     table(lines, ('模型','B','阶段','计时作业','阶段作业','新进程通过率','同步占比','每边界节省 ns'),
           [(r['model'],r['batch'],r['stage'],r['timing_job'],r['trace_job'],r['fresh_pass_rate'],
             r['trial_grid_barrier_fraction'],r['saved_ns_per_boundary']) for r in views])
+    whole = [row for row in views if row['arm']=='whole-output-groups'
+             and row['model'] in ('llama3_1_8b', 'mistral_7b_v0_3') and int(row['batch'])<=4
+             and row['trial_grid_barrier_fraction'] and row['saved_ns_per_boundary']]
+    if whole:
+        fraction = [float(row['trial_grid_barrier_fraction']) for row in whole]
+        saving = median(float(row['saved_ns_per_boundary']) for row in whole)
+        targets = sum(value <= .20 for value in fraction)
+        lines.extend([f'**verified** 整输出发布在 {targets}/{len(whole)} 个阶段达到 20% 门限。'
+                      f'实测等待占比为 {min(fraction):.1%}–{max(fraction):.1%}，'
+                      f'每边界节省中位数为 {saving:.0f} ns。'])
+        if targets < len(whole):
+            lines.append('**inferred** 整输出发布按已完成的 tile 累计到达量。'
+                         '后继仍依赖全部输出，最后一批 tile 的完成和全局等待依然处于关键路径。')
 
     qwen = [row for row in rows(reports/'A800_R11_qwen3.csv') if row['stage'] in ('router','o')]
     lines.extend(['## R11-5 Qwen3-30B-A3B', '', '**verified** 阶段记录分别统计 CTA 同阶段重叠和相邻阶段重叠。'])
     table(lines, ('B','阶段','测试臂','作业','GB/s','consumer 等待占比','相邻阶段重叠 SM'),
           [(r['batch'],r['stage'],r['arm'],r['job'],r['effective_gbps'],r['consumer_wait_fraction'],
             r['cross_stage_overlap_sms']) for r in qwen])
+    priority_qwen = [row for row in selected if row['model']=='qwen3_30b_a3b' and int(row['batch'])>1]
+    if priority_qwen:
+        wins = sum(float(row['speedup']) >= 1 for row in priority_qwen)
+        lines.append(f'**verified** Qwen3 B2/B4/B8/B16 中有 {wins}/{len(priority_qwen)} 格达到最快 baseline。')
+    if (reports/'A800_R11_router_recovery.csv').exists():
+        lines.append('**verified** 优先复测保留原路由的备用臂，定价排序仍按原 allocation 核算。'
+                     '两批证据分别记录在路由恢复表和候选排名表。')
 
     winning = {(r['model'],r['batch']):r for r in rows(reports/'A800_R11_mainloop.csv') if r['decisive']=='True'}
     lines.extend(['## R11-6 协作流水', '', '**verified** 每格的流水选择依据同卡整模型 TPOT。'])
