@@ -44,6 +44,8 @@ def stage_compact_results():
         'selection_summary.csv', 'costs.json', 'analysis_population.csv', 'regret_curves.csv', 'plot.py',
     ]
     requested += [f'fig_{stem}.{ext}' for stem in ('SQ1', 'SQ2', 'SQ3', 'SQ4') for ext in ('png', 'pdf')]
+    if (CASE / 'gpu_failover.json').exists():
+        requested.append('gpu_failover.json')
     for entry in requested:
         source = CASE / entry
         assert source.is_file() and source.stat().st_size > 0, entry

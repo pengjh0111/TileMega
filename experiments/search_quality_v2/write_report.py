@@ -22,7 +22,22 @@ def main():
     gaps = [key for key, passed in n['criteria'].items() if not passed]
     pair = n['local_matched_attention']
     with (CASE / 'timings.csv').open() as handle:
-        status = collections.Counter(row['status'] for row in csv.DictReader(handle))
+        attempts = list(csv.DictReader(handle))
+    status = collections.Counter(row['status'] for row in attempts)
+    accepted_by_gpu = collections.Counter(row['gpu_uuid'] for row in attempts if row['status'] == 'valid')
+    failover = CASE / 'gpu_failover.json'
+    device_protocol = [
+        'The audit submitted the frozen shuffle and its reverse across the assigned H800 lanes.',
+        f'Valid process receipts by GPU UUID (audit and confirmation): {dict(accepted_by_gpu)}.',
+    ]
+    if failover.exists():
+        device_protocol.extend([
+            'After the original GPU outage, pending items were dispatched individually to available '
+            'H800s, including devices 0 and 1 once authorized. The frozen candidate order supplied '
+            'the queue, and guard-rejected items returned to its tail. Accepted prior results were preserved.',
+            'Timing and confirmation span physical H800 UUIDs. See gpu_failover.json for the device '
+            'mapping and deviations.md for the incident and transport change.',
+        ])
     text = (
         f'For Qwen3-1.7B at batch 1 on H800, the estimated legal space contained '
         f'{n["legal_space_estimate"] / 1e6:.1f} million configurations. The search scored {e} '
@@ -44,7 +59,8 @@ def main():
         '# H800 SQ2 search selection quality', '', text, '',
         'Qwen3-1.7B, batch 1, TP1, BF16, ISL64/OSL1024. The shared checkpoint uses deterministic seed-0 weights.',
         'Each process ran one warmup and three timed requests at N1 and N1024. TPOT is the request-wall median difference divided by 1023.',
-        'The first process screened 256 positions against HF and checked single-step/persistent token equality outside the timing interval. The guard records interference and device UUID. Three independent H800 lanes filter the same shuffle and its reverse using frozen assignments.',
+        'The first process screened 256 positions against HF and checked single-step/persistent token equality outside the timing interval. The guard records interference and device UUID.',
+        *device_protocol,
         'The search budget was 600 s with four additional seeds from seed 20261124. Q uses a 1.5% band, round-robin implementation signatures, and an 8–24 bound. S is capped at six with at most two from each structural class.',
         'P includes the frozen 30-per-decile sample of E, the full shortlist, 100 uniform draws, and the baseline coordinates. The audit oracle is the best measured in P. Deduplication requires CUDA, task/event IR, and execution-manifest equivalence.',
         '', f'Attempt status counts: {dict(status)}.',
