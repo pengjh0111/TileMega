@@ -47,8 +47,6 @@ def main():
             print(case, result.stdout.strip(), flush=True)
         return 0
 
-    if os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800':
-        raise ValueError('use the single-A800 allocation')
     policy = device_policy()
     device = calibrated_device(policy, json.loads(a.target.read_text()))
     out = RUN/'calibration'/'r2-supplement-service'/os.environ['SLURM_JOB_ID']
