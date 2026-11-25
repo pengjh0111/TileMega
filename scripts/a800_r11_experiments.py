@@ -16,12 +16,11 @@ from a800_shortlist_abi import freeze_host_preparation
 from tilemega.bench.scheduler import write_json
 
 
-def remove_cooperative(coords):
-    coords.pop('multistage', None)
-    coords.pop('multistage_single_join', None)
+def use_legacy_schema_when_possible(coords):
     explicit = {'weight_evict_first', 'persist_l2_eighths', 'epilogue_rows', 'payload', 'producer_warps',
                 'copy_issue_group', 'expert_page_copy', 'expert_gu_routes', 'expert_slot_padding',
-                'expert_aligned_gate_pages', 'task_group_wait', 'l2_weight_preissue'}
+                'expert_aligned_gate_pages', 'task_group_wait', 'l2_weight_preissue',
+                'multistage', 'multistage_single_join'}
     if (coords['schema'] != 10 or explicit & coords.keys() or coords['attention'].get('compact_workspace')
             or any(tile.get('split_k', 1)>1 for tile in coords['gemms'].values())):
         return
@@ -33,6 +32,12 @@ def remove_cooperative(coords):
         coords['schema'] = 6
         coords.pop('tp', None)
         coords.pop('argmax', None)
+
+
+def remove_cooperative(coords):
+    coords.pop('multistage', None)
+    coords.pop('multistage_single_join', None)
+    use_legacy_schema_when_possible(coords)
 
 
 def boundary(base, config):
@@ -118,7 +123,9 @@ def router_recovery(base, shortlist):
             trial.pop('route', None)
         if trial not in seen:
             seen.append(trial)
-            yield f'frozen-router-rank-{row["rank"]}', trial
+            coordinates = deepcopy(trial)
+            use_legacy_schema_when_possible(coordinates)
+            yield f'frozen-router-rank-{row["rank"]}', coordinates
 
 
 def mainloop(base):
