@@ -130,7 +130,7 @@ def combined_arms(out, control, phases, cli, failures):
 
 def bind(out, incumbent, phases, cli=None):
     control = read(incumbent)
-    chosen = [row for _, row in sorted(phases.items()) if row['passed_screen']]
+    chosen = [row for name, row in sorted(phases.items()) if row['passed_screen'] or name == 'recovered']
     if not chosen and 'pipeline' in phases:
         # Retest the best eligible solver finalist against the incumbent even
         # when the first timing found a tie or loss.
@@ -168,7 +168,7 @@ def recovered(legacy, incumbents, preparation, inputs):
             raise ValueError('the recovered R10 trial changed after submission')
         spec = read(item['binding'])
         (fact, timing, _), = collect(runs, job, inputs)
-        if timing is None or fact['passed_processes'] != 5 or fact['status'] != 'faster':
+        if timing is None or fact['passed_processes'] != 5:
             continue
         args = spec['args']
         model, batch = fact['model'], fact['batch']
@@ -192,7 +192,7 @@ def recovered(legacy, incumbents, preparation, inputs):
             host_preparation_sha256=sha(host_preparation),
             route_check=router_changed(control['coordinates'], coords), target=library_plan['runtime_target'],
             target_sha256=identity['target_sha256'], job=job,
-            evidence_sha256=fact['evidence'], passed_screen=True)
+            evidence_sha256=fact['evidence'], passed_screen=fact['status'] == 'faster')
 
 
 def main():
