@@ -92,6 +92,30 @@ def boundary_sass(scope, model, batch, label, probes):
                 trial_sass_sha256=proof[label]['sass_sha256'])
 
 
+def boundary_sync(scope, model, batch, label, probes):
+    fields = dict(sync_proof_job='', sync_process_pass_rate='', sync_proof_sha256='')
+    if (model, batch, label) != ('olmoe_1b_7b', 4, 'whole-output-groups'):
+        return fields
+    root = scope.parent/'boundary-sync'
+    ticket = root/'olmoe-b4.id'
+    if not ticket.is_file():
+        return fields
+    job = ticket.read_text().strip()
+    path = root/f'{job}.result.json'
+    if not path.is_file():
+        return fields
+    proof = read(path)
+    if len(proof['data']) != 5:
+        return fields
+    [probe] = [row for row in probes if row['arm'] == label]
+    if (proof['job'] != int(job) or proof['required'] != 5
+            or proof['plan_sha256'] != sha(root/'olmoe-b4.plan.json')
+            or proof['binary_sha256'] != read(probe['trace_plan'])['original_sha256']
+            or any(sha(row['receipt']) != row['receipt_sha256'] for row in proof['data'] if row['pass_'])):
+        raise ValueError('OLMoE sync evidence no longer matches the measured whole-output body')
+    return dict(sync_proof_job=job, sync_process_pass_rate=f'{proof["passes"]}/5', sync_proof_sha256=sha(path))
+
+
 def collect(runs, scope, timings, out):
     tables, retry = defaultdict(list), []
     for job, spec in trace_cases(scope):
@@ -121,6 +145,7 @@ def collect(runs, scope, timings, out):
             if label == 'control' or 'control' not in arms:
                 continue
             sass = boundary_sass(scope, *key, label, spec['probes'])
+            sync = boundary_sync(scope, *key, label, spec['probes'])
             for stage in ('qkv', 'o', 'down'):
                 if stage not in stages or stage not in arms['control']:
                     continue
@@ -136,7 +161,7 @@ def collect(runs, scope, timings, out):
                     predicted_saving_ns=320, tpot_ms=performance.get('tpot_ms',''),
                     paired_improvement_pct=performance.get('improvement_pct',''),
                     fresh_pass_rate=performance.get('pass_rate',''),
-                    outcome=performance.get('status',''), evidence=after['trace_sha256'], **values, **sass))
+                    outcome=performance.get('status',''), evidence=after['trace_sha256'], **values, **sass, **sync))
     out.mkdir(parents=True, exist_ok=True)
     for name, rows in tables.items():
         write_csv(out/f'A800_R11_{name}.csv', rows)

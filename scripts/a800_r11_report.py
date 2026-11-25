@@ -97,8 +97,13 @@ def report(matrix, reports, calibration, sm90):
 
     boundary = rows(reports/'A800_R11_boundary.csv')
     views = [row for row in boundary if row['stage'] in ('o','down')]
+    sync = {(row['sync_proof_job'],row['sync_process_pass_rate']) for row in views if row.get('sync_proof_job')}
+    if len(sync) != 1:
+        raise ValueError('R11 needs the five fresh OLMoE whole-output correctness observations')
     lines.extend(['## R11-4 边界归约', '', '**stated** OLMoE 使用整输出发布，Q/K 全行归一化继续等待全部输出 tile。',
                   '**verified** 以下边界结果关联各臂的正确性收据与阶段测量。预测节省为每边界 320 ns。'])
+    [(sync_job,sync_rate)] = sync
+    lines.append(f'**verified** OLMoE B4 整输出发布的新进程 C1/C2 通过率为 {sync_rate}，作业 {sync_job}。')
     table(lines, ('模型','B','阶段','计时作业','阶段作业','新进程通过率','同步占比','每边界节省 ns'),
           [(r['model'],r['batch'],r['stage'],r['timing_job'],r['trace_job'],r['fresh_pass_rate'],
             r['trial_grid_barrier_fraction'],r['saved_ns_per_boundary']) for r in views])
