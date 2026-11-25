@@ -13,6 +13,13 @@ from a800_baselines import ENVS, INVENTORY, RUN, calibrated_device, device_polic
 from tilemega.bench.scheduler import main as schedule, write_json
 
 
+def allocation_checkpoint():
+    job = os.environ['SLURM_JOB_ID']
+    if not job.isdecimal():
+        raise ValueError('shared checkpoint requires a Slurm job identifier')
+    return RUN/'native-pair-checkpoints'/job
+
+
 def artifact(path):
     path = path.resolve(strict=True)
     identity = json.loads(Path(str(path)+'.identity.json').read_text())
@@ -70,6 +77,8 @@ def main():
     parser.add_argument('--diagnostic-config', type=Path)
     parser.add_argument('--seed-suite', choices=('vllm', 'tilemega'), default='vllm')
     parser.add_argument('--expected-checkpoint-sha256')
+    parser.add_argument('--reuse-checkpoint', action='store_true',
+                        help='load the sealed checkpoint owned by the paired allocation')
     parser.add_argument('--host-preparation', type=Path)
     parser.add_argument('--private-stream', action='store_true')
     parser.add_argument('--routing-export', type=Path)
@@ -80,6 +89,8 @@ def main():
         parser.error('reserve time for strict admission and child cleanup, and use a nonnegative round')
     if args.seed_suite != 'vllm' and not args.expected_checkpoint_sha256:
         parser.error('an alternate generator must reproduce the verified checkpoint identity')
+    if args.reuse_checkpoint and (not args.expected_checkpoint_sha256 or args.diagnostic_config):
+        parser.error('checkpoint reuse requires the frozen, full model')
     if args.hf_reference and args.stage != 'correctness':
         parser.error('teacher-forced reference is a correctness process')
     if args.numeric_gate and args.stage != 'correctness':
@@ -186,6 +197,8 @@ def main():
     hf_positions = min(256, tokens) if args.numeric_gate and args.model == 'qwen3_30b_a3b' else tokens
     if args.numeric_gate:
         identity.update(numeric_gate='sm90-c1-c2-v1', hf_positions=hf_positions)
+    if args.reuse_checkpoint:
+        identity['checkpoint_supervision'] = 'allocation-sealed'
     if args.mode == 'plan':
         print(json.dumps(dict(identity, **description, prefill=str(prefill), decode=str(decode),
                               calibration_uuid=target['device_provenance']['uuid'],
@@ -204,6 +217,20 @@ def main():
     py = str(ENVS/'tilemega/bin/python')
     seed_py = str(ENVS/args.seed_suite/'bin/python')
     seed_hash = ['--expected-sha256', args.expected_checkpoint_sha256] if args.expected_checkpoint_sha256 else []
+    checkpoint_env = {}
+    if args.reuse_checkpoint:
+        from tilemega.serving.random_checkpoint import ALGORITHM, validate_live_checkpoint
+
+        checkpoint = allocation_checkpoint()
+        if os.environ.get('TILEMEGA_RANDOM_CHECKPOINT') != str(checkpoint):
+            raise ValueError('checkpoint must belong to the current allocation')
+        live = validate_live_checkpoint(checkpoint)
+        if (not live['sealed_memfds'] or live['algorithm'] != ALGORITHM or live['seed'] != 0
+                or live['checkpoint_sha256'] != args.expected_checkpoint_sha256
+                or live['config_sha256'] != description['config_sha256']
+                or live['total_bytes'] != description['checkpoint_bytes']):
+            raise ValueError('the allocation checkpoint differs from the frozen model')
+        checkpoint_env['TILEMEGA_RANDOM_CHECKPOINT'] = str(checkpoint)
     run = scope/'allocations'/os.environ['SLURM_JOB_ID']/name
     run.mkdir(parents=True, exist_ok=False)
     policy_path = run/'guard-policy.json'
@@ -239,16 +266,17 @@ def main():
                  '-ex', 'set cuda api_failures stop', '-ex', 'run', '-ex', 'info cuda kernels',
                  '-ex', 'info cuda threads', '-ex', 'bt', '-ex', 'p/x $pc',
                  '-ex', 'info symbol $pc', '-ex', 'x/10i $pc-0x60', '--args', *child]
+    if not args.reuse_checkpoint:
+        child = [seed_py, '-m', 'tilemega.serving.random_checkpoint', '--config', str(config),
+                 '--out', '{attempt_dir}/checkpoint', '--seed', '0',
+                 '--max-gib', str(math.ceil(description['checkpoint_bytes']/2**30)), *seed_hash, '--', *child]
     command = ['taskset', '--cpu-list', dev['cpus'], py,
                str(ROOT/'scripts/run_r16_with_device_identity.py'),
                '--out', '{attempt_dir}/job', '--guard-policy', str(policy_path),
                '--expected-uuid', dev['uuid'], '--expected-pci', dev['pci'],
-               '--numa-node', dev['numa_node'], '--', seed_py,
-               '-m', 'tilemega.serving.random_checkpoint', '--config', str(config),
-               '--out', '{attempt_dir}/checkpoint', '--seed', '0',
-               '--max-gib', str(math.ceil(description['checkpoint_bytes']/2**30)), *seed_hash, '--', *child]
+               '--numa-node', dev['numa_node'], '--', *child]
     env = dict(TILEMEGA_DEVICE_INDEX=str(dev['index']), TILEMEGA_NUMA_NODE=dev['numa_node'],
-               TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2', MKL_NUM_THREADS='2')
+               TILEMEGA_GPU_PID_MODE='strict', OMP_NUM_THREADS='2', MKL_NUM_THREADS='2', **checkpoint_env)
     if diagnostic:
         env['CUDA_LAUNCH_BLOCKING'] = '1'
     os.environ.update(TILEMEGA_DEVICE_INDEX=env['TILEMEGA_DEVICE_INDEX'],

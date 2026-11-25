@@ -11,9 +11,9 @@ import subprocess
 import sys
 import time
 
-from a100_baselines import BATCHES, MODELS, ROOT, sha
-from a800_baselines import A800_PARTITIONS, RUN
-from a800_native import artifact
+from a100_baselines import BATCHES, MODELS, ROOT, inputs, inspect_inputs, sha
+from a800_baselines import A800_PARTITIONS, ENVS, INVENTORY, RUN, calibrated_device, device_policy
+from a800_native import allocation_checkpoint, artifact
 from tilemega.bench.scheduler import write_json
 
 
@@ -35,6 +35,8 @@ def main():
     parser.add_argument('--trial', type=Path, required=True)
     parser.add_argument('--additional-trial', action='append', default=[], metavar='LABEL=LIBRARY')
     parser.add_argument('--expected-checkpoint-sha256')
+    parser.add_argument('--reuse-checkpoint', action='store_true',
+                        help='share one sealed seed-0 checkpoint across independent executors')
     parser.add_argument('--control-preparation', type=Path)
     parser.add_argument('--trial-preparation', type=Path)
     parser.add_argument('--arm-preparation', action='append', default=[], metavar='LABEL=RECEIPT')
@@ -82,6 +84,8 @@ def main():
         parser.error('fresh correctness belongs to a formal paired trial')
     if args.numeric_gate and (phase != 'decode' or args.formal_trial):
         parser.error('the numeric gate is an independent paired decode protocol')
+    if args.reuse_checkpoint and (not args.numeric_gate or not args.expected_checkpoint_sha256):
+        parser.error('checkpoint reuse requires numeric-gate pairs with frozen weights')
     if args.formal_trial and phase != 'decode':
         parser.error('formal trial timing requires a solver-selected decode artifact')
     if args.routing_export and (phase != 'decode' or args.formal_trial or
@@ -98,6 +102,8 @@ def main():
         options.append('--private-stream')
     if args.expected_checkpoint_sha256:
         options.extend(('--expected-checkpoint-sha256', args.expected_checkpoint_sha256))
+    if args.reuse_checkpoint:
+        options.append('--reuse-checkpoint')
     stages = {'control': f'tune-{phase}',
               'trial': 'candidate-timing' if args.formal_trial else f'tune-{phase}'}
     stages.update((label, f'tune-{phase}') for label in variants if label not in stages)
@@ -166,6 +172,25 @@ def main():
     partition = os.environ.get('SLURM_JOB_PARTITION')
     if partition not in A800_PARTITIONS:
         parser.error('paired tuning requires the ordinary single-GPU allocation')
+    if args.reuse_checkpoint:
+        from tilemega.serving.random_checkpoint import validate_live_checkpoint
+
+        checkpoint = allocation_checkpoint()
+        inherited = os.environ.get('TILEMEGA_RANDOM_CHECKPOINT')
+        if inherited is None:
+            device = calibrated_device(device_policy(), json.loads(args.target.read_text()))
+            config, _ = inputs(args.model)
+            description = inspect_inputs(INVENTORY)[args.model]
+            command = ['taskset', '--cpu-list', device['cpus'], str(ENVS/'vllm/bin/python'),
+                       '-m', 'tilemega.serving.random_checkpoint', '--config', str(config),
+                       '--out', str(checkpoint), '--seed', '0',
+                       '--max-gib', str(math.ceil(description['checkpoint_bytes']/2**30)),
+                       '--expected-sha256', args.expected_checkpoint_sha256, '--', sys.executable,
+                       str(Path(__file__).resolve()), *sys.argv[1:]]
+            env = dict(os.environ, OMP_NUM_THREADS='2', MKL_NUM_THREADS='2')
+            return subprocess.run(command, env=env, timeout=args.budget_s).returncode
+        if inherited != str(checkpoint) or validate_live_checkpoint(checkpoint)['supervisor_pid'] != os.getppid():
+            raise ValueError('the frozen checkpoint must be owned by this allocation supervisor')
     deadline = time.monotonic() + args.budget_s
     if args.fresh_correctness and not args.numeric_gate:
         for repeat in range(5):
@@ -193,6 +218,8 @@ def main():
         plan.update(numeric_gate='sm90-c1-c2-v1', correctness_processes=5 if args.fresh_correctness else 1)
         if route_arms:
             plan.update(routing_arms=sorted(route_arms), routing_export_sha256=sha(args.routing_export))
+    if args.reuse_checkpoint:
+        plan['checkpoint_supervision'] = 'allocation-sealed'
     write_json(out/'planned.json', plan)
     rounds = []
     rejected = {}

@@ -38,6 +38,8 @@ def plan(folder, fresh_correctness):
             '--budget-s', str(budget), '--process-timeout-s', str(limit)]
     if fresh_correctness:
         args.append('--fresh-correctness')
+        if model == 'qwen3_30b_a3b':
+            args.append('--reuse-checkpoint')
     if control.get('host_preparation'):
         args.extend(('--control-preparation', control['host_preparation']))
     for row in candidates:
