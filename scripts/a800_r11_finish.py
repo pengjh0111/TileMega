@@ -2,11 +2,14 @@
 """Bind eligible phase winners for the final per-cell comparison against R10."""
 import argparse
 from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
+import subprocess
 
 from a100_baselines import inputs as model_inputs, inspect_inputs, sha
 from a800_baselines import INVENTORY
 from a800_native import artifact
+from a800_r10_prepare import build, schema10
 from a800_r11_collect_round import collect
 from a800_r11_gate import read
 from a800_r11_prepare import router_changed
@@ -61,13 +64,77 @@ def select(waves, runs, inputs):
     return cells
 
 
-def bind(out, incumbent, phases):
+MISSING = object()
+
+
+def combine(control, variants):
+    base = schema10(deepcopy(control))
+    merged = deepcopy(base)
+    for variant in variants:
+        trial = schema10(deepcopy(variant))
+        for domain in (None, 'gemms'):
+            old, new, destination = ((base, trial, merged) if domain is None else
+                                     (base[domain], trial[domain], merged[domain]))
+            for key in sorted(old.keys() | new.keys()):
+                if domain is None and key == 'gemms':
+                    continue
+                before, after = old.get(key, MISSING), new.get(key, MISSING)
+                if before == after:
+                    continue
+                current = destination.get(key, MISSING)
+                if current != before and current != after:
+                    raise ValueError(f'overlapping coordinate edits at {domain+"." if domain else ""}{key}')
+                if after is MISSING:
+                    destination.pop(key, None)
+                else:
+                    destination[key] = deepcopy(after)
+    return merged
+
+
+def combined_arms(out, control, phases, cli, failures):
+    fixed = {name:row for name,row in phases.items() if name!='pipeline' and row['passed_screen']}
+    solver = phases.get('pipeline')
+    groups = [('combined-fixed', fixed)]
+    if solver and solver['passed_screen']:
+        groups.append(('combined-solver', dict(fixed, pipeline=solver)))
+    for label, members in groups:
+        if len(members)<2:
+            continue
+        try:
+            coords = combine(control['coordinates'], [row['coordinates'] for row in members.values()])
+            if any(coords==schema10(deepcopy(row['coordinates'])) for row in members.values()):
+                continue
+            target = members['pipeline']['target'] if 'pipeline' in members else control['target']
+            args = argparse.Namespace(cli=cli, batch=control['batch'])
+            library = build(args, Path(control['export']), target, out, label, coords)
+            binary, identity, manifest = artifact(library)
+            prefill = () if control['prefill']=='prompt' else (Path(control['prefill']),)
+            packing = binary.with_suffix('.host-preparation.json')
+            config = read(model_inputs(control['model'])[0]/'config.json')
+            freeze_host_preparation(config, control['batch'], (*prefill,binary), packing)
+            target_sha = sha(target)
+            if identity['target_sha256'] != target_sha:
+                raise ValueError('combined artifact changed its bound target')
+            yield dict(label=label, binary=str(binary), binary_sha256=identity['binary_sha256'],
+                       coordinates=manifest['native_dense'], target=target, target_sha256=target_sha,
+                       host_preparation=str(packing), host_preparation_sha256=sha(packing),
+                       route_check=router_changed(control['coordinates'], manifest['native_dense']),
+                       combined_from={name: row['binary_sha256'] for name,row in members.items()})
+        except (OSError,ValueError,subprocess.SubprocessError) as error:
+            failures[label] = str(error)
+
+
+def bind(out, incumbent, phases, cli=None):
     control = read(incumbent)
     chosen = [row for _, row in sorted(phases.items()) if row['passed_screen']]
     if not chosen and 'pipeline' in phases:
         # Retest the best eligible solver finalist against the incumbent even
         # when the first timing found a tie or loss.
         chosen = [phases['pipeline']]
+    out.mkdir(parents=True, exist_ok=True)
+    failures = {}
+    if cli:
+        chosen.extend(combined_arms(out, control, phases, cli, failures))
     rows, seen = [], {control['decode_sha256']}
     for row in chosen:
         digest = row['binary_sha256']
@@ -76,9 +143,8 @@ def bind(out, incumbent, phases):
             rows.append(dict(row, rank=len(rows)+1))
     if not rows:
         raise ValueError('no distinct numeric-gate trial is available for the final paired test')
-    out.mkdir(parents=True, exist_ok=True)
     scope = out/'prior-allocations.json'
-    write_json(scope, phases)
+    write_json(scope, dict(phases=phases, combination_rejections=failures))
     write_json(out/'finalists.json', dict(model=control['model'], batch=control['batch'],
         control=str(incumbent), control_sha256=sha(incumbent), prepared=str(scope),
         prepared_sha256=sha(scope), target=control['target'], target_sha256=control['target_sha256'],
@@ -130,6 +196,7 @@ def main():
     for option in ('waves', 'runs', 'incumbents', 'out'):
         parser.add_argument(f'--{option}', required=True, type=Path)
     parser.add_argument('--legacy', type=Path, help='include revalidated R10 arms in the final comparison')
+    parser.add_argument('--cli', type=Path, help='link compatible combinations of measured winners before retesting')
     args = parser.parse_args()
     inputs = inspect_inputs(INVENTORY)
     cells = select(args.waves, args.runs, inputs)
@@ -139,7 +206,7 @@ def main():
     rejected = {}
     for (model, batch), phases in sorted(cells.items()):
         try:
-            bind(args.out/model/f'B{batch}', args.incumbents/model/f'B{batch}'/'incumbent.json', phases)
+            bind(args.out/model/f'B{batch}', args.incumbents/model/f'B{batch}'/'incumbent.json', phases, args.cli)
         except ValueError as error:
             rejected[f'{model}/B{batch}'] = str(error)
     args.out.mkdir(parents=True, exist_ok=True)
