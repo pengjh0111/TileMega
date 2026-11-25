@@ -84,15 +84,32 @@ def rank_result(prepared, runs, job, inputs):
     return output, identity, differences
 
 
+def recovery_result(spec, runs, inputs):
+    binding = read(spec['finalists'])
+    names = {row['binary_sha256']: row['label'] for row in binding['candidates']}
+    for fact, observation, _ in collect(runs, spec['job'], inputs):
+        yield dict(fact, label=names[fact['decode_sha256']],
+                   measured=observation is not None)
+
+
 def summarize(cells, out, inputs):
     coverage, counts, ranks, bias = [], [], [], defaultdict(list)
+    recoveries = []
     for cell in cells:
         old, new = (audit(Path(cell[f'{round}_coverage']), cell.get(f'{round}_coordinates'))
                     for round in ('r10', 'r11'))
         coverage.append(dict(model=cell['model'], batch=cell['batch'], **new,
                              **{f'r10_{key}': value for key,value in old.items()}))
         if cell.get('job'):
-            rows, count, deviations = rank_result(Path(cell['finalists']), Path(cell['runs']), cell['job'], inputs)
+            runs = Path(cell['runs'])
+            rows, count, deviations = rank_result(Path(cell['finalists']), runs, cell['job'], inputs)
+            recovered = list(recovery_result(cell['recovery'], runs, inputs)) if cell.get('recovery') else []
+            recoveries.extend(recovered)
+            measured = {row['decode_sha256'] for row in rows if row['eligible'] and row['new_candidate']}
+            supplementary = {row['decode_sha256'] for row in recovered if row['measured']} - measured
+            count.update(new_original_candidates_measured=len(measured),
+                         recovered_candidates_measured=len(supplementary),
+                         new_candidates_measured=len(measured | supplementary))
             ranks.extend(rows)
             counts.append(count)
             for key, values in deviations.items():
@@ -108,6 +125,8 @@ def summarize(cells, out, inputs):
                                                for axis in worst)
         write_csv(out/'A800_R11_rank.csv', ranks)
         write_csv(out/'A800_R11_candidates.csv', counts)
+    if recoveries:
+        write_csv(out/'A800_R11_router_recovery.csv', recoveries)
     return dict(coverage_cells=len(coverage), no_modeled_services=sum(row['modeled_services_count']==0 for row in coverage),
                 rank_cells=len(counts), rank1_hits=sum(row['rank1_hit'] is True for row in ranks),
                 four_diverse_finalists=sum(row['finalists']==4 and row['distinct_structural_classes']>=2

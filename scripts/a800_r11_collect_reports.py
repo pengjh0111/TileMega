@@ -17,7 +17,7 @@ from a800_r11_screen import arm_name, arms
 from tilemega.bench.scheduler import write_json
 
 
-def coverage_cells(scope, old, pipeline_jobs):
+def coverage_cells(scope, old, pipeline_jobs, recovery_jobs):
     reference = ROOT/'docs/results/A800_R10_candidates.csv'
     with reference.open(newline='') as stream:
         published = {(row['model'], int(row['batch'])): row for row in csv.DictReader(stream)}
@@ -37,7 +37,7 @@ def coverage_cells(scope, old, pipeline_jobs):
                    r10_coverage=str(old_search/'candidate-coverage.jsonl'),
                    r11_coverage=str(Path(spec['prepared']).parent/'candidate-coverage.jsonl'),
                    r11_coordinates=spec['candidates'][0]['coordinates'],
-                   job=pipeline_jobs.get((model, batch)))
+                   job=pipeline_jobs.get((model, batch)), recovery=recovery_jobs.get((model, batch)))
 
 
 def gate_rows(legacy, inputs):
@@ -68,6 +68,7 @@ def report(scope, legacy, old, out):
     pairs = (completed(waves) if (waves/'accounting.json').exists() else ())
     timings = {}
     pipeline_jobs = {}
+    recovery_jobs = {}
     mainloop_ready = False
     for phase, plan, job in pairs:
         if not (runs/'optimization/decode-pairs'/job/'result.json').exists():
@@ -78,6 +79,9 @@ def report(scope, legacy, old, out):
         if phase == 'pipeline':
             pipeline_jobs[plan['model'], plan['batch']] = job
             continue
+        if phase == 'routerfix':
+            recovery_jobs[plan['model'], plan['batch']] = dict(job=job, finalists=binding)
+            continue
         if phase == 'mainloop':
             mainloop_ready = True
             continue
@@ -87,7 +91,7 @@ def report(scope, legacy, old, out):
                 key = f'{fact["model"]}/B{fact["batch"]}/{arm_names[fact["arm"]]}'
                 timings[key] = fact
 
-    result = summarize(list(coverage_cells(scope, old, pipeline_jobs)), out, inputs)
+    result = summarize(list(coverage_cells(scope, old, pipeline_jobs, recovery_jobs)), out, inputs)
     gate = list(gate_rows(legacy, inputs))
     if gate:
         write_csv(out/'A800_R11_gate.csv', gate)
