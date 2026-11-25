@@ -70,6 +70,28 @@ def measurements(runs, job, spec):
     return arms, roles, rejected
 
 
+def boundary_sass(scope, model, batch, label, probes):
+    fields = dict(control_binary_global_add_sites='', trial_binary_global_add_sites='',
+                  control_sass_sha256='', trial_sass_sha256='')
+    if label != 'whole-output-groups':
+        return fields
+    root = scope.parent/'boundary-sass'
+    path = root/f'{model}-B{batch}.json'
+    if not path.exists() and batch == 1:
+        path = root/f'{model}.json'
+    if not path.exists():
+        return fields
+    proof = read(path)
+    source = {row['arm']: read(row['trace_plan'])['original_sha256']
+              for row in probes if row['arm'] in ('control', label)}
+    if any(source.get(arm) != proof[arm]['binary_sha256'] for arm in ('control', label)):
+        return fields
+    return dict(control_binary_global_add_sites=proof['control']['add_sites'],
+                trial_binary_global_add_sites=proof[label]['add_sites'],
+                control_sass_sha256=proof['control']['sass_sha256'],
+                trial_sass_sha256=proof[label]['sass_sha256'])
+
+
 def collect(runs, scope, timings, out):
     tables, retry = defaultdict(list), []
     for job, spec in trace_cases(scope):
@@ -98,6 +120,7 @@ def collect(runs, scope, timings, out):
                 continue
             if label == 'control' or 'control' not in arms:
                 continue
+            sass = boundary_sass(scope, *key, label, spec['probes'])
             for stage in ('qkv', 'o', 'down'):
                 if stage not in stages or stage not in arms['control']:
                     continue
@@ -113,7 +136,7 @@ def collect(runs, scope, timings, out):
                     predicted_saving_ns=320, tpot_ms=performance.get('tpot_ms',''),
                     paired_improvement_pct=performance.get('improvement_pct',''),
                     fresh_pass_rate=performance.get('pass_rate',''),
-                    outcome=performance.get('status',''), evidence=after['trace_sha256'], **values))
+                    outcome=performance.get('status',''), evidence=after['trace_sha256'], **values, **sass))
     out.mkdir(parents=True, exist_ok=True)
     for name, rows in tables.items():
         write_csv(out/f'A800_R11_{name}.csv', rows)

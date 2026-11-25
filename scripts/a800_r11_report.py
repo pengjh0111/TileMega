@@ -115,6 +115,13 @@ def report(matrix, reports, calibration, sm90):
         if targets < len(whole):
             lines.append('**inferred** 整输出发布按已完成的 tile 累计到达量。'
                          '后继仍依赖全部输出，最后一批 tile 的完成和全局等待依然处于关键路径。')
+        sass = {(r['model'],r['batch']): (r['control_binary_global_add_sites'],r['trial_binary_global_add_sites'])
+                for r in whole if r.get('control_binary_global_add_sites')}
+        if sass:
+            lines.append('**verified** 下表统计实际关联的完整内核二进制中 64 位 GPU 全局加法的静态指令位置。'
+                         '边界 CSV 同时保留两份反汇编的 SHA-256。')
+            table(lines, ('模型','B','控制臂位置数','实验臂位置数'),
+                  [(model,batch,*counts) for (model,batch),counts in sorted(sass.items())])
 
     qwen = [row for row in rows(reports/'A800_R11_qwen3.csv') if row['stage'] in ('router','o')]
     lines.extend(['## R11-5 Qwen3-30B-A3B', '', '**verified** 阶段记录分别统计 CTA 同阶段重叠和相邻阶段重叠。'])
