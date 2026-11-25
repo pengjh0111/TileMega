@@ -13,6 +13,7 @@ from a800_r11_finish import completed
 from a800_r11_gate import read
 from a800_r11_mainloop import make as mainloop_rows, role_evidence
 from a800_r11_rank_coverage import summarize
+from a800_r11_screen import arm_name, arms
 from tilemega.bench.scheduler import write_json
 
 
@@ -80,11 +81,11 @@ def report(scope, legacy, old, out):
         if phase == 'mainloop':
             mainloop_ready = True
             continue
-        arm_names = {('trial' if row['rank']==1 else f'rank-{row["rank"]}'):row['label']
-                     for row in read(binding)['candidates']}
+        arm_names = {arm_name(row['rank']): row['label'] for row in arms(read(binding), phase)}
         for fact, _, _ in collect(runs, job, inputs):
-            key = f'{fact["model"]}/B{fact["batch"]}/{arm_names[fact["arm"]]}'
-            timings[key] = fact
+            if fact['arm'] in arm_names:
+                key = f'{fact["model"]}/B{fact["batch"]}/{arm_names[fact["arm"]]}'
+                timings[key] = fact
 
     result = summarize(list(coverage_cells(scope, old, pipeline_jobs)), out, inputs)
     gate = list(gate_rows(legacy, inputs))

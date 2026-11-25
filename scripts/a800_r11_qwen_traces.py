@@ -11,6 +11,7 @@ from a800_baselines import INVENTORY
 from a800_r11_collect_round import collect
 from a800_r11_finish import completed
 from a800_r11_gate import read
+from a800_r11_screen import arm_name, arms
 from tilemega.bench.scheduler import write_json
 
 
@@ -18,7 +19,7 @@ def selected_arms(candidates, facts):
     eligible = {fact['arm']: fact for fact in facts if fact['pass']}
     families = {}
     for row in candidates:
-        arm = 'trial' if row['rank'] == 1 else f'rank-{row["rank"]}'
+        arm = arm_name(row['rank'])
         if arm not in eligible:
             continue
         fact = eligible[arm]
@@ -146,8 +147,13 @@ def main():
         manifest = Path(plan['finalists'])
         if sha(manifest) != plan['finalists_sha256']:
             raise ValueError('the completed Qwen binding changed')
-        facts = [fact for fact, _, _ in collect(args.runs, job, inputs)]
-        print(prepare(args.root, args.lock, folder, read(manifest), facts, job), flush=True)
+        binding = read(manifest)
+        candidates = arms(binding, 'qwen')
+        names = {arm_name(row['rank']) for row in candidates}
+        facts = [fact for fact, _, _ in collect(args.runs, job, inputs) if fact['arm'] in names]
+        if facts:
+            print(prepare(args.root, args.lock, folder, dict(binding, candidates=candidates), facts, job),
+                  flush=True)
 
 
 if __name__ == '__main__':

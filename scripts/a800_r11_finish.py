@@ -13,6 +13,7 @@ from a800_r10_prepare import build, schema10
 from a800_r11_collect_round import collect
 from a800_r11_gate import read
 from a800_r11_prepare import router_changed
+from a800_r11_screen import arm_name, arms, plan_binding
 from a800_shortlist_abi import freeze_host_preparation
 from tilemega.bench.scheduler import write_json
 
@@ -30,7 +31,11 @@ def completed(path):
                 continue
             if sha(item['plan']) != item['sha256']:
                 raise ValueError('a measured cell changed its allocation plan')
-            yield ledger.name.split('-')[0], read(item['plan']), outcome['job']
+            plan = read(item['plan'])
+            phase = ledger.name.split('-')[0]
+            phases = plan_binding(plan)['phase_arms'] if phase == 'screen' else (phase,)
+            for name in phases:
+                yield name, plan, outcome['job']
 
 
 def select(waves, runs, inputs):
@@ -41,16 +46,15 @@ def select(waves, runs, inputs):
         folder = runs/'optimization/decode-pairs'/job
         if not (folder/'result.json').exists():
             continue
-        manifest = read(plan['finalists'])
-        if sha(plan['finalists']) != plan['finalists_sha256']:
-            raise ValueError('the measured shortlist changed')
-        named = {('trial' if row['rank'] == 1 else f'rank-{row["rank"]}'): row for row in manifest['candidates']}
-        observations = [(fact, data) for fact, data, _ in collect(runs, job, inputs) if data is not None]
+        manifest = plan_binding(plan)
+        named = {arm_name(row['rank']): row for row in arms(manifest, phase)}
+        observations = [fact for fact, data, _ in collect(runs, job, inputs)
+                        if data is not None and fact['arm'] in named]
         if not observations:
             continue
         # Ranking here only compares arms in this allocation. The surviving
         # arms from different phases will meet in the final single-GPU job.
-        fact, _ = min(observations, key=lambda pair: pair[0]['tpot_ms'])
+        fact = min(observations, key=lambda row: row['tpot_ms'])
         chosen = named[fact['arm']]
         if chosen['binary_sha256'] != fact['decode_sha256']:
             raise ValueError('the surviving trial differs from the measured binary')

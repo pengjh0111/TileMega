@@ -13,6 +13,7 @@ from a800_r11_collect_round import collect
 from a800_r11_diagnostics import trace_cases
 from a800_r11_finish import completed
 from a800_r11_gate import read
+from a800_r11_screen import arm_name, arms
 
 
 def architecture(path, expected):
@@ -69,9 +70,8 @@ def make(path, runs, inputs, roles):
             continue
         document = read(pair['finalists'])
         control = read(document['control'])
-        candidates = {('trial' if row['rank'] == 1 else f'rank-{row["rank"]}'): row
-                      for row in document['candidates']}
-        observed = [fact for fact, _, _ in collect(runs, job, inputs)]
+        candidates = {arm_name(row['rank']): row for row in arms(document, phase)}
+        observed = [fact for fact, _, _ in collect(runs, job, inputs) if fact['arm'] in candidates]
         accepted = [fact for fact in observed if fact['status'] == 'faster']
         winner = min(accepted,key=lambda row:row['tpot_ms'])['arm'] if accepted else 'control'
         control_fact = dict(observed[0], arm='control', tpot_ms=observed[0]['control_tpot_ms'],

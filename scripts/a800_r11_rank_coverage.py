@@ -48,13 +48,11 @@ def rank_result(prepared, runs, job, inputs):
     binding = read(prepared)
     candidates = binding['candidates']
     control = read(binding['control'])['coordinates']
-    measurements = {fact['arm']: fact for fact, _, _ in collect(runs, job, inputs)}
+    measurements = {fact['decode_sha256']: fact for fact, _, _ in collect(runs, job, inputs)}
     output = []
     for candidate in candidates:
         rank = candidate['rank']
-        fact = measurements['trial' if rank == 1 else f'rank-{rank}']
-        if fact['decode_sha256'] != candidate['binary_sha256']:
-            raise ValueError('the measured finalist is not the linked candidate')
+        fact = measurements[candidate['binary_sha256']]
         prediction = candidate['predicted_ns']
         output.append(dict(model=fact['model'], batch=fact['batch'], job=fact['job'], rank=rank,
             structure=candidate['structure'], eligible=fact['pass'], status=fact['status'],
