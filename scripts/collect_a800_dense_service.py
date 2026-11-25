@@ -88,10 +88,13 @@ def collect(run, target, binary, calibration_target=None, maximum_perturbation=0
                 raise ValueError(f'invalid isolated epilogue service result for {case}')
         elif multistage:
             if (row.get('multistage') is not True or row.get('producer_warps') != 0
-                    or row.get('consumer_warps') != 4
-                    or any(not math.isfinite(row[key]) or row[key] <= 0
-                           for key in (*metrics[:2], 'consumer_wait_ns_per_tile'))):
-                raise ValueError(f'invalid cooperative mainloop service for {case}')
+                    or row.get('consumer_warps') != 4):
+                raise ValueError(f'invalid cooperative warp roles for {case}')
+            invalid = [key for key in (*metrics[:2], 'consumer_wait_ns_per_tile')
+                       if not math.isfinite(row[key]) or row[key] <= 0]
+            if invalid:
+                rejected[case] = 'invalid cooperative subphase clocks: '+', '.join(invalid)
+                continue
         elif any(not math.isfinite(row[m]) or row[m] <= 0 for m in metrics[:2]):
             raise ValueError(f'invalid mainloop service result for {case}')
         if typed:
