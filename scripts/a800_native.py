@@ -17,7 +17,7 @@ def allocation_checkpoint():
     job = os.environ['SLURM_JOB_ID']
     if not job.isdecimal():
         raise ValueError('shared checkpoint requires a Slurm job identifier')
-    return RUN/'native-pair-checkpoints'/job
+    return (RUN/'native-pair-checkpoints'/job).resolve()
 
 
 def artifact(path):
