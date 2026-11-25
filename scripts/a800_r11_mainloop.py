@@ -55,10 +55,11 @@ def role_evidence(scope, runs):
             gpu = read(run/'job/physical-device-identity.json')['nvml_uuid']
             devices.add(gpu)
             digest = read(probe['anchor'])['decode_sha256']
-            if digest in samples:
-                raise ValueError('keep one role observation for each linked mainloop arm')
-            samples[digest] = dict(anchor=probe['anchor'], identity=probe['identity'],
-                                   job=job, run=str(run), gpu_uuid=gpu)
+            evidence = samples.setdefault(digest, [])
+            if evidence and str(case.get('retry_of')) != evidence[0]['job']:
+                raise ValueError('bind a repeated role observation to its original job')
+            evidence.append(dict(anchor=probe['anchor'], identity=probe['identity'],
+                                 job=job, run=str(run), gpu_uuid=gpu))
         if len(devices)>1:
             raise ValueError('compared role samples must run in one single-GPU allocation')
     return samples
@@ -84,12 +85,16 @@ def make(path, runs, inputs, roles):
             launch = architecture(binary,digest)
             fields = ('stage','producer_issue_fraction','consumer_wait_fraction',
                       'epilogue_fraction','grid_barrier_fraction','trace_perturbation')
-            role = roles.get(digest)
-            for sample in roles_for(role,digest) or [{}]:
+            accepted_roles = {}
+            for role in roles.get(digest, []):
+                for sample in roles_for(role, digest):
+                    accepted_roles.setdefault(sample['stage'], dict(sample, role_job=role['job'],
+                                              role_gpu_uuid=role['gpu_uuid']))
+            for sample in accepted_roles.values() or [{}]:
                 yield dict(model=fact['model'], batch=fact['batch'], job=job, arm=name, decisive=arm==winner,
                     tpot_ms=fact['tpot_ms'], improvement_pct=fact['improvement_pct'], status=fact['status'],
                     decode_sha256=digest, gpu_uuid=fact['gpu_uuid'],
-                    role_job=role['job'] if sample else '', role_gpu_uuid=role['gpu_uuid'] if sample else '', **launch,
+                    role_job=sample.get('role_job', ''), role_gpu_uuid=sample.get('role_gpu_uuid', ''), **launch,
                     **{field:sample.get(field,'') for field in fields})
 
 
