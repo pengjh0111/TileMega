@@ -48,6 +48,7 @@ def role_evidence(scope, runs):
         if case.get('scope') != 'mainloop':
             continue
         devices = set()
+        parents = {str(case[key]) for key in ('retry_of', 'outage_retry') if key in case}
         for probe in case['probes']:
             run = runs/'calibration/r2-supplement-service'/job/probe['arm']
             if not (run/'job/physical-device-identity.json').is_file():
@@ -56,7 +57,7 @@ def role_evidence(scope, runs):
             devices.add(gpu)
             digest = read(probe['anchor'])['decode_sha256']
             evidence = samples.setdefault(digest, [])
-            if evidence and str(case.get('retry_of')) != evidence[0]['job']:
+            if evidence and not any(row['job'] in parents for row in evidence):
                 raise ValueError('bind a repeated role observation to its original job')
             evidence.append(dict(anchor=probe['anchor'], identity=probe['identity'],
                                  job=job, run=str(run), gpu_uuid=gpu))
