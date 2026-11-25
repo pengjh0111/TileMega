@@ -146,11 +146,19 @@ def report(matrix, reports, calibration, sm90):
         lines.append('**verified** 优先复测保留原路由的备用臂，定价排序仍按原 allocation 核算。'
                      '两批证据分别记录在路由恢复表和候选排名表。')
 
-    winning = {(r['model'],r['batch']):r for r in rows(reports/'A800_R11_mainloop.csv') if r['decisive']=='True'}
+    mainloops = rows(reports/'A800_R11_mainloop.csv')
+    winning = {(r['model'],r['batch']):r for r in mainloops if r['decisive']=='True'}
     lines.extend(['## R11-6 协作流水', '', '**verified** 每格的流水选择依据同卡整模型 TPOT。'])
     table(lines, ('模型','B','作业','所选测试臂','线程数','寄存器数','TPOT ms'),
           [(r['model'],r['batch'],r['job'],r['arm'],r['threads'],r['linked_registers'],r['tpot_ms'])
            for r in winning.values()])
+    single_join = {(r['model'],r['batch'],r['job']):r for r in mainloops
+                   if r['single_join']=='True' and int(r.get('correctness_processes') or 0)>=5}
+    if single_join:
+        lines.append('**verified** 以下单次 CTA 同步实验均运行了至少五个新进程。')
+        table(lines, ('模型','B','作业','C1/C2 通过率','TPOT ms','相对控制臂 TPOT 降幅 %'),
+              [(r['model'],r['batch'],r['job'],r['pass_rate'],r['tpot_ms'],r['improvement_pct'])
+               for r in single_join.values()])
 
     lines.extend(['## R11-7 复测与 SM90 对照', '', '**verified** 使用 `nvcc 12.8.93` 和 `7425a52` 固定配置比较生成源与 cubin。'])
     table(lines, ('模型','产物','R10 SHA-256','R11 SHA-256'), sm90_hashes(sm90))

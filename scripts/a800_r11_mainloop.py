@@ -77,7 +77,8 @@ def make(path, runs, inputs, roles):
         accepted = [fact for fact in observed if fact['status'] == 'faster']
         winner = min(accepted,key=lambda row:row['tpot_ms'])['arm'] if accepted else 'control'
         control_fact = dict(observed[0], arm='control', tpot_ms=observed[0]['control_tpot_ms'],
-                            improvement_pct=0, status='control', decode_sha256=control['decode_sha256'])
+                            improvement_pct=0, status='control', decode_sha256=control['decode_sha256'],
+                            pass_rate='', passed_processes='', processes='')
         for fact in (control_fact,*observed):
             arm = fact['arm']
             digest = fact['decode_sha256']
@@ -95,6 +96,8 @@ def make(path, runs, inputs, roles):
                 yield dict(model=fact['model'], batch=fact['batch'], job=job, arm=name, decisive=arm==winner,
                     tpot_ms=fact['tpot_ms'], improvement_pct=fact['improvement_pct'], status=fact['status'],
                     decode_sha256=digest, gpu_uuid=fact['gpu_uuid'],
+                    pass_rate=fact['pass_rate'], passed_processes=fact['passed_processes'],
+                    correctness_processes=fact['processes'],
                     role_job=sample.get('role_job', ''), role_gpu_uuid=sample.get('role_gpu_uuid', ''), **launch,
                     **{field:sample.get(field,'') for field in fields})
 
