@@ -7,6 +7,7 @@ from pathlib import Path
 from a100_baselines import ROOT, inspect_inputs, sha
 from a100_results import write_csv
 from a800_baselines import INVENTORY
+from a800_native import artifact
 from a800_r11_collect_round import collect
 from a800_r11_diagnostics import collect as collect_stages
 from a800_r11_finish import completed
@@ -59,6 +60,23 @@ def gate_rows(legacy, inputs):
         yield fact
 
 
+def qwen_incumbent_resources(scope):
+    """Bind the resident-CTA memory bound to the R10 Qwen binaries."""
+    for item in sorted((scope/'incumbents/qwen3_30b_a3b').glob('B*/incumbent.json')):
+        anchor = read(item)
+        _, identity, manifest = artifact(Path(anchor['decode']))
+        if (identity['binary_sha256'] != anchor['decode_sha256']
+                or identity['target_sha256'] != anchor['target_sha256']
+                or sha(anchor['target']) != anchor['target_sha256']):
+            raise ValueError('Qwen residency must come from the frozen R10 decode')
+        target = read(anchor['target'])['resources']
+        shared = identity['shared_memory_bytes']
+        yield dict(batch=anchor['batch'], grid=manifest['grid'], num_sms=target['num_sms'],
+                   shared_bytes_per_cta=shared, shared_bytes_per_sm=target['max_smem_per_sm'],
+                   max_ctas_by_shared_memory=target['max_smem_per_sm']//shared,
+                   decode_sha256=anchor['decode_sha256'])
+
+
 def report(scope, legacy, old, out):
     out.mkdir(parents=True, exist_ok=True)
     waves = scope/'campaign-waves'
@@ -96,6 +114,7 @@ def report(scope, legacy, old, out):
     if gate:
         write_csv(out/'A800_R11_gate.csv', gate)
     result.update(legacy_cells=len(gate), legacy_passed=sum(row['pass'] for row in gate))
+    result['qwen_incumbent_resources'] = list(qwen_incumbent_resources(scope))
     has_traces = (trace_scope/'accounting.tsv').exists()
     if has_traces:
         collect_stages(runs, trace_scope, timings, out)

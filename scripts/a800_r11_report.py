@@ -107,6 +107,11 @@ def report(matrix, reports, calibration, sm90):
 
     qwen = [row for row in rows(reports/'A800_R11_qwen3.csv') if row['stage'] in ('router','o')]
     lines.extend(['## R11-5 Qwen3-30B-A3B', '', '**verified** 阶段记录分别统计 CTA 同阶段重叠和相邻阶段重叠。'])
+    incumbents = coverage.get('qwen_incumbent_resources', ())
+    if len(incumbents)==5 and all(row['max_ctas_by_shared_memory']==1 for row in incumbents):
+        shared = [row['shared_bytes_per_cta'] for row in incumbents]
+        lines.append(f'**verified** 五个 R10 Qwen3 配置的二进制每 CTA 保留 {min(shared)}–{max(shared)} 字节共享内存。'
+                     '该设备每 SM 的共享内存只能容纳一个 CTA，因此控制臂同一 SM 上的多 CTA 重叠上限为 0。')
     table(lines, ('B','阶段','测试臂','作业','GB/s','consumer 等待占比','相邻阶段重叠 SM'),
           [(r['batch'],r['stage'],r['arm'],r['job'],r['effective_gbps'],r['consumer_wait_fraction'],
             r['cross_stage_overlap_sms']) for r in qwen])
