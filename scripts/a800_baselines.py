@@ -15,6 +15,7 @@ from tilemega.bench.scheduler import main as schedule, write_json
 RUN = ROOT / 'runs/a800'
 INVENTORY = ROOT.parent / 'TileMega-a100/runs/a100/inventory'
 ENVS = ROOT.parent / 'envs'
+A800_PARTITIONS = ('gpu_a800', 'hp_a800')
 PROBE = 'a800_device_identity'
 CUDA_RESOURCES = dict(num_sms='sm_count', l2_bytes='l2_bytes',
     max_smem_per_sm='shared_memory_per_sm', max_dynamic_smem_per_cta='shared_memory_per_block_optin',
@@ -58,9 +59,9 @@ def mpk_process_budget(budget, requested, policy):
 
 def device_policy():
     job, mask = os.getenv('SLURM_JOB_ID', ''), os.getenv('CUDA_VISIBLE_DEVICES', '')
-    if (not job.isdecimal() or os.getenv('SLURM_JOB_PARTITION') != 'gpu_a800'
+    if (not job.isdecimal() or os.getenv('SLURM_JOB_PARTITION') not in A800_PARTITIONS
             or not mask or ',' in mask or mask in ('-1', 'NoDevFiles')):
-        raise RuntimeError('requires an existing single-GPU gpu_a800 Slurm allocation')
+        raise RuntimeError('requires an existing single-GPU gpu_a800 or hp_a800 Slurm allocation')
     host_proc()
     cuda = probe_cuda()
     if cuda['cuda_visible_count'] != 1 or cuda['compute_capability'] != [8, 0]:

@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from a100_baselines import ROOT, sha
+from a800_baselines import A800_PARTITIONS
 from a800_r10_release import PAIR
 from a800_r11_gate import read
 from tilemega.bench.scheduler import write_json
@@ -76,7 +77,7 @@ def plan(folder, fresh_correctness):
 
 
 def run(ledger, expected):
-    if (os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800' or sha(ledger) != expected):
+    if (os.environ.get('SLURM_JOB_PARTITION') not in A800_PARTITIONS or sha(ledger) != expected):
         raise ValueError('run the frozen ledger on the single-A800 allocation')
     row = read(ledger)['cells'][int(os.environ['SLURM_ARRAY_TASK_ID'])]
     if sha(row['plan']) != row['sha256']:
@@ -93,9 +94,11 @@ def run(ledger, expected):
                           timeout=spec['budget_s']+20).returncode
 
 
-def submit(stem, plans, parallel, launcher, host_root):
+def submit(stem, plans, parallel, launcher, host_root, partitions=('gpu_a800',)):
     if os.environ.get('SLURM_JOB_ID') or parallel < 1:
         raise ValueError('submit from the login node with a positive concurrency cap')
+    if not partitions or len(partitions) != len(set(partitions)) or not set(partitions) <= set(A800_PARTITIONS):
+        raise ValueError('choose one or both of the supported A800 partitions')
     if len({(read(path)['model'], read(path)['batch']) for path in plans}) != len(plans):
         raise ValueError('each model and batch may appear only once in the array')
     stem = stem.resolve()
@@ -114,7 +117,7 @@ def submit(stem, plans, parallel, launcher, host_root):
     if not ledger.exists():
         write_json(ledger, value)
     wall_minutes = (max(read(path)['budget_s'] for path in plans)+179)//60
-    command = ['sbatch', '--parsable', '--partition=gpu_a800', '--gres=gpu:1',
+    command = ['sbatch', '--parsable', f'--partition={",".join(partitions)}', '--gres=gpu:1',
                f'--array=0-{len(plans)-1}%{parallel}', f'--time={wall_minutes}',
                f'--output={stem}-%A_%a.out', *launcher, container(ledger), sha(ledger)]
     previous = dict(command=command, ledger_sha256=sha(ledger))
@@ -141,6 +144,7 @@ def main():
     launch = modes.add_parser('submit')
     launch.add_argument('--stem', type=Path, required=True)
     launch.add_argument('--parallel', type=int, required=True)
+    launch.add_argument('--partition', action='append', choices=A800_PARTITIONS)
     launch.add_argument('--launcher', action='append', required=True,
                         help='scheduler script and optional fixed arguments, in order')
     launch.add_argument('--host-root', type=Path,
@@ -156,7 +160,8 @@ def main():
         print(plan(args.folder.resolve(), args.fresh_correctness))
     else:
         print(submit(args.stem, args.plans, args.parallel, args.launcher,
-                     args.host_root.resolve(strict=True) if args.host_root else None))
+                     args.host_root.resolve(strict=True) if args.host_root else None,
+                     args.partition or ('gpu_a800',)))
     return 0
 
 

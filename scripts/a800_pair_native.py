@@ -12,7 +12,7 @@ import sys
 import time
 
 from a100_baselines import BATCHES, MODELS, ROOT, sha
-from a800_baselines import RUN
+from a800_baselines import A800_PARTITIONS, RUN
 from a800_native import artifact
 from tilemega.bench.scheduler import write_json
 
@@ -163,7 +163,8 @@ def main():
         return 0
 
     job = int(os.environ['SLURM_JOB_ID'])
-    if os.environ.get('SLURM_JOB_PARTITION') != 'gpu_a800':
+    partition = os.environ.get('SLURM_JOB_PARTITION')
+    if partition not in A800_PARTITIONS:
         parser.error('paired tuning requires the ordinary single-GPU allocation')
     deadline = time.monotonic() + args.budget_s
     if args.fresh_correctness and not args.numeric_gate:
@@ -185,7 +186,7 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     order = tuple(variants)
     plan = dict(protocol_version='a800-single-v2', kind='paired_tuning',
-        model=args.model, batch=args.batch, order=order,
+        model=args.model, batch=args.batch, order=order, partition=partition,
         phase=phase, variant_sha256=libraries, shared_sha256='prompt' if prompt_mode else sha(shared_library),
         target_sha256=sha(args.target), targets_sha256={arm:sha(target) for arm,target in targets.items()})
     if args.numeric_gate:
