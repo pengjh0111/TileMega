@@ -38,10 +38,10 @@ def completed(path):
                 yield name, plan, outcome['job']
 
 
-def select(waves, runs, inputs):
+def select(waves, runs, inputs, selected=None):
     cells = defaultdict(dict)
     for phase, plan, job in completed(waves):
-        if phase == 'final':
+        if phase == 'final' or (selected is not None and (plan['model'], plan['batch']) not in selected):
             continue
         folder = runs/'optimization/decode-pairs'/job
         if not (folder/'result.json').exists():
@@ -155,7 +155,7 @@ def bind(out, incumbent, phases, cli=None):
         candidates=rows, routing_export=control['export']))
 
 
-def recovered(legacy, incumbents, preparation, inputs):
+def recovered(legacy, incumbents, preparation, inputs, selected=None):
     runs = legacy.parents[1]
     accounting = read(legacy/'legacy.accounting.json')
     manifest = read(legacy/'legacy.rounds.json')
@@ -167,10 +167,13 @@ def recovered(legacy, incumbents, preparation, inputs):
         if sha(item['binding']) != item['sha256']:
             raise ValueError('the recovered R10 trial changed after submission')
         spec = read(item['binding'])
+        args = spec['args']
+        cell = args[args.index('--model')+1], int(args[args.index('--batch')+1])
+        if selected is not None and cell not in selected:
+            continue
         (fact, timing, _), = collect(runs, job, inputs)
         if timing is None or fact['passed_processes'] != 5:
             continue
-        args = spec['args']
         model, batch = fact['model'], fact['batch']
         control = read(incumbents/model/f'B{batch}'/'incumbent.json')
         path = Path(args[args.index('--trial')+1])
@@ -201,11 +204,14 @@ def main():
         parser.add_argument(f'--{option}', required=True, type=Path)
     parser.add_argument('--legacy', type=Path, help='include revalidated R10 arms in the final comparison')
     parser.add_argument('--cli', type=Path, help='link compatible combinations of measured winners before retesting')
+    parser.add_argument('--cell', nargs=2, metavar=('MODEL', 'BATCH'), action='append',
+                        help='prepare only a cell whose screening allocations are terminal')
     args = parser.parse_args()
     inputs = inspect_inputs(INVENTORY)
-    cells = select(args.waves, args.runs, inputs)
+    selected = None if args.cell is None else {(model,int(batch)) for model,batch in args.cell}
+    cells = select(args.waves, args.runs, inputs, selected)
     if args.legacy:
-        for cell, trial in recovered(args.legacy, args.incumbents, args.out, inputs):
+        for cell, trial in recovered(args.legacy, args.incumbents, args.out, inputs, selected):
             cells[cell]['recovered'] = trial
     rejected = {}
     for (model, batch), phases in sorted(cells.items()):
@@ -213,6 +219,13 @@ def main():
             bind(args.out/model/f'B{batch}', args.incumbents/model/f'B{batch}'/'incumbent.json', phases, args.cli)
         except ValueError as error:
             rejected[f'{model}/B{batch}'] = str(error)
+    if selected is not None:
+        for model,batch in selected:
+            status = args.out/model/f'B{batch}'/'binding-status.json'
+            status.parent.mkdir(parents=True, exist_ok=True)
+            reason = rejected.get(f'{model}/B{batch}', '' if (model,batch) in cells else 'no usable screen result')
+            write_json(status, dict(ready=not reason, reason=reason))
+        return
     args.out.mkdir(parents=True, exist_ok=True)
     write_json(args.out/'final-binding-rejections.json', rejected)
 
