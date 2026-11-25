@@ -114,13 +114,16 @@ def bind(out, phases):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for field in ('scope', 'out', 'release'):
+    for field in ('scope', 'out', 'release', 'worktree'):
         parser.add_argument(f'--{field}', required=True, type=Path)
     args = parser.parse_args()
     if os.environ.get('SLURM_JOB_ID') or os.environ.get('CUDA_VISIBLE_DEVICES') != '':
         parser.error('bind screens on the login node with CUDA devices hidden')
     waves = args.scope/'campaign-waves'
     admitted = set(referenced(waves))
+    launcher_env = dict(os.environ, PYTHONPATH=f'{args.worktree}/python:{args.worktree}/scripts')
+    source = subprocess.check_output(['git', '-C', str(args.worktree), 'rev-parse', 'HEAD'],
+                                     text=True, timeout=20).strip()
     ready = []
     errors = {}
     fixed_ready = (args.scope/'experiments.prepared').exists() and (args.scope/'qwen-router.prepared').exists()
@@ -129,6 +132,8 @@ def main():
         folder = args.out/model/f'B{batch}'
         plan = folder/'finalists.plan.json'
         if plan.exists():
+            if read(plan)['source'] != source:
+                raise ValueError(f'a screen was planned from a different worktree: {plan}')
             ready.append(str(plan))
         elif fixed_ready and ('pipeline' in phases or solver_finished):
             selected = {phase: path for phase, path in phases.items() if path not in admitted}
@@ -136,7 +141,9 @@ def main():
                 try:
                     bind(folder, selected)
                     subprocess.run([sys.executable, str(args.release), 'plan', str(folder)],
-                                   check=True, timeout=220)
+                                   env=launcher_env, check=True, timeout=220)
+                    if read(plan)['source'] != source:
+                        raise ValueError(f'the launcher used a different worktree: {plan}')
                     ready.append(str(plan))
                 except (OSError, ValueError, subprocess.SubprocessError) as error:
                     errors[f'{model}/B{batch}'] = str(error)
