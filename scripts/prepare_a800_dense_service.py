@@ -79,6 +79,9 @@ def main():
         if args.epilogue_clock or args.sample_stride not in (1, 16):
             parser.error('--role-clock requires sparse role sampling')
         args.sample_stride = 16
+    service_cycle_clock = args.multistage and not (args.role_clock or args.width_scan or args.epilogue_clock)
+    if service_cycle_clock and args.sample_stride == 1:
+        args.sample_stride = 16
     if 'lm_head' in args.families and not args.width_scan:
         parser.error('vocabulary head uses the stage-span probe')
     if args.epilogue_clock and any(family not in ('o', 'down') for family in args.families):
@@ -191,6 +194,7 @@ def main():
                *(['-DTILEMEGA_SM80_RESIDUAL_COPY_GROUP=1'] if args.residual_copy else []),
                *(['-DTILEMEGA_SM80_DENSE_EPILOGUE_CLOCK=1'] if args.epilogue_clock else []),
                *(['-DTILEMEGA_SM80_DENSE_ROLE_CLOCK=1'] if args.role_clock else []),
+               *(['-DTILEMEGA_DENSE_SERVICE_CYCLE_CLOCK=1'] if service_cycle_clock else []),
                *(['-DTILEMEGA_DENSE_SERVICE_WIDTH_SCAN=1'] if args.width_scan else []),
                *(['-DTILEMEGA_SM80_PADDED_GATE=1'] if partial_n else []),
                *([f'-DTILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE={args.sample_stride}'] if args.sample_stride>1 else []),

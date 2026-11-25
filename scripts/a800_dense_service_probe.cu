@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#ifdef TILEMEGA_DENSE_SERVICE_CYCLE_CLOCK
+// Reuse the body's cycle timer without adding the role probe's grid barrier.
+#define TILEMEGA_SM80_DENSE_ROLE_CLOCK 1
 #include <tilemega/Backend/Sm90DenseGemm.h>
+#undef TILEMEGA_SM80_DENSE_ROLE_CLOCK
+#else
+#include <tilemega/Backend/Sm90DenseGemm.h>
+#endif
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <chrono>
@@ -16,7 +23,7 @@ using Tick=Sm80DenseService::Tick;
 struct BodySpan {
   Tick begin,end;
   unsigned sm;
-#ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
+#if defined(TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK) || defined(TILEMEGA_DENSE_SERVICE_CYCLE_CLOCK)
   Tick begin_cycles,end_cycles;
 #endif
 #ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
@@ -125,6 +132,9 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
     observed.begin_cycles=Sm80DenseService::Cycles();
 #endif
+#ifdef TILEMEGA_DENSE_SERVICE_CYCLE_CLOCK
+    if constexpr(Probe)if(SampleBlock(blockIdx.x))observed.begin_cycles=Sm80DenseService::Cycles();
+#endif
 #ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
     observed.body_begin_cycles=Sm80DenseService::Cycles();
 #endif
@@ -147,6 +157,9 @@ void Run(Element const* a,Element const* b,Element const* residual,Element* outp
   if(threadIdx.x==0) {
 #ifdef TILEMEGA_SM80_DENSE_EPILOGUE_CLOCK
     observed.end_cycles=Sm80DenseService::Cycles();
+#endif
+#ifdef TILEMEGA_DENSE_SERVICE_CYCLE_CLOCK
+    if constexpr(Probe)if(SampleBlock(blockIdx.x))observed.end_cycles=Sm80DenseService::Cycles();
 #endif
     observed.end=WallTime();
 #ifdef TILEMEGA_SM80_DENSE_ROLE_CLOCK
@@ -414,6 +427,11 @@ int Profile(cudaDeviceProp const& p) {
       consumer_share.push_back(row.consumer_wait/span_cycles);
       epilogue_share.push_back(row.consumer_epilogue/span_cycles);
       barrier_share.push_back(wall.barrier_cycles/span_cycles);
+#elif defined(TILEMEGA_DENSE_SERVICE_CYCLE_CLOCK)
+      auto const& wall=times[block];
+      if(wall.end<=wall.begin || wall.end_cycles<=wall.begin_cycles)
+        throw std::runtime_error("missing cooperative service clock calibration");
+      double rate=double(wall.end_cycles-wall.begin_cycles)/(wall.end-wall.begin);
 #else
       double rate=1.0;
 #endif
@@ -477,6 +495,9 @@ int Profile(cudaDeviceProp const& p) {
     std::printf(",\"padded_n\":%d,\"clipped_output_bitwise_equal\":true",C::kPaddedN);
   if constexpr(TILEMEGA_SM80_MULTISTAGE)
     std::printf(",\"multistage\":true,\"producer_warps\":0,\"consumer_warps\":4");
+#ifdef TILEMEGA_DENSE_SERVICE_CYCLE_CLOCK
+  std::printf(",\"service_clock\":\"sm_clock64\"");
+#endif
   if constexpr(TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE>1)
     std::printf(",\"sample_stride\":%d",TILEMEGA_DENSE_SERVICE_SAMPLE_STRIDE);
   std::printf("}\n");
