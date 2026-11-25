@@ -134,11 +134,12 @@ def main():
     args = parser.parse_args()
     if os.environ.get('SLURM_JOB_ID') or os.environ.get('CUDA_VISIBLE_DEVICES') != '':
         parser.error('prepare stage trace artifacts on the login node without CUDA devices')
-    finished = [(plan, job) for phase, plan, job in completed(args.waves) if phase == 'qwen']
+    finished = [(phase, plan, job) for phase, plan, job in completed(args.waves)
+                if phase in ('qwen', 'qwenout')]
     if not finished:
         return
     inputs = inspect_inputs(INVENTORY)
-    for plan, job in finished:
+    for phase, plan, job in finished:
         if not (args.runs/'optimization/decode-pairs'/job/'result.json').is_file():
             continue
         folder = args.out/plan['model']/f'B{plan["batch"]}-winners-{job}'
@@ -148,7 +149,7 @@ def main():
         if sha(manifest) != plan['finalists_sha256']:
             raise ValueError('the completed Qwen binding changed')
         binding = read(manifest)
-        candidates = arms(binding, 'qwen')
+        candidates = arms(binding, phase)
         names = {arm_name(row['rank']) for row in candidates}
         facts = [fact for fact, _, _ in collect(args.runs, job, inputs) if fact['arm'] in names]
         if facts:
