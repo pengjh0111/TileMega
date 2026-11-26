@@ -89,6 +89,17 @@ def main():
         '', '**Fig. SQ-4.** Midpoint isolated attention stage cost and end-to-end TPOT for the matched attention decision. The rule and noise check are in numbers.json.',
         '', 'The frozen hashes, compact candidate tables, checks and plotting script accompany this report. Full receipts, binaries, generated programs and checkpoint remain in runs/.',
     ]
+    if not n['criteria']['C4_local_vs_global']:
+        iso = next(row for row in s if row['method'] == 'B-iso')
+        if iso['id'] == pred['id']:
+            lines += [
+                '',
+                f'C4 was unmet. B-iso and predicted TileMega both selected {pred["id"]}, '
+                'so their TPOT comparison shows no selection advantage. The matched attention '
+                'pair is a separate comparison at fixed surrounding coordinates.',
+            ]
+        lines += ['', 'The Qwen3-1.7B audit is complete. The Llama-3.1-8B measurement phase '
+                      'was not started because the primary-case review gate was triggered.']
     (CASE / 'report.md').write_text('\n'.join(lines) + '\n')
     shutil.copyfile(ROOT / 'experiments/search_quality_v2/plot.py', CASE / 'plot.py')
     with (CASE / 'progress.md').open('a') as handle:
