@@ -51,3 +51,7 @@ The local comparison scanned 11 matched attention pairs. Reversal outside the re
 **Fig. SQ-4.** Midpoint isolated attention stage cost and end-to-end TPOT for the matched attention decision. The rule and noise check are in numbers.json.
 
 The frozen hashes, compact candidate tables, checks and plotting script accompany this report. Full receipts, binaries, generated programs and checkpoint remain in runs/.
+
+C4 was unmet. B-iso and predicted TileMega both selected e0001, so their TPOT comparison shows no selection advantage. The matched attention pair is a separate comparison at fixed surrounding coordinates.
+
+The Qwen3-1.7B audit is complete. The Llama-3.1-8B measurement phase was not started because the primary-case review gate was triggered.

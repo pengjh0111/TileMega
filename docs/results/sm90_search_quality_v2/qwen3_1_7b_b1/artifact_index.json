@@ -2,8 +2,8 @@
   "raw_run_directory": "/root/TileMega-search-quality-v2/runs/sm90_search_quality_v2/qwen3_1_7b_b1",
   "artifacts": {
     "report.md": {
-      "compact_sha256": "0f5e1148fe09f318664a6f661a8f7b108e0bba96813946250ade0955e8b12ba5",
-      "source_sha256": "0f5e1148fe09f318664a6f661a8f7b108e0bba96813946250ade0955e8b12ba5"
+      "compact_sha256": "d161563eaca4b472cdc696e302fea7708b12e0e7664fede68d22ccb0db64b70d",
+      "source_sha256": "d161563eaca4b472cdc696e302fea7708b12e0e7664fede68d22ccb0db64b70d"
     },
     "deviations.md": {
       "compact_sha256": "fdcc3f685f9601aa4f8556864a54a024ff186a30d0bb71b199a289716f662c0f",
@@ -108,6 +108,10 @@
     "fig_SQ4.pdf": {
       "compact_sha256": "3e6b5081e8a3add7c6cf86a5329933931c16488a35e3c207e512a353c250ec0a",
       "source_sha256": "3e6b5081e8a3add7c6cf86a5329933931c16488a35e3c207e512a353c250ec0a"
+    },
+    "gpu_failover.json": {
+      "compact_sha256": "a4d997df8fcfe8e74122da6185708fdfc7e4cf73e64298f7ba9fce7e1dc4bd32",
+      "source_sha256": "a4d997df8fcfe8e74122da6185708fdfc7e4cf73e64298f7ba9fce7e1dc4bd32"
     }
   }
 }
